@@ -1,16 +1,38 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
+import { ProductCard } from '@/components/product-card';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { categories, products } from '@/constants/products';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function HomeScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number]>('Todos');
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === 'Todos' || product.category === selectedCategory;
+      const matchesQuery =
+        normalizedQuery.length === 0 ||
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [query, selectedCategory]);
+
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
+      headerBackgroundColor={{ light: '#E6F4FE', dark: '#0E1720' }}
       headerImage={
         <Image
           source={require('@/assets/images/partial-react-logo.png')}
@@ -18,61 +40,102 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+        <ThemedText type="title">PlugaíShop</ThemedText>
+        <ThemedText type="defaultSemiBold">
+          Soluções curadas para acelerar a operação e o varejo inteligente.
         </ThemedText>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
+
+      <ThemedView style={styles.heroCard}>
+        <View style={{ flex: 1, gap: 8 }}>
+          <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
+          <ThemedText>
+            Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em
+            minutos.
+          </ThemedText>
+          <Link href="/explore" asChild>
+            <Pressable style={styles.cta}>
+              <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
+            </Pressable>
+          </Link>
+        </View>
+        <Image
+          source={require('@/assets/images/react-logo.png')}
+          style={styles.heroImage}
+          contentFit="contain"
+        />
+      </ThemedView>
+
+      <ThemedView style={styles.searchSection}>
+        <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+        <TextInput
+          placeholder="Buscar por categoria ou produto"
+          placeholderTextColor={colorScheme === 'light' ? '#6B7280' : '#9CA3AF'}
+          value={query}
+          onChangeText={setQuery}
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: colorScheme === 'light' ? '#F3F4F6' : '#111315',
+              borderColor: colorScheme === 'light' ? '#E5E7EB' : '#2A2F38',
+              color: colorScheme === 'light' ? '#111827' : '#F9FAFB',
+            },
+          ]}
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {categories.map((category) => {
+            const isSelected = selectedCategory === category;
+
+            return (
+              <Pressable
+                key={category}
+                onPress={() => setSelectedCategory(category)}
+                style={[styles.chip, isSelected && styles.chipSelected]}>
+                <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                  {category}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </ThemedView>
+
+      <View style={styles.grid}>
+        {filteredProducts.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+        {filteredProducts.length === 0 ? (
+          <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+        ) : null}
+      </View>
+
+      <ThemedView style={styles.tip}>
+        <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
+        <ThemedText>
+          {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
+        </ThemedText>
         <Link href="/modal">
           <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
+            <ThemedText type="link">Abrir menu de ações</ThemedText>
           </Link.Trigger>
           <Link.Preview />
           <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
+            <Link.MenuAction title="Solicitar demo" icon="cube" onPress={() => alert('Demo')} />
             <Link.MenuAction
-              title="Share"
+              title="Compartilhar"
               icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
+              onPress={() => alert('Link copiado')}
             />
-            <Link.Menu title="More" icon="ellipsis">
+            <Link.Menu title="Mais" icon="ellipsis">
               <Link.MenuAction
-                title="Delete"
+                title="Remover"
                 icon="trash"
                 destructive
-                onPress={() => alert('Delete pressed')}
+                onPress={() => alert('Item removido')}
               />
             </Link.Menu>
           </Link.Menu>
         </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
       </ThemedView>
     </ParallaxScrollView>
   );
@@ -80,13 +143,64 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
+    marginBottom: 12,
   },
-  stepContainer: {
+  heroCard: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    backgroundColor: '#E6F4FE',
+    padding: 16,
+    borderRadius: 16,
+  },
+  heroImage: {
+    width: 120,
+    height: 120,
+  },
+  cta: {
+    marginTop: 8,
+    backgroundColor: '#0a7ea4',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  searchSection: {
+    gap: 12,
+    marginTop: 16,
+  },
+  searchInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+  },
+  chipRow: {
+    flexGrow: 0,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#CBD5E1',
+    marginRight: 8,
+  },
+  chipSelected: {
+    backgroundColor: '#0a7ea4',
+    borderColor: '#0a7ea4',
+  },
+  chipSelectedText: {
+    color: '#fff',
+  },
+  grid: {
+    marginTop: 16,
+    gap: 12,
+  },
+  tip: {
     gap: 8,
-    marginBottom: 8,
+    marginTop: 16,
   },
   reactLogo: {
     height: 178,
