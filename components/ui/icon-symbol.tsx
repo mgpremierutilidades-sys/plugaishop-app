@@ -1,21 +1,15 @@
-import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { StyleProp, TextStyle } from "react-native";
 
-export type IconSymbolName = React.ComponentProps<typeof Ionicons>["name"];
+export type IconSymbolName = keyof typeof Ionicons.glyphMap;
 
-export function IconSymbol({
-  name,
-  size = 22,
-  color,
-  style,
-}: {
+export type IconSymbolProps = {
   name: IconSymbolName;
   size?: number;
   color?: string;
   style?: StyleProp<TextStyle>;
-}) {
+};
+
+export function IconSymbol({ name, size = 24, color, style }: IconSymbolProps) {
   return <Ionicons name={name} size={size} color={color} style={style} />;
 }
-
-export default IconSymbol;
