@@ -1,53 +1,175 @@
+// constants/theme.ts
+import type { TextStyle, ViewStyle } from "react-native";
+
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Plugaí Shop – Theme System (2026)
+ * - Default export: theme
+ * - Named exports: Colors, Radius, Spacing, ColorName
+ *
+ * IMPORTANT (project standard):
+ * - Always import theme as default:
+ *   import theme from "../../constants/theme";
  */
 
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
 export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+  // Surfaces
+  background: "#F7F8FA",
+  backgroundSoft: "#EEF1F5",
+  surface: "#FFFFFF",
+  surfaceAlt: "#F1F3F6",
+  divider: "#E6E8EC",
+  border: "#E6E8EC",
+
+  // Brand
+  primary: "#2F6FED",
+  primarySoft: "#E8EEFD",
+  primaryDark: "#1E4FCC",
+
+  // Prices / Success
+  price: "#1FA971",
+  priceStrong: "#15803D",
+  success: "#22C55E",
+  successSoft: "#DCFCE7",
+
+  // Alerts
+  warning: "#F59E0B",
+  warningSoft: "#FEF3C7",
+  danger: "#EF4444",
+  dangerSoft: "#FEE2E2",
+
+  // Text
+  textPrimary: "#0F172A",
+  textSecondary: "#475569",
+  textMuted: "#94A3B8",
+  textStrong: "#0F172A",
+  textSoft: "#475569",
+  text: "#0F172A",
+
+  // Icons / Tabs
+  icon: "#334155",
+  tabIconActive: "#2F6FED",
+  tabIconInactive: "#94A3B8",
+} as const;
+
+export type ColorName = keyof typeof Colors;
+
+export const Radius = {
+  xs: 6,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  pill: 999,
+} as const;
+
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxxl: 48,
+} as const;
+
+type TypographyKey =
+  | "h1"
+  | "h2"
+  | "h3"
+  | "sectionTitle"
+  | "body"
+  | "bodyStrong"
+  | "caption"
+  | "badge"
+  | "priceMain"
+  | "priceOld"
+  | "buttonLabel";
+
+const Typography: Record<TypographyKey, TextStyle> = {
+  h1: {
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+  h2: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.1,
+  },
+  h3: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  body: {
+    fontSize: 16,
+    fontWeight: "400",
+  },
+  bodyStrong: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  caption: {
+    fontSize: 13,
+    fontWeight: "400",
+  },
+  badge: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  priceMain: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.priceStrong,
+  },
+  priceOld: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: Colors.textMuted,
+    textDecorationLine: "line-through",
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+const Shadows: Record<"card", ViewStyle> = {
+  card: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+};
+
+const Layout: Record<"primaryButton", ViewStyle> = {
+  primaryButton: {
+    height: 48,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
   },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+};
+
+const theme = {
+  colors: Colors,
+  spacing: Spacing,
+
+  // Provide BOTH names to avoid runtime errors across legacy components.
+  radius: Radius,
+  radii: Radius,
+
+  typography: Typography,
+  shadows: Shadows,
+  layout: Layout,
+};
+
+export default theme;

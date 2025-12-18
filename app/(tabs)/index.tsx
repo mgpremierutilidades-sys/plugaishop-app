@@ -1,98 +1,139 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { router } from "expo-router";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import AppHeader from "../../components/AppHeader";
+import ProductCard from "../../components/ProductCard";
+import { PRODUCTS } from "../../constants/products";
+import theme from "../../constants/theme";
+import { formatCurrencyBRL } from "../../utils/formatCurrency";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const featured = PRODUCTS.slice(0, 6);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Banner reto (edge-to-edge) */}
+        <View style={styles.bannerWrapper}>
+          <Image
+            source={require("../../assets/banners/banner-home.png")}
+            style={styles.banner}
+            resizeMode="cover"
+          />
+        </View>
+
+        <AppHeader
+          title="Início"
+          subtitle="Ofertas especiais, produtos selecionados e entrega rápida para todo o Brasil."
+        />
+
+        <View style={styles.quickRow}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/explore" as any)}
+            style={styles.quickButton}
+          >
+            <Text style={styles.quickButtonText}>Explorar</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/(tabs)/categories" as any)}
+            style={[styles.quickButton, styles.quickButtonGhost]}
+          >
+            <Text style={[styles.quickButtonText, styles.quickButtonTextGhost]}>
+              Categorias
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Produtos em destaque</Text>
+
+          <FlatList
+            data={featured}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            scrollEnabled={false}
+            columnWrapperStyle={styles.gridRow}
+            contentContainerStyle={styles.grid}
+            renderItem={({ item }) => (
+              <ProductCard
+                title={item.name}
+                price={formatCurrencyBRL(item.price)}
+                oldPrice={
+                  item.oldPrice ? formatCurrencyBRL(item.oldPrice) : undefined
+                }
+                badge={item.badge}
+                installmentText={item.installments}
+                onPress={() => router.push(`/(tabs)/product/${item.id}` as any)}
+                style={styles.gridCard}
+              />
+            )}
+          />
+        </View>
+
+        <View style={{ height: theme.spacing.xl }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  safeArea: { flex: 1, backgroundColor: theme.colors.background },
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxxl,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  bannerWrapper: {
+    marginHorizontal: -theme.spacing.lg,
+    marginTop: 4,
+    marginBottom: theme.spacing.lg,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  banner: { width: "100%", height: 180 },
+
+  quickRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xl,
   },
+  quickButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: theme.radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  quickButtonText: { ...theme.typography.buttonLabel },
+  quickButtonGhost: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  quickButtonTextGhost: { color: theme.colors.primary },
+
+  section: { marginBottom: theme.spacing.xl },
+  sectionTitle: {
+    ...theme.typography.sectionTitle,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.sm,
+  },
+
+  grid: { paddingTop: theme.spacing.sm, gap: theme.spacing.md },
+  gridRow: { justifyContent: "space-between", marginBottom: theme.spacing.md },
+  gridCard: { width: "48%" },
 });
