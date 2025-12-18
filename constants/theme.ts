@@ -1,53 +1,90 @@
+export const Spacing = {
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+} as const;
+
+export const Radius = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  pill: 999,
+} as const;
+
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Mantemos o shape “Colors.light/dark.*” para compatibilidade com arquivos antigos.
  */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: "#0F172A",
+    background: "#F7F8FA",
+    tint: "#16A34A",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#16A34A",
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: "#E5E7EB",
+    background: "#0B1220",
+    tint: "#22C55E",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#22C55E",
   },
-};
+} as const;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+const theme = {
+  colors: {
+    background: "#F7F8FA",
+    backgroundSoft: "#EEF1F5",
+    surface: "#FFFFFF",
+    surfaceAlt: "#F1F3F6",
+    divider: "#E6E8EC",
+    border: "#E6E8EC",
+
+    // textos (inclui aliases)
+    text: "#0F172A",
+    textMuted: "#64748B",
+    textPrimary: "#0F172A",
+    textSecondary: "#64748B",
+
+    primary: "#16A34A",
+    primarySoft: "#DCFCE7",
+
+    success: "#16A34A",
+    successSoft: "#DCFCE7",
+
+    warning: "#F59E0B",
+    warningSoft: "#FEF3C7",
+
+    danger: "#EF4444",
+    dangerSoft: "#FEE2E2",
+
+    tabIconActive: "#16A34A",
+    tabIconInactive: "#94A3B8",
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+
+  spacing: Spacing,
+  radius: Radius,
+
+  typography: {
+    h1: { fontSize: 28, lineHeight: 34, fontWeight: "800" as const },
+    h2: { fontSize: 22, lineHeight: 28, fontWeight: "800" as const },
+    h3: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
+
+    // Alias que o Profile está pedindo:
+    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "800" as const },
+
+    title: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
+    subtitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+    body: { fontSize: 16, lineHeight: 22, fontWeight: "400" as const },
+    bodySmall: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    caption: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
+    button: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
   },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+} as const;
+
+export default theme;

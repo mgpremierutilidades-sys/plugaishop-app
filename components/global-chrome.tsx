@@ -1,31 +1,25 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRouter } from 'expo-router';
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BACK_BUTTON_MARGIN, FOOTER_PADDING, getFooterOffset } from '@/constants/layout';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { BACK_BUTTON_MARGIN, FOOTER_PADDING, getFooterOffset } from "@/constants/layout";
+import theme from "@/constants/theme";
 
 export function GlobalChrome() {
-  const navigation = useNavigation();
-  const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
-  const backgroundColor = useThemeColor({}, 'background');
   const insets = useSafeAreaInsets();
   const footerOffset = getFooterOffset(insets.bottom);
 
   const handleBack = () => {
-    if ('canGoBack' in navigation && typeof navigation.canGoBack === 'function') {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-        return;
-      }
+    const canGoBack =
+      typeof (router as any)?.canGoBack === "function" ? (router as any).canGoBack() : false;
+
+    if (canGoBack) {
+      router.back();
+      return;
     }
 
-    router.replace('/');
+    // Fallback seguro: volta para a área de tabs
+    router.replace("/(tabs)");
   };
 
   return (
@@ -39,52 +33,55 @@ export function GlobalChrome() {
           styles.backButton,
           {
             top: insets.top + BACK_BUTTON_MARGIN,
-            backgroundColor,
-            borderColor: Colors[colorScheme].icon,
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.divider,
           },
-        ]}>
-        <ThemedText style={styles.backLabel}>VOLTAR</ThemedText>
+        ]}
+      >
+        <Text style={styles.backLabel}>VOLTAR</Text>
       </Pressable>
 
-      <ThemedView
+      <View
         accessibilityLabel="Rodapé fixo"
         style={[
           styles.footer,
           {
-            backgroundColor,
+            backgroundColor: theme.colors.surface,
             paddingBottom: FOOTER_PADDING + insets.bottom,
-            borderTopColor: Colors[colorScheme].icon,
+            borderTopColor: theme.colors.divider,
             minHeight: footerOffset,
           },
-        ]}>
-        <ThemedText type="defaultSemiBold">Rodapé fixo</ThemedText>
-        <ThemedText style={styles.footerText}>
+        ]}
+      >
+        <Text style={styles.footerTitle}>Rodapé fixo</Text>
+        <Text style={styles.footerText}>
           Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
-        </ThemedText>
-      </ThemedView>
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 16,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 2,
   },
   backLabel: {
-    fontWeight: '600',
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
@@ -93,7 +90,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 4,
   },
+  footerTitle: {
+    fontWeight: "700",
+  },
   footerText: {
     lineHeight: 18,
+    opacity: 0.8,
   },
 });
