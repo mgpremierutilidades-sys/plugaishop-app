@@ -1,4 +1,4 @@
-import { router, usePathname } from "expo-router";
+import { router, useSegments } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -7,15 +7,14 @@ import theme from "@/constants/theme";
 
 export function GlobalChrome() {
   const insets = useSafeAreaInsets();
-  const pathname = usePathname();
   const footerOffset = getFooterOffset(insets.bottom);
 
-  // Remove o rodapé SOMENTE no Carrinho (rota do Tab)
-  const isCart =
-    pathname === "/(tabs)/cart" ||
-    pathname === "/cart" ||
-    pathname.endsWith("/cart") ||
-    pathname.includes("/(tabs)/cart");
+  // Tipagem do expo-router pode vir como never[] dependendo do setup.
+  // Forçamos para string[] para evitar o erro do TypeScript.
+  const segments = useSegments() as unknown as string[];
+
+  // Ex.: ["(tabs)", "cart"] quando está no carrinho do tab
+  const isCartTab = segments.includes("(tabs)") && segments.includes("cart");
 
   const handleBack = () => {
     const canGoBack =
@@ -45,10 +44,11 @@ export function GlobalChrome() {
           },
         ]}
       >
-        <Text style={styles.backLabel}>VOLTAR</Text>
+        <Text style={[styles.backIcon, { color: theme.colors.text }]}>{"<"}</Text>
       </Pressable>
 
-      {!isCart && (
+      {/* Rodapé global: NÃO renderiza no Carrinho */}
+      {!isCartTab ? (
         <View
           accessibilityLabel="Rodapé fixo"
           style={[
@@ -61,12 +61,12 @@ export function GlobalChrome() {
             },
           ]}
         >
-          <Text style={styles.footerTitle}>Rodapé fixo</Text>
-          <Text style={styles.footerText}>
+          <Text style={[styles.footerTitle, { color: theme.colors.text }]}>Rodapé fixo</Text>
+          <Text style={[styles.footerText, { color: theme.colors.text }]}>
             Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
           </Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -74,9 +74,9 @@ export function GlobalChrome() {
 const styles = StyleSheet.create({
   backButton: {
     position: "absolute",
-    left: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    left: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     shadowColor: "#000",
@@ -85,9 +85,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  backLabel: {
-    fontWeight: "700",
-    letterSpacing: 0.2,
+  backIcon: {
+    fontWeight: "900",
+    fontSize: 18,
+    lineHeight: 18,
   },
   footer: {
     position: "absolute",
@@ -99,11 +100,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: 4,
   },
-  footerTitle: {
-    fontWeight: "700",
-  },
-  footerText: {
-    lineHeight: 18,
-    opacity: 0.8,
-  },
+  footerTitle: { fontWeight: "800" },
+  footerText: { lineHeight: 18, opacity: 0.8 },
 });
