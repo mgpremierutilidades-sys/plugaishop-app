@@ -10,6 +10,9 @@ export type IconSymbolProps = {
   style?: StyleProp<TextStyle>;
 };
 
-export function IconSymbol({ name, size = 24, color, style }: IconSymbolProps) {
+const IconSymbol = ({ name, size = 24, color, style }: IconSymbolProps) => {
   return <Ionicons name={name} size={size} color={color} style={style} />;
-}
+};
+
+export { IconSymbol };
+export default IconSymbol;
