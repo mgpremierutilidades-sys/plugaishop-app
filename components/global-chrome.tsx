@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -7,7 +7,15 @@ import theme from "@/constants/theme";
 
 export function GlobalChrome() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const footerOffset = getFooterOffset(insets.bottom);
+
+  // Remove o rodapé SOMENTE no Carrinho (rota do Tab)
+  const isCart =
+    pathname === "/(tabs)/cart" ||
+    pathname === "/cart" ||
+    pathname.endsWith("/cart") ||
+    pathname.includes("/(tabs)/cart");
 
   const handleBack = () => {
     const canGoBack =
@@ -18,7 +26,6 @@ export function GlobalChrome() {
       return;
     }
 
-    // Fallback seguro: volta para a área de tabs
     router.replace("/(tabs)");
   };
 
@@ -41,23 +48,25 @@ export function GlobalChrome() {
         <Text style={styles.backLabel}>VOLTAR</Text>
       </Pressable>
 
-      <View
-        accessibilityLabel="Rodapé fixo"
-        style={[
-          styles.footer,
-          {
-            backgroundColor: theme.colors.surface,
-            paddingBottom: FOOTER_PADDING + insets.bottom,
-            borderTopColor: theme.colors.divider,
-            minHeight: footerOffset,
-          },
-        ]}
-      >
-        <Text style={styles.footerTitle}>Rodapé fixo</Text>
-        <Text style={styles.footerText}>
-          Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
-        </Text>
-      </View>
+      {!isCart && (
+        <View
+          accessibilityLabel="Rodapé fixo"
+          style={[
+            styles.footer,
+            {
+              backgroundColor: theme.colors.surface,
+              paddingBottom: FOOTER_PADDING + insets.bottom,
+              borderTopColor: theme.colors.divider,
+              minHeight: footerOffset,
+            },
+          ]}
+        >
+          <Text style={styles.footerTitle}>Rodapé fixo</Text>
+          <Text style={styles.footerText}>
+            Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
