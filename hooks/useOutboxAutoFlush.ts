@@ -6,11 +6,13 @@ export function useOutboxAutoFlush() {
     let alive = true;
 
     (async () => {
+      // tentativa inicial
       try {
         await processOutboxOnce();
       } catch {}
     })();
 
+    // loop leve
     const id = setInterval(async () => {
       if (!alive) return;
       try {

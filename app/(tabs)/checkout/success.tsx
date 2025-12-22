@@ -1,5 +1,5 @@
 // app/(tabs)/checkout/success.tsx
-import { useNavigation } from "@react-navigation/native";
+import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -12,14 +12,14 @@ const FONT_BOLD = "OpenSans_700Bold";
 const FONT_TITLE = "Arimo_400Regular";
 
 export default function CheckoutSuccess() {
-  const navigation = useNavigation();
-
   const goOrders = () => {
-    navigation.navigate("orders" as never);
+    router.replace("/(tabs)");
+    router.push("orders");
   };
 
   const goHome = () => {
-    navigation.navigate("index" as never);
+    router.replace("/(tabs)");
+    router.push("index");
   };
 
   return (
@@ -37,21 +37,13 @@ export default function CheckoutSuccess() {
             Você pode acompanhar o status na área de pedidos.
           </ThemedText>
 
-          <Pressable
-            style={styles.primary}
-            onPress={goOrders}
-            accessibilityRole="button"
-          >
+          <Pressable style={styles.primary} onPress={goOrders}>
             <ThemedText style={styles.primaryText}>
               VER MEUS PEDIDOS
             </ThemedText>
           </Pressable>
 
-          <Pressable
-            style={styles.secondary}
-            onPress={goHome}
-            accessibilityRole="button"
-          >
+          <Pressable style={styles.secondary} onPress={goHome}>
             <ThemedText style={styles.secondaryText}>
               VOLTAR AO INÍCIO
             </ThemedText>
