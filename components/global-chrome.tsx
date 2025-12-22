@@ -1,13 +1,21 @@
-import { router } from "expo-router";
+import { router, useSegments } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BACK_BUTTON_MARGIN, FOOTER_PADDING, getFooterOffset } from "@/constants/layout";
-import theme from "@/constants/theme";
+import theme from "../constants/theme";
+
+const BACK_BUTTON_MARGIN = 8;
 
 export function GlobalChrome() {
   const insets = useSafeAreaInsets();
-  const footerOffset = getFooterOffset(insets.bottom);
+
+  // Em alguns setups, o Expo Router tipa segments como never[].
+  // Cast explícito resolve e mantém a verificação funcional.
+  const segments = useSegments() as unknown as string[];
+
+  // Não renderiza nada no fluxo do Carrinho/Checkout (evita botão duplicado e qualquer “rodapé” global).
+  const isInCartFlow = segments.includes("cart") || segments.includes("checkout");
+  if (isInCartFlow) return null;
 
   const handleBack = () => {
     const canGoBack =
@@ -18,7 +26,6 @@ export function GlobalChrome() {
       return;
     }
 
-    // Fallback seguro: volta para a área de tabs
     router.replace("/(tabs)");
   };
 
@@ -38,26 +45,8 @@ export function GlobalChrome() {
           },
         ]}
       >
-        <Text style={styles.backLabel}>VOLTAR</Text>
+        <Text style={styles.backLabel}>‹</Text>
       </Pressable>
-
-      <View
-        accessibilityLabel="Rodapé fixo"
-        style={[
-          styles.footer,
-          {
-            backgroundColor: theme.colors.surface,
-            paddingBottom: FOOTER_PADDING + insets.bottom,
-            borderTopColor: theme.colors.divider,
-            minHeight: footerOffset,
-          },
-        ]}
-      >
-        <Text style={styles.footerTitle}>Rodapé fixo</Text>
-        <Text style={styles.footerText}>
-          Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
-        </Text>
-      </View>
     </View>
   );
 }
@@ -65,11 +54,13 @@ export function GlobalChrome() {
 const styles = StyleSheet.create({
   backButton: {
     position: "absolute",
-    left: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    left: 12,
+    width: 40,
+    height: 40,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
@@ -77,24 +68,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   backLabel: {
+    fontSize: 22,
     fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingTop: FOOTER_PADDING,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  footerTitle: {
-    fontWeight: "700",
-  },
-  footerText: {
-    lineHeight: 18,
-    opacity: 0.8,
+    marginTop: -1,
   },
 });

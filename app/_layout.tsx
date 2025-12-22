@@ -1,41 +1,40 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
+import { Stack } from "expo-router";
+import { useEffect } from "react";
+import { LogBox } from "react-native";
 
-import { GlobalChrome } from '@/components/global-chrome';
-import { ThemedView } from '@/components/themed-view';
-import { getFooterOffset } from '@/constants/layout';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+// Mantém compatibilidade com ErrorBoundary do Expo Router (opcional, mas seguro)
+export { ErrorBoundary } from "expo-router";
 
 export default function RootLayout() {
-  return (
-    <SafeAreaProvider>
-      <RootLayoutNav />
-    </SafeAreaProvider>
-  );
-}
+  useEffect(() => {
+    // Ignore APENAS ruídos conhecidos (não mascara travamentos reais)
+    LogBox.ignoreLogs([
+      "expo-notifications:",
+      "`expo-notifications` functionality is not fully supported in Expo Go",
+      '[Layout children]: No route named',
+      '"chevron-forward" is not a valid icon name',
+      '"chevron.right" is not a valid icon name',
+      "SafeAreaView has been deprecated",
+    ]);
+  }, []);
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-  const insets = useSafeAreaInsets();
-  const footerOffset = getFooterOffset(insets.bottom);
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <ThemedView style={{ flex: 1 }}>
-        <Stack screenOptions={{ contentStyle: { paddingBottom: footerOffset } }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <GlobalChrome />
-      </ThemedView>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+      }}
+    >
+      {/* Rotas reais de topo */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="orders" options={{ headerShown: false }} />
+
+      {/* Modal (se existir app/modal.tsx) */}
+      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+
+      {/* IMPORTANTE:
+         Não declarar "checkout" nem "debug" aqui se não existir rota-pai com _layout.
+         As telas em subpastas funcionam sem registrar aqui. */}
+    </Stack>
   );
 }
