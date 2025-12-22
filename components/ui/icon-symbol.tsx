@@ -4,15 +4,36 @@ import type { StyleProp, TextStyle } from "react-native";
 export type IconSymbolName = keyof typeof Ionicons.glyphMap;
 
 export type IconSymbolProps = {
-  name: IconSymbolName;
+  /** Aceita tanto nomes do Ionicons quanto aliases tipo "chevron.right" */
+  name: string;
   size?: number;
   color?: string;
   style?: StyleProp<TextStyle>;
 };
 
-const IconSymbol = ({ name, size = 24, color, style }: IconSymbolProps) => {
-  return <Ionicons name={name} size={size} color={color} style={style} />;
-};
+function normalizeIoniconName(name: string): IconSymbolName {
+  const n = (name ?? "").trim();
 
-export { IconSymbol };
+  // Compat: padrões comuns (SF Symbols / wrappers / nomes antigos)
+  if (n === "chevron.right" || n === "chevron-right" || n === "chevronRight") return "chevron-forward";
+  if (n === "chevron.left" || n === "chevron-left" || n === "chevronLeft") return "chevron-back";
+  if (n === "chevron.up" || n === "chevron-up" || n === "chevronUp") return "chevron-up";
+  if (n === "chevron.down" || n === "chevron-down" || n === "chevronDown") return "chevron-down";
+
+  if (n === "arrow.left" || n === "arrow-back" || n === "arrowBack") return "arrow-back";
+  if (n === "arrow.right" || n === "arrow-forward" || n === "arrowForward") return "arrow-forward";
+
+  // Se já for um nome válido do Ionicons, mantém
+  const key = n as IconSymbolName;
+  if ((Ionicons as any).glyphMap?.[key]) return key;
+
+  // Fallback seguro
+  return "help-circle-outline";
+}
+
+export function IconSymbol({ name, color = "#111", size = 22, style }: IconSymbolProps) {
+  const iconName = normalizeIoniconName(name);
+  return <Ionicons name={iconName} size={size} color={color} style={style} />;
+}
+
 export default IconSymbol;

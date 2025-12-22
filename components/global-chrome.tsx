@@ -2,19 +2,20 @@ import { router, useSegments } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BACK_BUTTON_MARGIN, FOOTER_PADDING, getFooterOffset } from "@/constants/layout";
-import theme from "@/constants/theme";
+import theme from "../constants/theme";
+
+const BACK_BUTTON_MARGIN = 8;
 
 export function GlobalChrome() {
   const insets = useSafeAreaInsets();
-  const footerOffset = getFooterOffset(insets.bottom);
 
-  // Tipagem do expo-router pode vir como never[] dependendo do setup.
-  // Forçamos para string[] para evitar o erro do TypeScript.
+  // Em alguns setups, o Expo Router tipa segments como never[].
+  // Cast explícito resolve e mantém a verificação funcional.
   const segments = useSegments() as unknown as string[];
 
-  // Ex.: ["(tabs)", "cart"] quando está no carrinho do tab
-  const isCartTab = segments.includes("(tabs)") && segments.includes("cart");
+  // Não renderiza nada no fluxo do Carrinho/Checkout (evita botão duplicado e qualquer “rodapé” global).
+  const isInCartFlow = segments.includes("cart") || segments.includes("checkout");
+  if (isInCartFlow) return null;
 
   const handleBack = () => {
     const canGoBack =
@@ -44,29 +45,8 @@ export function GlobalChrome() {
           },
         ]}
       >
-        <Text style={[styles.backIcon, { color: theme.colors.text }]}>{"<"}</Text>
+        <Text style={styles.backLabel}>‹</Text>
       </Pressable>
-
-      {/* Rodapé global: NÃO renderiza no Carrinho */}
-      {!isCartTab ? (
-        <View
-          accessibilityLabel="Rodapé fixo"
-          style={[
-            styles.footer,
-            {
-              backgroundColor: theme.colors.surface,
-              paddingBottom: FOOTER_PADDING + insets.bottom,
-              borderTopColor: theme.colors.divider,
-              minHeight: footerOffset,
-            },
-          ]}
-        >
-          <Text style={[styles.footerTitle, { color: theme.colors.text }]}>Rodapé fixo</Text>
-          <Text style={[styles.footerText, { color: theme.colors.text }]}>
-            Este rodapé permanece visível em todas as telas para navegação e contexto rápidos.
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -75,31 +55,21 @@ const styles = StyleSheet.create({
   backButton: {
     position: "absolute",
     left: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    width: 40,
+    height: 40,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 2,
   },
-  backIcon: {
-    fontWeight: "900",
-    fontSize: 18,
-    lineHeight: 18,
+  backLabel: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginTop: -1,
   },
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingTop: FOOTER_PADDING,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  footerTitle: { fontWeight: "800" },
-  footerText: { lineHeight: 18, opacity: 0.8 },
 });

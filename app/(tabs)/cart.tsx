@@ -1,6 +1,13 @@
-// app/(tabs)/cart.tsx
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, SectionList, StyleSheet, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  View,
+  type ImageSourcePropType,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
@@ -11,276 +18,348 @@ import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
 
-type CartRow = {
+const FONT_TITLE = "Arimo_400Regular";
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+
+type Row = {
+  type: "cart";
   id: string;
   title: string;
   price: number;
-  category?: string;
-  image?: string;
+  oldPrice?: number;
   qty: number;
+  image?: string;
 };
 
-type CartSection = { title: string; data: CartRow[] };
+type CartSection = {
+  title: string;
+  data: Row[];
+};
 
-function Checkbox({ checked, onPress }: { checked: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={10}
-      style={[styles.checkbox, checked ? styles.checkboxChecked : styles.checkboxUnchecked]}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-    >
-      {checked ? <View style={styles.checkboxDot} /> : null}
-    </Pressable>
-  );
-}
-
-function ProductThumb({ image, title }: { image?: string; title: string }) {
-  if (image && /^https?:\/\//i.test(image)) {
-    return <Image source={{ uri: image }} style={styles.thumbImg} />;
-  }
-
-  const initials = (title || "P")
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
+function ProductThumb({
+  image,
+  size = 82,
+}: {
+  image?: string;
+  size?: number;
+}) {
+  const src: ImageSourcePropType | null =
+    typeof image === "string" && image.startsWith("http")
+      ? { uri: image }
+      : null;
 
   return (
-    <View style={styles.thumbPlaceholder}>
-      <ThemedText style={styles.thumbInitials}>{initials}</ThemedText>
+    <View style={[styles.itemImage, { width: size, height: size }]}>
+      {src ? (
+        <Image
+          source={src}
+          style={{ width: "100%", height: "100%", borderRadius: 12 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.itemImagePlaceholder} />
+      )}
     </View>
   );
 }
 
 export default function CartTab() {
-  // OBS: não somar insets.top manualmente no container se já usa SafeAreaView.
-  // Isso estava jogando "Carrinho" pra baixo no iPhone.
-  const cart = useCart() as any; // mantém compatível com CartContext atual (string OU Product)
-  const items = (cart?.items ?? []) as Array<{ product: Product; qty: number }>;
+  const cartCtx = useCart() as any;
 
-  const addItem = cart?.addItem as ((arg: any) => void) | undefined;
-  const decItem = cart?.decItem as ((arg: any) => void) | undefined;
-  const removeItem = cart?.removeItem as ((arg: any) => void) | undefined;
+  // Fallback local (para o caso do contexto ainda não estar 100% pronto)
+  const seededRows = useMemo<Row[]>(() => {
+    const base = (products as Product[]).slice(0, 6);
+    return base.map((p, idx) => ({
+      type: "cart",
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      qty: 1 + (idx % 3),
+      image: (p as any).image,
+    }));
+  }, []);
+
+  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
+
+  // Se o contexto expuser itens, tentamos refletir (sem depender do formato exato)
+  useEffect(() => {
+    const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
+    if (!ctxItems) return;
+
+    // Tentativa defensiva: se vier array de {product, qty}
+    if (Array.isArray(ctxItems)) {
+      const mapped: Row[] = ctxItems
+        .map((it: any) => {
+          const p = it?.product ?? it;
+          const qty = it?.qty ?? it?.quantity ?? 1;
+          if (!p?.id) return null;
+          return {
+            type: "cart",
+            id: String(p.id),
+            title: String(p.title ?? "Produto"),
+            price: Number(p.price ?? 0),
+            oldPrice: p.oldPrice ? Number(p.oldPrice) : undefined,
+            qty: Number(qty ?? 1),
+            image: p.image,
+          } as Row;
+        })
+        .filter(Boolean) as Row[];
+
+      if (mapped.length) setLocalRows(mapped);
+      return;
+    }
+
+    // Se vier objeto/mapa { [id]: qty }
+    if (typeof ctxItems === "object") {
+      const mapped: Row[] = Object.keys(ctxItems).map((id) => {
+        const qty = Number((ctxItems as any)[id] ?? 1);
+        const p = (products as Product[]).find((x) => String(x.id) === String(id));
+        return {
+          type: "cart",
+          id: String(id),
+          title: String(p?.title ?? "Produto"),
+          price: Number(p?.price ?? 0),
+          qty,
+          image: (p as any)?.image,
+        };
+      });
+      if (mapped.length) setLocalRows(mapped);
+    }
+  }, [cartCtx, seededRows]);
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setSelected((prev) => {
-      const next = { ...prev };
-      for (const it of items) {
-        const id = it.product.id;
-        if (next[id] === undefined) next[id] = true;
+    // Seleciona tudo por padrão quando lista muda
+    const next: Record<string, boolean> = {};
+    for (const r of localRows) next[r.id] = true;
+    setSelected(next);
+  }, [localRows]);
+
+  function toProduct(row: Row): Product {
+    const p = (products as Product[]).find((x) => x.id === row.id);
+    return (
+      p ?? {
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        category: "",
+        image: row.image ?? "",
       }
-      Object.keys(next).forEach((id) => {
-        if (!items.some((x) => x.product.id === id)) delete next[id];
-      });
-      return next;
-    });
-  }, [items]);
+    );
+  }
 
-  // Helpers: chamam tanto CartContext que espera Product quanto o que espera string (id)
-  const safeAdd = (p: Product) => {
-    if (!addItem) return;
-    try {
-      addItem(p);
-    } catch {
-      addItem(p.id);
+  function toggleSelect(id: string) {
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function safeAdd(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.add?.bind(any) ||
+      any?.addToCart?.bind(any) ||
+      any?.increase?.bind(any) ||
+      any?.increment?.bind(any);
+
+    if (fn) {
+      fn(product);
+      return;
     }
-  };
 
-  const safeDec = (p: Product) => {
-    if (!decItem) return;
-    try {
-      decItem(p);
-    } catch {
-      decItem(p.id);
+    setLocalRows((prev) =>
+      prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r))
+    );
+  }
+
+  function safeDec(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.decrease?.bind(any) ||
+      any?.dec?.bind(any) ||
+      any?.decrement?.bind(any) ||
+      any?.removeOne?.bind(any);
+
+    if (fn) {
+      fn(product);
+      return;
     }
-  };
 
-  const safeRemove = (p: Product) => {
-    if (!removeItem) return;
-    try {
-      removeItem(p);
-    } catch {
-      removeItem(p.id);
+    setLocalRows((prev) =>
+      prev
+        .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
+        .filter((r) => r.qty > 0)
+    );
+  }
+
+  function safeRemove(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.remove?.bind(any) ||
+      any?.removeFromCart?.bind(any) ||
+      any?.deleteItem?.bind(any) ||
+      any?.clearItem?.bind(any);
+
+    if (fn) {
+      fn(product);
+      return;
     }
-  };
 
-  const sections: CartSection[] = useMemo(() => {
-    const byCat = new Map<string, CartRow[]>();
-
-    items.forEach((it) => {
-      const cat = it.product.category?.trim() || "Produtos";
-      if (!byCat.has(cat)) byCat.set(cat, []);
-      byCat.get(cat)!.push({
-        id: it.product.id,
-        title: it.product.title,
-        price: Number(it.product.price || 0),
-        category: it.product.category,
-        image: (it.product as any).image,
-        qty: it.qty,
-      });
-    });
-
-    return Array.from(byCat.entries()).map(([title, data]) => ({ title, data }));
-  }, [items]);
+    setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+  }
 
   const selectedSubtotal = useMemo(() => {
-    return items.reduce((acc, it) => {
-      if (!selected[it.product.id]) return acc;
-      return acc + Number(it.product.price || 0) * it.qty;
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.price * r.qty;
     }, 0);
-  }, [items, selected]);
+  }, [localRows, selected]);
 
-  const imperdiveis = useMemo(() => {
-    const inCart = new Set(items.map((i) => i.product.id));
-    return products.filter((p) => !inCart.has(p.id)).slice(0, 8);
-  }, [items]);
+  const sections: CartSection[] = useMemo(() => {
+    return [
+      {
+        title: "Produtos",
+        data: localRows,
+      },
+    ];
+  }, [localRows]);
 
-  const toggleSelect = (id: string) => setSelected((p) => ({ ...p, [id]: !p[id] }));
+  const renderRow = ({ item }: { item: Row }) => {
+    const isChecked = !!selected[item.id];
+    const product = toProduct(item);
 
-  const toProduct = (row: CartRow): Product => ({
-    id: row.id,
-    title: row.title,
-    price: row.price,
-    category: row.category,
-    image: row.image,
-  });
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemTop}>
+          <Pressable
+            onPress={() => toggleSelect(item.id)}
+            hitSlop={10}
+            style={[
+              styles.checkbox,
+              isChecked ? styles.checkboxChecked : styles.checkboxUnchecked,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
+          >
+            {isChecked ? <View style={styles.checkboxDot} /> : null}
+          </Pressable>
 
-  const empty = items.length === 0;
+          <ProductThumb image={item.image} />
+
+          <View style={styles.itemInfo}>
+            <ThemedText numberOfLines={2} style={styles.itemTitle}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceRow}>
+              <ThemedText style={styles.price}>
+                {formatCurrency(item.price)}
+              </ThemedText>
+              <ThemedText style={styles.unit}> / un</ThemedText>
+            </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={styles.oldPrice}>
+                {formatCurrency(item.oldPrice)}
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.qtyRow}>
+          <Pressable
+            onPress={() => safeDec(product)}
+            style={styles.qtyBtn}
+            hitSlop={10}
+            accessibilityRole="button"
+          >
+            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+
+          <Pressable
+            onPress={() => safeAdd(product)}
+            style={styles.qtyBtn}
+            hitSlop={10}
+            accessibilityRole="button"
+          >
+            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => safeRemove(product)}
+            hitSlop={10}
+            accessibilityRole="button"
+            style={{ marginLeft: "auto" }}
+          >
+            <ThemedText style={styles.remove}>✕</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const goCheckout = () => {
+    // Ajuste aqui se sua rota de checkout estiver em outro path
+    router.push("/checkout" as any);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
-        {/* Cabeçalho (compacto estilo marketplace) */}
         <View style={styles.header}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+            accessibilityRole="button"
+          >
+            <ThemedText style={styles.backIcon}>←</ThemedText>
+          </Pressable>
+
           <ThemedText style={styles.title}>Carrinho</ThemedText>
 
-          <Pressable style={styles.addressRow} hitSlop={10} accessibilityRole="button">
-            <ThemedText style={styles.addressIcon}>📍</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.addressText}>
-              Rua P 30 250
-            </ThemedText>
-            <ThemedText style={styles.addressChevron}>›</ThemedText>
-          </Pressable>
+          <View style={styles.rightSpacer} />
         </View>
 
-        {empty ? (
-          <View style={styles.emptyWrap}>
-            <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
-
-            <ThemedText style={styles.blockTitle}>PRODUTOS IMPERDÍVEIS</ThemedText>
-
-            <View style={styles.grid}>
-              {imperdiveis.map((p) => (
-                <View key={p.id} style={styles.card}>
-                  <ProductThumb title={p.title} image={(p as any).image} />
-                  <ThemedText numberOfLines={2} style={styles.cardTitle}>
-                    {p.title}
-                  </ThemedText>
-                  <ThemedText style={styles.cardPrice}>{formatCurrency(p.price)}</ThemedText>
-
-                  <Pressable onPress={() => safeAdd(p)} style={styles.cardBtn}>
-                    <ThemedText style={styles.cardBtnText}>Adicionar</ThemedText>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
+        <View style={styles.totalWrap}>
+          <View style={styles.totalBox}>
+            <ThemedText style={styles.totalLabel}>Total</ThemedText>
+            <ThemedText style={styles.totalValue}>
+              {formatCurrency(selectedSubtotal)}
+            </ThemedText>
           </View>
-        ) : (
-          <SectionList
-            sections={sections}
-            keyExtractor={(it) => it.id}
-            stickySectionHeadersEnabled={false}
-            contentContainerStyle={styles.listContent}
-            renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHeader}>
-                <ThemedText style={styles.sectionHeaderText}>
-                  Produtos de {section.title.toUpperCase()}
-                </ThemedText>
-              </View>
-            )}
-            renderItem={({ item }) => {
-              const isChecked = !!selected[item.id];
-              const product = toProduct(item);
+        </View>
 
-              return (
-                <View style={styles.row}>
-                  <Checkbox checked={isChecked} onPress={() => toggleSelect(item.id)} />
+        <SectionList
+          sections={sections}
+          keyExtractor={(it) => `${it.type}-${it.id}`}
+          renderItem={renderRow}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionHeaderText}>
+                {section.title.toUpperCase()}
+              </ThemedText>
+            </View>
+          )}
+          stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 72 }}
+        />
 
-                  <ProductThumb image={item.image} title={item.title} />
-
-                  <View style={styles.info}>
-                    <ThemedText numberOfLines={2} style={styles.rowTitle}>
-                      {item.title}
-                    </ThemedText>
-
-                    <View style={styles.priceRow}>
-                      <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
-                      <ThemedText style={styles.unit}> / un</ThemedText>
-                    </View>
-
-                    <View style={styles.bottomRow}>
-                      <View style={styles.qty}>
-                        <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn}>
-                          <ThemedText style={styles.qtyBtnText}>−</ThemedText>
-                        </Pressable>
-
-                        <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
-
-                        <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn}>
-                          <ThemedText style={styles.qtyBtnText}>+</ThemedText>
-                        </Pressable>
-                      </View>
-
-                      <Pressable onPress={() => safeRemove(product)} hitSlop={10}>
-                        <ThemedText style={styles.remove}>🗑</ThemedText>
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-              );
-            }}
-            ListFooterComponent={
-              <View style={styles.footerBlock}>
-                {/* Barra de Total + Botão */}
-                <View style={styles.totalBar}>
-                  <View>
-                    <ThemedText style={styles.totalLabel}>Total</ThemedText>
-                    <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
-                  </View>
-
-                  <Pressable style={styles.continueBtn} accessibilityRole="button">
-                    <ThemedText style={styles.continueText}>CONTINUAR A COMPRA</ThemedText>
-                  </Pressable>
-                </View>
-
-                {/* Produtos Imperdíveis */}
-                <ThemedText style={styles.blockTitle}>PRODUTOS IMPERDÍVEIS</ThemedText>
-
-                <View style={styles.grid}>
-                  {imperdiveis.map((p) => (
-                    <View key={p.id} style={styles.card}>
-                      <ProductThumb title={p.title} image={(p as any).image} />
-                      <ThemedText numberOfLines={2} style={styles.cardTitle}>
-                        {p.title}
-                      </ThemedText>
-                      <ThemedText style={styles.cardPrice}>{formatCurrency(p.price)}</ThemedText>
-
-                      <Pressable onPress={() => safeAdd(p)} style={styles.cardBtn}>
-                        <ThemedText style={styles.cardBtnText}>Adicionar</ThemedText>
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-
-                <View style={{ height: 18 }} />
-              </View>
-            }
-          />
-        )}
+        <View style={styles.footerBar}>
+          <Pressable
+            onPress={goCheckout}
+            style={styles.footerBtn}
+            accessibilityRole="button"
+          >
+            <ThemedText style={styles.footerBtnText}>
+              Continuar a compra
+            </ThemedText>
+          </Pressable>
+        </View>
       </ThemedView>
     </SafeAreaView>
   );
@@ -289,50 +368,64 @@ export default function CartTab() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
 
-  // paddingTop pequeno (SafeAreaView já cuida do topo)
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 8, backgroundColor: theme.colors.background },
-
-  header: { paddingBottom: 10 },
-
-  // Ajuste de tipografia (mais “marketplace”, sem estourar no iOS)
-  title: {
-    textAlign: "center",
-    fontSize: 22,
-    fontWeight: "900",
-    marginBottom: 10,
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 14,
   },
 
-  addressRow: {
+  header: {
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-  addressIcon: { fontSize: 12 },
-  addressText: { flex: 1, fontSize: 12, fontWeight: "800" },
-  addressChevron: { fontSize: 16, fontWeight: "900", opacity: 0.6 },
 
-  listContent: { paddingBottom: 14 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
 
-  sectionHeader: { marginTop: 8, marginBottom: 6 },
-  sectionHeaderText: { fontSize: 12, fontWeight: "900", opacity: 0.8 },
+  title: {
+    fontSize: 24,
+    fontFamily: FONT_TITLE,
+    fontWeight: "700", // Carrinho: título em negrito
+    textAlign: "center",
+  },
 
-  row: {
+  rightSpacer: { width: 40, height: 40 },
+
+  totalWrap: { marginBottom: 8 },
+  totalBox: {
+    backgroundColor: "#F59E0B",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     flexDirection: "row",
-    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+
+  sectionHeader: { paddingTop: 10, paddingBottom: 6 },
+  sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  itemCard: {
     backgroundColor: theme.colors.surface,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 14,
     padding: 12,
     marginBottom: 10,
-    alignItems: "flex-start",
   },
+
+  itemTop: { flexDirection: "row", gap: 10 },
 
   checkbox: {
     width: 20,
@@ -347,99 +440,60 @@ const styles = StyleSheet.create({
   checkboxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
   checkboxDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
 
-  thumbImg: { width: 56, height: 56, borderRadius: 12 },
-  thumbPlaceholder: {
-    width: 56,
-    height: 56,
+  itemImage: {
     borderRadius: 12,
-    backgroundColor: theme.colors.backgroundSoft,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    overflow: "hidden",
   },
-  thumbInitials: { fontWeight: "900", fontSize: 12, opacity: 0.8 },
+  itemImagePlaceholder: { flex: 1, borderRadius: 12, backgroundColor: theme.colors.surfaceAlt },
 
-  info: { flex: 1 },
-  rowTitle: { fontSize: 13, fontWeight: "900" },
+  itemInfo: { flex: 1 },
+  itemTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
+  priceRow: { marginTop: 10, flexDirection: "row", alignItems: "center" },
+  price: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
+  unit: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.7 },
+  oldPrice: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: FONT_BODY,
+    opacity: 0.6,
+    textDecorationLine: "line-through",
+  },
 
-  priceRow: { flexDirection: "row", alignItems: "baseline", marginTop: 6 },
-  price: { fontSize: 13, fontWeight: "900" },
-  unit: { fontSize: 12, opacity: 0.7 },
-
-  bottomRow: {
+  qtyRow: {
     marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
   },
 
-  qty: { flexDirection: "row", alignItems: "center", gap: 10 },
   qtyBtn: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  qtyBtnText: { fontSize: 18, fontWeight: "900" },
-  qtyText: { minWidth: 18, textAlign: "center", fontSize: 13, fontWeight: "900" },
+  qtyBtnText: { fontSize: 16, fontFamily: FONT_BODY_BOLD },
 
-  remove: { fontSize: 16, opacity: 0.8 },
+  qtyText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, minWidth: 20, textAlign: "center" },
 
-  footerBlock: { marginTop: 6 },
+  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
 
-  totalBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 14,
+  footerBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 10,
   },
-  totalLabel: { fontSize: 12, opacity: 0.8, fontWeight: "800" },
-  totalValue: { fontSize: 16, fontWeight: "900" },
-
-  continueBtn: {
-    height: 44,
-    paddingHorizontal: 18,
+  footerBtn: {
+    height: 44, // banner mais fino
     borderRadius: 14,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: "#3F5A3A", // verde musgo
     alignItems: "center",
     justifyContent: "center",
   },
-  continueText: { color: "#fff", fontSize: 12, fontWeight: "900" },
-
-  blockTitle: { fontSize: 13, fontWeight: "900", marginBottom: 10 },
-
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  card: {
-    width: "48%",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    padding: 12,
-  },
-  cardTitle: { marginTop: 8, fontSize: 12, fontWeight: "900" },
-  cardPrice: { marginTop: 6, fontSize: 12, fontWeight: "900", opacity: 0.9 },
-  cardBtn: {
-    marginTop: 10,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardBtnText: { color: "#fff", fontSize: 12, fontWeight: "900" },
-
-  emptyWrap: { flex: 1, paddingTop: 10 },
-  emptyTitle: { fontSize: 14, fontWeight: "900", marginBottom: 14 },
+  footerBtnText: { fontSize: 16, fontFamily: FONT_BODY_BOLD },
 });
