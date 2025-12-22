@@ -1,17 +1,21 @@
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
 
 import theme from "../../constants/theme";
 import type { OrderDraft, Payment } from "../../types/order";
-import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 import { createPayment, createPaymentPayload } from "../../utils/paymentBridge";
 
 type Method = Payment["method"];
 
 function Label({ children }: { children: string }) {
-  return <Text style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>{children}</Text>;
+  return (
+    <Text style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>
+      {children}
+    </Text>
+  );
 }
 
 function CardOption({
@@ -38,7 +42,9 @@ function CardOption({
       }}
     >
       <Text style={{ fontSize: 12, fontWeight: "bold" }}>{title}</Text>
-      <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>{subtitle}</Text>
+      <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+        {subtitle}
+      </Text>
     </Pressable>
   );
 }
@@ -49,7 +55,9 @@ export default function PaymentScreen() {
 
   // mock card fields
   const [cardNumber, setCardNumber] = useState("");
-  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">("other");
+  const [cardBrand, setCardBrand] = useState<
+    "visa" | "mastercard" | "elo" | "amex" | "other"
+  >("other");
 
   useEffect(() => {
     (async () => {
@@ -63,7 +71,7 @@ export default function PaymentScreen() {
 
   const canContinue = useMemo(() => {
     if (!draft) return false;
-    if (method === "card") return cardNumber.replace(/\D/g, "").length >= 12; // mock mínimo
+    if (method === "card") return cardNumber.replace(/\D/g, "").length >= 12;
     return true;
   }, [draft, method, cardNumber]);
 
@@ -72,21 +80,27 @@ export default function PaymentScreen() {
 
     const payment = createPayment(method);
 
-    // payload mock (útil para log/integração futura)
+    // payload mock (útil para integração futura)
     const last4 = cardNumber.replace(/\D/g, "").slice(-4);
     const payload =
       method === "card"
         ? createPaymentPayload("card", { last4, brand: cardBrand })
         : createPaymentPayload(method);
 
-    const next = patchOrderDraft(draft, {
-      payment,
-      // opcional: você pode guardar payload em outro lugar depois (Orders/Back-end)
-    });
+    // Se quiser guardar payload depois, nós plugaríamos aqui (Orders/export/outbox).
+    void payload;
+
+    const next = patchOrderDraft(draft, { payment });
 
     await saveOrderDraft(next);
 
-    // segue para revisão
+    // ✅ Pix vai para tela Pix (QR/cópia/expiração)
+    if (method === "pix") {
+      router.push("/checkout/pix");
+      return;
+    }
+
+    // ✅ demais métodos seguem para revisão
     router.push("/checkout/review");
   }
 
@@ -146,27 +160,36 @@ export default function PaymentScreen() {
 
           <Label>Bandeira (mock)</Label>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            {(["visa", "mastercard", "elo", "amex", "other"] as const).map((b) => {
-              const active = cardBrand === b;
-              return (
-                <Pressable
-                  key={b}
-                  onPress={() => setCardBrand(b)}
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: active ? theme.colors.primary : theme.colors.divider,
-                    backgroundColor: theme.colors.surface,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: active ? "bold" : "normal" }}>
-                    {b.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {(["visa", "mastercard", "elo", "amex", "other"] as const).map(
+              (b) => {
+                const active = cardBrand === b;
+                return (
+                  <Pressable
+                    key={b}
+                    onPress={() => setCardBrand(b)}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: active
+                        ? theme.colors.primary
+                        : theme.colors.divider,
+                      backgroundColor: theme.colors.surface,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: active ? "bold" : "normal",
+                      }}
+                    >
+                      {b.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
           </View>
         </View>
       ) : null}

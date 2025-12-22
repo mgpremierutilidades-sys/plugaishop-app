@@ -1,3 +1,4 @@
+import type { Href } from "expo-router";
 import type { OrderDraft } from "../types/order";
 
 export type CheckoutStep = "address" | "shipping" | "payment" | "review";
@@ -16,16 +17,14 @@ export function getNextCheckoutStep(draft: OrderDraft | null): CheckoutStep {
   return "review";
 }
 
-export function stepToRoute(step: CheckoutStep): string {
-  switch (step) {
-    case "address":
-      return "/checkout/address";
-    case "shipping":
-      return "/checkout/shipping";
-    case "payment":
-      return "/checkout/payment";
-    case "review":
-    default:
-      return "/checkout/review";
-  }
+// ✅ rotas literais (tipadas) para Expo Router
+const ROUTES = {
+  address: "/checkout/address",
+  shipping: "/checkout/shipping",
+  payment: "/checkout/payment",
+  review: "/checkout/review",
+} as const;
+
+export function stepToRoute(step: CheckoutStep): Href {
+  return ROUTES[step] as unknown as Href;
 }
