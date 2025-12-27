@@ -13,13 +13,13 @@ const FONT_TITLE = "Arimo_400Regular";
 
 export default function CheckoutSuccess() {
   const goOrders = () => {
-    router.replace("/(tabs)");
-    router.push("orders");
+    router.replace("/(tabs)" as any);
+    router.push("/orders" as any);
   };
 
   const goHome = () => {
-    router.replace("/(tabs)");
-    router.push("index");
+    router.replace("/(tabs)" as any);
+    router.push("/(tabs)" as any);
   };
 
   return (
@@ -28,25 +28,18 @@ export default function CheckoutSuccess() {
         <View style={styles.center}>
           <ThemedText style={styles.icon}>✅</ThemedText>
 
-          <ThemedText style={styles.title}>
-            Pedido confirmado!
-          </ThemedText>
+          <ThemedText style={styles.title}>Pedido confirmado!</ThemedText>
 
           <ThemedText style={styles.text}>
-            Seu pedido foi realizado com sucesso.
-            Você pode acompanhar o status na área de pedidos.
+            Seu pedido foi realizado com sucesso. Você pode acompanhar o status na área de pedidos.
           </ThemedText>
 
           <Pressable style={styles.primary} onPress={goOrders}>
-            <ThemedText style={styles.primaryText}>
-              VER MEUS PEDIDOS
-            </ThemedText>
+            <ThemedText style={styles.primaryText}>VER MEUS PEDIDOS</ThemedText>
           </Pressable>
 
           <Pressable style={styles.secondary} onPress={goHome}>
-            <ThemedText style={styles.secondaryText}>
-              VOLTAR AO INÍCIO
-            </ThemedText>
+            <ThemedText style={styles.secondaryText}>VOLTAR AO INÍCIO</ThemedText>
           </Pressable>
         </View>
       </ThemedView>
