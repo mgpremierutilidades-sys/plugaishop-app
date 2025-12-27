@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { LogBox } from "react-native";
@@ -31,10 +32,6 @@ export default function RootLayout() {
 
       {/* Modal (se existir app/modal.tsx) */}
       <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-
-      {/* IMPORTANTE:
-         Não declarar "checkout" nem "debug" aqui se não existir rota-pai com _layout.
-         As telas em subpastas funcionam sem registrar aqui. */}
     </Stack>
   );
 }

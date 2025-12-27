@@ -1,13 +1,19 @@
-import type { Order, OrderStatus } from "../types/order";
+import type { Order } from "../types/order";
+import type { OrderStatus } from "../types/orderStatus";
+
 import { notifyLocal } from "./notifications";
 import { getLastNotifiedStatus, setLastNotifiedStatus } from "./orderNotificationStorage";
 
 function statusLabel(status: OrderStatus) {
   switch (status) {
-    case "processing":
-      return "Processando";
+    case "created":
+      return "Pedido criado";
+    case "payment_pending":
+      return "Aguardando pagamento";
     case "paid":
       return "Pagamento aprovado";
+    case "processing":
+      return "Processando";
     case "shipped":
       return "Enviado";
     case "delivered":

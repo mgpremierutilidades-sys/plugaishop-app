@@ -1,7 +1,9 @@
+// utils/orderTimelineAuto.ts
 import type { Order } from "../types/order";
-import type { OrderStatus } from "../types/orderStatus";
+import type { OrderStatus, OrderTimelineEvent } from "../types/orderStatus";
 
 const FLOW: OrderStatus[] = [
+  "created",
   "payment_pending",
   "paid",
   "processing",
@@ -9,26 +11,31 @@ const FLOW: OrderStatus[] = [
   "delivered",
 ];
 
-export function evolveOrderTimeline(order: Order): Order {
-  const last = order.timeline[order.timeline.length - 1];
-  const idx = FLOW.indexOf(last.status);
-
-  if (idx === -1 || idx === FLOW.length - 1) {
+export function advanceMockStatus(order: Order): Order {
+  if (order.status === "delivered" || order.status === "canceled") {
     return order;
   }
 
+  const idx = FLOW.indexOf(order.status);
+  if (idx < 0) return order;
+
   const nextStatus = FLOW[idx + 1];
+  if (!nextStatus) return order;
+
   const now = new Date().toISOString();
+  const timeline = Array.isArray((order as any).timeline)
+    ? (order as any).timeline
+    : [];
 
   return {
     ...order,
     status: nextStatus,
     timeline: [
-      ...order.timeline,
+      ...timeline,
       {
         status: nextStatus,
         date: now,
-      },
+      } as OrderTimelineEvent,
     ],
   };
 }

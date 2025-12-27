@@ -1,4 +1,5 @@
 import type { CartItem } from "../context/CartContext";
+import type { OrderStatus, OrderTimelineEvent } from "./orderStatus";
 
 export type Address = {
   id: string;
@@ -33,20 +34,22 @@ export type OrderDraft = {
   createdAt: string;
 };
 
-export type OrderStatus =
-  | "processing"
-  | "paid"
-  | "shipped"
-  | "delivered"
-  | "canceled";
-
-export type OrderStatusEvent = {
-  status: OrderStatus;
-  at: string; // ISO
-  label: string;
-};
-
+/**
+ * Pedido final (já "criado" no sistema).
+ * Importante: NÃO redefinir OrderStatus aqui.
+ * Ele vem de ./orderStatus (fonte única).
+ */
 export type Order = OrderDraft & {
   status: OrderStatus;
-  statusHistory: OrderStatusEvent[];
+
+  /**
+   * Linha do tempo do pedido (o seu orderTimelineAuto depende disso).
+   */
+  timeline: OrderTimelineEvent[];
+
+  /**
+   * Contador simples para badge/alertas (se você quiser usar).
+   * Pode manter opcional sem quebrar nada.
+   */
+  unreadNotifications?: number;
 };
