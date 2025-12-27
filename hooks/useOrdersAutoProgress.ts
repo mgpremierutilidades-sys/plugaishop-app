@@ -1,26 +1,49 @@
+// hooks/useOrdersAutoProgress.ts
 import { useEffect } from "react";
 
-import { listOrders, updateOrder } from "../utils/ordersStorage";
-import { notifyIfOrderStatusChanged } from "../utils/orderNotifier";
-import { advanceMockStatus } from "../utils/orderStatus";
+import type { Order } from "../types/order";
+import { advanceMockStatus } from "../utils/orderTimelineAuto";
+import { listOrders, saveOrders } from "../utils/ordersStore";
 
 export function useOrdersAutoProgress() {
   useEffect(() => {
-    (async () => {
-      const orders = await listOrders();
+    let alive = true;
 
-      for (const order of orders) {
-        // Mock: avança um estágio por abertura (se quiser mais lento depois, ajustamos por tempo)
-        const updated = advanceMockStatus(order);
+    const tick = async () => {
+      try {
+        const raw = await listOrders();
 
-        if (updated.status !== order.status) {
-          await updateOrder(updated);
-          await notifyIfOrderStatusChanged(updated);
-        } else {
-          // Mesmo sem avanço, garante que não vai notificar repetido
-          await notifyIfOrderStatusChanged(order);
+        // Normaliza tipagem para usar SEMPRE os tipos do /types
+        const orders = raw as unknown as Order[];
+
+        let changed = false;
+
+        const nextOrders = orders.map((o) => {
+          const next = advanceMockStatus(o);
+          if (next.status !== o.status) changed = true;
+          return next;
+        });
+
+        if (alive && changed) {
+          // ordersStore pode estar tipado com "Order" próprio; mantemos compatível
+          await saveOrders(nextOrders as unknown as any);
         }
+      } catch {
+        // silencioso: hook não pode derrubar a tela
       }
-    })();
+    };
+
+    // roda uma vez ao montar
+    tick();
+
+    // e repete periodicamente (leve)
+    const id = setInterval(tick, 12_000);
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 }
+
+export default useOrdersAutoProgress;

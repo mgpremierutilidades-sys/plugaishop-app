@@ -1,117 +1,206 @@
 // app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
+import { useCallback } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
-import theme from "../../../constants/theme";
+import theme, { Radius, Spacing } from "../../../constants/theme";
+import { useCart } from "../../../context/CartContext";
+import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
-const FONT_BODY = "OpenSans_400Regular";
-const FONT_BOLD = "OpenSans_700Bold";
-const FONT_TITLE = "Arimo_400Regular";
+function normalizeCartItems(cartAny: any) {
+  const raw =
+    cartAny?.items ??
+    cartAny?.cartItems ??
+    cartAny?.cart ??
+    cartAny?.products ??
+    [];
 
-export default function CheckoutSuccess() {
-  const goOrders = () => {
-    router.replace("/(tabs)");
-    router.push("orders");
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((it) => {
+      const product = it?.product ?? it?.item ?? it;
+      const productId = product?.id ?? it?.productId ?? it?.id;
+      const title = product?.title ?? it?.title ?? "Produto";
+      const price = product?.price ?? it?.price ?? 0;
+      const qty = it?.qty ?? it?.quantity ?? 1;
+
+      if (productId == null) return null;
+
+      return {
+        productId: String(productId),
+        title: String(title),
+        price: Number(price ?? 0),
+        qty: Math.max(1, Number(qty ?? 1)),
+      };
+    })
+    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+}
+
+export default function CheckoutSuccessScreen() {
+  const cartAny = useCart() as any;
+
+  const clearCart = useCallback(() => {
+    if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
+    else if (typeof cartAny?.clear === "function") cartAny.clear();
+    else if (typeof cartAny?.reset === "function") cartAny.reset();
+  }, [cartAny]);
+
+  const generateOrder = useCallback(async () => {
+    const items = normalizeCartItems(cartAny);
+
+    if (!items.length) {
+      return null;
+    }
+
+    const order = createOrderFromCart({
+      items,
+      discount: 0,
+      shipping: 0,
+      status: "Confirmado",
+    });
+
+    await addOrder(order);
+    return order;
+  }, [cartAny]);
+
+  const goOrders = () => router.push("/orders" as any);
+  const goHome = () => router.push("/(tabs)" as any);
+
+  const goToLatestOrder = async () => {
+    const order = await generateOrder();
+    clearCart();
+
+    if (order?.id) {
+      router.push(`/orders/${order.id}` as any);
+      return;
+    }
+
+    Alert.alert("Pedido", "Seu pedido foi confirmado.");
+    goOrders();
   };
 
-  const goHome = () => {
-    router.replace("/(tabs)");
-    router.push("index");
+  const justGoOrders = async () => {
+    await generateOrder();
+    clearCart();
+    goOrders();
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
-        <View style={styles.center}>
-          <ThemedText style={styles.icon}>✅</ThemedText>
-
-          <ThemedText style={styles.title}>
-            Pedido confirmado!
-          </ThemedText>
-
-          <ThemedText style={styles.text}>
-            Seu pedido foi realizado com sucesso.
-            Você pode acompanhar o status na área de pedidos.
-          </ThemedText>
-
-          <Pressable style={styles.primary} onPress={goOrders}>
-            <ThemedText style={styles.primaryText}>
-              VER MEUS PEDIDOS
-            </ThemedText>
+        <View style={styles.topbar}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
 
-          <Pressable style={styles.secondary} onPress={goHome}>
-            <ThemedText style={styles.secondaryText}>
-              VOLTAR AO INÍCIO
-            </ThemedText>
-          </Pressable>
+          <ThemedText style={styles.title}>Compra concluída</ThemedText>
+
+          <View style={{ width: 44 }} />
         </View>
+
+        <ThemedView style={styles.card}>
+          <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
+          <ThemedText style={styles.p}>
+            Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
+          </ThemedText>
+
+          <View style={{ height: 6 }} />
+
+          <Pressable onPress={goToLatestOrder} style={styles.primaryBtn}>
+            <ThemedText style={styles.primaryBtnText}>Ver pedido agora</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={justGoOrders} style={styles.secondaryBtn}>
+            <ThemedText style={styles.secondaryBtnText}>Ir para Pedidos</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              clearCart();
+              goHome();
+            }}
+            style={styles.ghostBtn}
+          >
+            <ThemedText style={styles.ghostBtnText}>Voltar ao início</ThemedText>
+          </Pressable>
+        </ThemedView>
       </ThemedView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
-  center: {
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+
+  topbar: {
+    height: 54,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
   },
-
-  icon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontFamily: FONT_TITLE,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  text: {
-    fontSize: 12,
-    fontFamily: FONT_BODY,
-    opacity: 0.85,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-
-  primary: {
-    width: "100%",
+  backBtn: {
+    width: 44,
     height: 44,
-    borderRadius: 14,
-    backgroundColor: theme.colors.primary,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
-  },
-  primaryText: {
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: FONT_BOLD,
-  },
-
-  secondary: {
-    width: "100%",
-    height: 44,
-    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+  },
+  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  h1: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  p: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)", lineHeight: 16 },
+
+  primaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: theme.colors.primary,
   },
-  secondaryText: {
-    fontSize: 12,
-    fontFamily: FONT_BOLD,
+  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+
+  secondaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
   },
+  secondaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+
+  ghostBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
 });
