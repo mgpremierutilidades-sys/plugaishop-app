@@ -1,39 +1,28 @@
-import type { Order } from "../types/order";
+// utils/orderNotifier.ts
 import type { OrderStatus } from "../types/orderStatus";
+import { normalizeStatusLabel } from "./ordersStore";
 
-import { notifyLocal } from "./notifications";
-import { getLastNotifiedStatus, setLastNotifiedStatus } from "./orderNotificationStorage";
-
-function statusLabel(status: OrderStatus) {
-  switch (status) {
-    case "created":
-      return "Pedido criado";
-    case "payment_pending":
-      return "Aguardando pagamento";
-    case "paid":
-      return "Pagamento aprovado";
-    case "processing":
-      return "Processando";
-    case "shipped":
-      return "Enviado";
-    case "delivered":
-      return "Entregue";
-    case "canceled":
-      return "Cancelado";
-    default:
-      return "Atualização";
-  }
+export function getOrderStatusNotificationTitle(status: OrderStatus): string {
+  // Mantém título humanizado em PT-BR
+  return normalizeStatusLabel(status);
 }
 
-export async function notifyIfOrderStatusChanged(order: Order) {
-  const last = await getLastNotifiedStatus(order.id);
-  if (last === order.status) return;
-
-  await notifyLocal({
-    title: "Atualização do pedido",
-    body: `Pedido ${order.id}: ${statusLabel(order.status)}`,
-    data: { orderId: order.id, status: order.status },
-  });
-
-  await setLastNotifiedStatus(order.id, order.status);
+export function getOrderStatusNotificationBody(status: OrderStatus): string {
+  switch (status) {
+    case "paid":
+      return "Pagamento aprovado.";
+    case "shipped":
+      return "Seu pedido foi enviado.";
+    case "delivered":
+      return "Seu pedido foi entregue.";
+    case "payment_pending":
+      return "Aguardando confirmação do pagamento.";
+    case "processing":
+      return "Seu pedido está em separação.";
+    case "canceled":
+      return "Seu pedido foi cancelado.";
+    case "created":
+    default:
+      return "Pedido confirmado.";
+  }
 }

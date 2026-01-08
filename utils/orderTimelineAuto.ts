@@ -11,31 +11,36 @@ const FLOW: OrderStatus[] = [
   "delivered",
 ];
 
-export function advanceMockStatus(order: Order): Order {
-  if (order.status === "delivered" || order.status === "canceled") {
-    return order;
-  }
+function nextInFlow(current: OrderStatus): OrderStatus {
+  const idx = FLOW.indexOf(current);
+  if (idx < 0) return "created";
+  if (idx >= FLOW.length - 1) return "delivered";
+  return FLOW[idx + 1];
+}
 
-  const idx = FLOW.indexOf(order.status);
-  if (idx < 0) return order;
+export function applyAutoTimelineStep(order: Order): Order {
+  const current = (order.status ?? "created") as OrderStatus;
 
-  const nextStatus = FLOW[idx + 1];
-  if (!nextStatus) return order;
+  if (current === "delivered" || current === "canceled") return order;
 
-  const now = new Date().toISOString();
-  const timeline = Array.isArray((order as any).timeline)
-    ? (order as any).timeline
-    : [];
+  const next = nextInFlow(current);
+  const date = new Date().toISOString();
+
+  const timeline: OrderTimelineEvent[] = Array.isArray(order.timeline)
+    ? [...order.timeline, { status: next, date }]
+    : [{ status: "created", date: order.createdAt ?? date }, { status: next, date }];
+
+  const statusHistory = Array.isArray(order.statusHistory)
+    ? [...order.statusHistory, { status: next, at: date }]
+    : [{ status: next, at: date }];
 
   return {
     ...order,
-    status: nextStatus,
-    timeline: [
-      ...timeline,
-      {
-        status: nextStatus,
-        date: now,
-      } as OrderTimelineEvent,
-    ],
+    status: next,
+    timeline,
+    statusHistory,
   };
 }
+
+// Alias para compatibilidade com o hook existente
+export const advanceMockStatus = applyAutoTimelineStep;

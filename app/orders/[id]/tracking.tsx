@@ -1,13 +1,19 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
-import type { LogisticsEvent, LogisticsEventType, Order } from "../../../utils/ordersStore";
-import { addLogisticsEvent, clearLogisticsEvents, getOrderById, setTrackingCode } from "../../../utils/ordersStore";
+import type { Order } from "../../../types/order";
+import type { LogisticsEvent, LogisticsEventType } from "../../../utils/ordersStore";
+import {
+  addLogisticsEvent,
+  clearLogisticsEvents,
+  getOrderById,
+  setTrackingCode,
+} from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -46,8 +52,8 @@ export default function OrderTrackingScreen() {
   const load = useCallback(async () => {
     if (!orderId) return;
     const found = await getOrderById(orderId);
-    setOrder(found);
-    setCode(String(found?.trackingCode ?? ""));
+    setOrder((found ?? null) as any);
+    setCode(String((found as any)?.trackingCode ?? ""));
   }, [orderId]);
 
   useFocusEffect(
@@ -57,9 +63,10 @@ export default function OrderTrackingScreen() {
   );
 
   const events: LogisticsEvent[] = useMemo(() => {
-    const list = Array.isArray(order?.logisticsEvents) ? order!.logisticsEvents! : [];
-    // já vem ordenado desc por inserção; garante fallback
-    return list;
+    const list = Array.isArray((order as any)?.logisticsEvents)
+      ? (((order as any).logisticsEvents as any[]) ?? [])
+      : [];
+    return list as LogisticsEvent[];
   }, [order]);
 
   const saveCode = async () => {
@@ -69,7 +76,7 @@ export default function OrderTrackingScreen() {
       Alert.alert("Rastreio", "Não foi possível salvar o código de rastreio.");
       return;
     }
-    setOrder(updated);
+    setOrder(updated as any);
     Alert.alert("Rastreio", "Código salvo.");
   };
 
@@ -95,14 +102,14 @@ export default function OrderTrackingScreen() {
       Alert.alert("Logística", "Não foi possível adicionar evento.");
       return;
     }
-    setOrder(updated);
+    setOrder(updated as any);
   };
 
   const clearAll = async () => {
     if (!orderId) return;
     const updated = await clearLogisticsEvents(orderId);
     if (!updated) return;
-    setOrder(updated);
+    setOrder(updated as any);
   };
 
   return (
@@ -141,11 +148,21 @@ export default function OrderTrackingScreen() {
 
             <ThemedText style={styles.sectionTitle}>Eventos (mock)</ThemedText>
             <View style={styles.rowWrap}>
-              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}><ThemedText style={styles.pillText}>Postado</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("IN_TRANSIT")} style={styles.pill}><ThemedText style={styles.pillText}>Trânsito</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("OUT_FOR_DELIVERY")} style={styles.pill}><ThemedText style={styles.pillText}>Saiu</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("DELIVERED")} style={styles.pill}><ThemedText style={styles.pillText}>Entregue</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("EXCEPTION")} style={styles.pill}><ThemedText style={styles.pillText}>Ocorrência</ThemedText></Pressable>
+              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Postado</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("IN_TRANSIT")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Trânsito</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("OUT_FOR_DELIVERY")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Saiu</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("DELIVERED")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Entregue</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("EXCEPTION")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Ocorrência</ThemedText>
+              </Pressable>
             </View>
           </ThemedView>
 
@@ -153,7 +170,9 @@ export default function OrderTrackingScreen() {
             <ThemedText style={styles.cardTitle}>Linha do tempo</ThemedText>
 
             {events.length === 0 ? (
-              <ThemedText style={styles.secondary}>Nenhum evento ainda. Use os botões mock acima para testar.</ThemedText>
+              <ThemedText style={styles.secondary}>
+                Nenhum evento ainda. Use os botões mock acima para testar.
+              </ThemedText>
             ) : (
               <View style={{ gap: 12 }}>
                 {events.map((e) => (
@@ -168,7 +187,9 @@ export default function OrderTrackingScreen() {
                         {timeLabel(e.at)}
                         {e.location ? ` • ${e.location}` : ""}
                       </ThemedText>
-                      {e.description ? <ThemedText style={styles.secondary}>{e.description}</ThemedText> : null}
+                      {e.description ? (
+                        <ThemedText style={styles.secondary}>{e.description}</ThemedText>
+                      ) : null}
                     </View>
                   </View>
                 ))}

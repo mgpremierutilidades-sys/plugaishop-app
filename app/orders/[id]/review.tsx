@@ -1,128 +1,111 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+// app/orders/[id]/review.tsx
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
-import theme, { Radius, Spacing } from "../../../constants/theme";
-import type { Order } from "../../../utils/ordersStore";
+import theme from "../../../constants/theme";
+
 import { getOrderById, setOrderReview } from "../../../utils/ordersStore";
 
-function safeString(v: unknown) {
-  if (typeof v === "string") return v;
-  if (typeof v === "number") return String(v);
-  return "";
-}
-
 export default function OrderReviewScreen() {
-  const params = useLocalSearchParams();
-  const orderId = safeString(params?.id);
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [stars, setStars] = useState<number>(5);
-  const [comment, setComment] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [stars, setStars] = useState(5);
+  const [comment, setComment] = useState("");
 
-  const load = useCallback(async () => {
-    if (!orderId) {
-      setOrder(null);
-      return;
-    }
-    const found = await getOrderById(orderId);
-    setOrder(found);
+  const orderId = useMemo(() => String(id ?? ""), [id]);
 
-    if (found?.review) {
-      setStars(found.review.stars);
-      setComment(found.review.comment);
-    } else {
-      setStars(5);
-      setComment("");
-    }
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const o = await getOrderById(orderId);
+        if (!alive) return;
+
+        const existing = (o as any)?.review;
+        if (existing) {
+          const s = Number((existing as any).stars ?? (existing as any).rating ?? 5);
+          setStars(Math.max(1, Math.min(5, s)));
+          setComment(String((existing as any).comment ?? ""));
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
   }, [orderId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-
-  const starsLabel = useMemo(() => {
-    return `${stars} estrela(s)`;
-  }, [stars]);
-
-  const save = async () => {
-    if (!orderId) return;
-
-    const updated = await setOrderReview(orderId, stars, comment);
-    if (!updated) {
-      Alert.alert("Avaliação", "Não foi possível salvar sua avaliação.");
-      return;
+  async function onSubmit() {
+    try {
+      await setOrderReview(orderId, stars, comment);
+      Alert.alert("Obrigado!", "Sua avaliação foi enviada.");
+      router.back();
+    } catch {
+      Alert.alert("Erro", "Não foi possível salvar sua avaliação.");
     }
-    Alert.alert("Avaliação", "Avaliação salva com sucesso!");
-    router.back();
-  };
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ThemedView style={styles.container}>
+          <ThemedText>Carregando...</ThemedText>
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
+    <SafeAreaView style={styles.safe}>
       <ThemedView style={styles.container}>
-        <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <ThemedText style={styles.backArrow}>←</ThemedText>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+            <ThemedText style={styles.backText}>←</ThemedText>
           </Pressable>
 
-          <ThemedText style={styles.title}>Avaliar compra</ThemedText>
+          <ThemedText style={styles.title}>Avaliar pedido</ThemedText>
 
           <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <ThemedView style={styles.card}>
-            <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
-            <ThemedText style={styles.secondary}>
-              {order?.review ? "Você já avaliou este pedido. Pode atualizar a qualquer momento." : "Conte como foi sua experiência."}
-            </ThemedText>
+        <View style={styles.card}>
+          <ThemedText style={styles.label}>Nota (1 a 5)</ThemedText>
 
-            <View style={styles.divider} />
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => setStars(n)}
+                style={[styles.star, n <= stars ? styles.starOn : styles.starOff]}
+              >
+                <ThemedText style={styles.starText}>{n <= stars ? "★" : "☆"}</ThemedText>
+              </Pressable>
+            ))}
+          </View>
 
-            <ThemedText style={styles.sectionTitle}>Sua nota</ThemedText>
+          <ThemedText style={[styles.label, { marginTop: 16 }]}>Comentário</ThemedText>
 
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((n) => {
-                const active = n <= stars;
-                return (
-                  <Pressable
-                    key={n}
-                    onPress={() => setStars(n)}
-                    style={[styles.starPill, active ? styles.starActive : styles.starIdle]}
-                  >
-                    <ThemedText style={[styles.starText, active ? styles.starTextActive : styles.starTextIdle]}>
-                      ★
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-              <ThemedText style={styles.secondary}>{starsLabel}</ThemedText>
-            </View>
+          <TextInput
+            value={comment}
+            onChangeText={setComment}
+            placeholder="Conte como foi sua experiência"
+            placeholderTextColor={"rgba(0,0,0,0.45)"}
+            style={styles.input}
+            multiline
+          />
 
-            <ThemedText style={styles.sectionTitle}>Comentário</ThemedText>
-
-            <TextInput
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Escreva um comentário (opcional)"
-              placeholderTextColor={"rgba(0,0,0,0.45)"}
-              style={styles.input}
-              multiline
-              textAlignVertical="top"
-            />
-
-            <Pressable onPress={save} style={styles.primaryBtn}>
-              <ThemedText style={styles.primaryBtnText}>Salvar avaliação</ThemedText>
-            </Pressable>
-          </ThemedView>
-
-          <View style={{ height: 24 }} />
-        </ScrollView>
+          <Pressable onPress={onSubmit} style={styles.cta}>
+            <ThemedText style={styles.ctaText}>Enviar avaliação</ThemedText>
+          </Pressable>
+        </View>
       </ThemedView>
     </SafeAreaView>
   );
@@ -130,80 +113,66 @@ export default function OrderReviewScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
-
-  topbar: {
-    height: 54,
+  container: { flex: 1, padding: 16 },
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.md,
+    marginBottom: 12,
   },
   backBtn: {
     width: 44,
     height: 44,
-    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 999,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
-
-  scroll: { gap: Spacing.md, paddingBottom: 20 },
-
+  backText: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  title: { fontFamily: "Arimo", fontSize: 24, fontWeight: "700", color: theme.colors.text },
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.divider,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    padding: 14,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
-
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
-
-  sectionTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
-
-  starsRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  starPill: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    borderWidth: 1,
+  label: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  starsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  star: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-  },
-  starIdle: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  starActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  starText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700" },
-  starTextIdle: { color: theme.colors.text },
-  starTextActive: { color: "#FFFFFF" },
-
-  input: {
-    minHeight: 110,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  },
+  starOn: { backgroundColor: theme.colors.surfaceAlt },
+  starOff: { backgroundColor: theme.colors.surface },
+  starText: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  input: {
+    marginTop: 10,
+    minHeight: 110,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.divider,
+    padding: 12,
     fontFamily: "OpenSans",
     fontSize: 12,
     color: theme.colors.text,
+    backgroundColor: theme.colors.background,
+    textAlignVertical: "top",
   },
-
-  primaryBtn: {
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
+  cta: {
+    marginTop: 14,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
-    marginTop: 6,
   },
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  ctaText: { fontFamily: "OpenSans", fontSize: 14, fontWeight: "700", color: "#fff" },
 });

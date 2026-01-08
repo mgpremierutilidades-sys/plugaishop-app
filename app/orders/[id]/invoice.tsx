@@ -1,13 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
-import type { Order } from "../../../utils/ordersStore";
-import { getOrderById, setInvoiceMock, clearInvoice } from "../../../utils/ordersStore";
+import type { Order } from "../../../types/order";
+import { clearInvoice, getOrderById, setInvoiceMock } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;

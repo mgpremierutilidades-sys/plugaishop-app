@@ -1,4 +1,6 @@
-import React, { useCallback, useMemo, useState } from "react";
+// app/orders/index.tsx
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -8,14 +10,19 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
 import { formatCurrency } from "../../utils/formatCurrency";
-import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { listOrders, getUnreadNotificationsCount } from "../../utils/ordersStore";
+
+import type { Order } from "../../types/order";
+import type { OrderStatus } from "../../types/orderStatus";
+import {
+  getUnreadNotificationsCount,
+  listOrders,
+  normalizeStatusLabel,
+} from "../../utils/ordersStore";
 
 function dateLabel(isoOrAny: string) {
   if (!isoOrAny) return "";
@@ -26,10 +33,10 @@ function dateLabel(isoOrAny: string) {
 
 const FILTERS: Array<{ label: string; value: "ALL" | OrderStatus }> = [
   { label: "Todos", value: "ALL" },
-  { label: "Confirmado", value: "Confirmado" },
-  { label: "Pago", value: "Pago" },
-  { label: "Enviado", value: "Enviado" },
-  { label: "Entregue", value: "Entregue" },
+  { label: "Confirmado", value: "created" as OrderStatus },
+  { label: "Pago", value: "paid" as OrderStatus },
+  { label: "Enviado", value: "shipped" as OrderStatus },
+  { label: "Entregue", value: "delivered" as OrderStatus },
 ];
 
 export default function OrdersIndexScreen() {
@@ -41,10 +48,10 @@ export default function OrdersIndexScreen() {
 
   const load = useCallback(async () => {
     const data = await listOrders();
-    setOrders(data ?? []);
+    setOrders((data ?? []) as Order[]);
 
     const c = await getUnreadNotificationsCount();
-    setUnread(c);
+    setUnread(Number(c ?? 0));
   }, []);
 
   useFocusEffect(
@@ -74,7 +81,11 @@ export default function OrdersIndexScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
 
@@ -96,7 +107,6 @@ export default function OrdersIndexScreen() {
           </Pressable>
         </View>
 
-        {/* Busca */}
         <View style={styles.searchWrap}>
           <TextInput
             value={query}
@@ -109,7 +119,6 @@ export default function OrdersIndexScreen() {
           />
         </View>
 
-        {/* Filtros */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -139,7 +148,9 @@ export default function OrdersIndexScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {filtered.length === 0 ? (
             <ThemedView style={styles.card}>
@@ -151,37 +162,63 @@ export default function OrdersIndexScreen() {
           ) : null}
 
           {filtered.map((o) => {
-            const subtotal = (o.items ?? []).reduce(
-              (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
+            const items = (o as any)?.items ?? [];
+            const subtotal = items.reduce(
+              (acc: number, it: any) =>
+                acc + Number(it?.price ?? 0) * Number(it?.qty ?? 0),
               0
             );
+
+            // shipping pode ser number (mock antigo) ou objeto { price }
+            const shippingValue =
+              typeof (o as any).shipping === "number"
+                ? Number((o as any).shipping ?? 0)
+                : Number((o as any).shipping?.price ?? 0);
+
             const total = Math.max(
               0,
-              subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0)
+              subtotal - Number((o as any).discount ?? 0) + shippingValue
             );
-            const itemCount = (o.items ?? []).reduce((a, b) => a + Number(b.qty ?? 0), 0);
+
+            const itemCount = items.reduce(
+              (a: number, b: any) => a + Number(b?.qty ?? 0),
+              0
+            );
 
             return (
               <Pressable
                 key={String(o.id)}
                 onPress={() => router.push(`/orders/${o.id}` as any)}
-                style={({ pressed }) => [styles.card, pressed ? { opacity: 0.92 } : null]}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed ? { opacity: 0.92 } : null,
+                ]}
               >
                 <View style={styles.rowBetween}>
-                  <ThemedText style={styles.cardTitle}>Pedido #{String(o.id)}</ThemedText>
-                  <ThemedText style={styles.status}>{String(o.status ?? "Confirmado")}</ThemedText>
+                  <ThemedText style={styles.cardTitle}>
+                    Pedido #{String(o.id)}
+                  </ThemedText>
+
+                  <ThemedText style={styles.status}>
+                    {normalizeStatusLabel(o.status)}
+                  </ThemedText>
                 </View>
 
-                <ThemedText style={styles.secondary}>Data: {dateLabel(String(o.createdAt ?? ""))}</ThemedText>
+                <ThemedText style={styles.secondary}>
+                  Data: {dateLabel(String((o as any).createdAt ?? ""))}
+                </ThemedText>
 
                 <View style={styles.divider} />
 
                 <View style={styles.rowBetween}>
                   <ThemedText style={styles.secondary}>
-                    Itens: <ThemedText style={styles.bold}>{itemCount}</ThemedText>
+                    Itens:{" "}
+                    <ThemedText style={styles.bold}>{itemCount}</ThemedText>
                   </ThemedText>
 
-                  <ThemedText style={styles.total}>{formatCurrency(total)}</ThemedText>
+                  <ThemedText style={styles.total}>
+                    {formatCurrency(total)}
+                  </ThemedText>
                 </View>
               </Pressable>
             );

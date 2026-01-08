@@ -1,49 +1,30 @@
 // hooks/useOrdersAutoProgress.ts
 import { useEffect } from "react";
 
-import type { Order } from "../types/order";
-import { advanceMockStatus } from "../utils/orderTimelineAuto";
-import { listOrders, saveOrders } from "../utils/ordersStore";
+import { advanceOrderStatus, ensureOrdersHydrated, listOrders } from "../utils/ordersStore";
 
-export function useOrdersAutoProgress() {
+export function useOrdersAutoProgress(enabled = true) {
   useEffect(() => {
+    if (!enabled) return;
+
     let alive = true;
 
-    const tick = async () => {
-      try {
-        const raw = await listOrders();
+    (async () => {
+      await ensureOrdersHydrated();
 
-        // Normaliza tipagem para usar SEMPRE os tipos do /types
-        const orders = raw as unknown as Order[];
+      const orders = await listOrders();
+      if (!alive) return;
 
-        let changed = false;
-
-        const nextOrders = orders.map((o) => {
-          const next = advanceMockStatus(o);
-          if (next.status !== o.status) changed = true;
-          return next;
-        });
-
-        if (alive && changed) {
-          // ordersStore pode estar tipado com "Order" próprio; mantemos compatível
-          await saveOrders(nextOrders as unknown as any);
-        }
-      } catch {
-        // silencioso: hook não pode derrubar a tela
+      if (orders.length > 0) {
+        const id = String((orders[0] as any).id ?? "");
+        if (id) await advanceOrderStatus(id);
       }
-    };
-
-    // roda uma vez ao montar
-    tick();
-
-    // e repete periodicamente (leve)
-    const id = setInterval(tick, 12_000);
+    })();
 
     return () => {
       alive = false;
-      clearInterval(id);
     };
-  }, []);
+  }, [enabled]);
 }
 
 export default useOrdersAutoProgress;

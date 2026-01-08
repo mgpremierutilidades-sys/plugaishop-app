@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -8,16 +9,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
-import type { Order, ReturnType } from "../../../utils/ordersStore";
+import type { Order, ReturnType } from "../../../types/order";
 import {
+  addReturnAttachment,
   createReturnRequest,
   getOrderById,
-  addReturnAttachment,
 } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {

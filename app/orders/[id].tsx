@@ -1,27 +1,28 @@
 // app/orders/[id].tsx
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   View,
-  Linking,
-  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
+import OrderTimeline, { TimelineStep } from "../../components/OrderTimeline";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
-import OrderTimeline, { TimelineStep } from "../../components/OrderTimeline";
 
-import { products } from "../../data/catalog";
 import { useCart } from "../../context/CartContext";
+import { products } from "../../data/catalog";
+import type { Order } from "../../types/order";
+import type { OrderStatus } from "../../types/orderStatus";
 import { formatCurrency } from "../../utils/formatCurrency";
-import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { getOrderById, advanceOrderStatus } from "../../utils/ordersStore";
+import { advanceOrderStatus, getOrderById, normalizeStatusLabel } from "../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -49,6 +50,25 @@ async function copyToClipboard(text: string) {
   }
 }
 
+function statusToStepDateMap(order?: Order | null) {
+  const map = new Map<OrderStatus, string>();
+
+  // Prefer: timeline (novo padrão)
+  const timeline = Array.isArray((order as any)?.timeline) ? ((order as any).timeline as any[]) : [];
+  for (const e of timeline) {
+    const s = e?.status as OrderStatus | undefined;
+    const d = (e?.date ?? e?.at) as string | undefined; // tolera mock antigo
+    if (s && d) map.set(s, d);
+  }
+
+  // Fallback: createdAt
+  if (order?.createdAt && !map.has("created" as OrderStatus)) {
+    map.set("created" as OrderStatus, order.createdAt);
+  }
+
+  return map;
+}
+
 export default function OrderDetailScreen() {
   const params = useLocalSearchParams();
   const orderId = safeString(params?.id);
@@ -62,7 +82,7 @@ export default function OrderDetailScreen() {
       return;
     }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
   }, [orderId]);
 
   useFocusEffect(
@@ -71,64 +91,68 @@ export default function OrderDetailScreen() {
     }, [load])
   );
 
-  const historyMap = useMemo(() => {
-    const map = new Map<OrderStatus, string>();
-    const hist = Array.isArray(order?.statusHistory) ? order!.statusHistory! : [];
-    for (const h of hist) {
-      if (h?.status && h?.at) map.set(h.status, h.at);
-    }
-    if (!map.has("Confirmado") && order?.createdAt) map.set("Confirmado", order.createdAt);
-    return map;
-  }, [order]);
+  const historyMap = useMemo(() => statusToStepDateMap(order), [order]);
 
   const timelineSteps: TimelineStep[] = useMemo(() => {
-    const status = (order?.status ?? "").toString().toLowerCase();
+    const status = (order?.status ?? ("created" as any)) as OrderStatus;
 
-    const donePago = ["pago", "enviado", "entregue"].includes(status);
-    const doneEnviado = ["enviado", "entregue"].includes(status);
-    const doneEntregue = status === "entregue";
+    const donePaid = ["paid", "processing", "shipped", "delivered"].includes(String(status));
+    const doneShipped = ["shipped", "delivered"].includes(String(status));
+    const doneDelivered = String(status) === "delivered";
 
-    const dConfirmado = historyMap.get("Confirmado");
-    const dPago = historyMap.get("Pago");
-    const dEnviado = historyMap.get("Enviado");
-    const dEntregue = historyMap.get("Entregue");
+    const dCreated = historyMap.get("created" as OrderStatus);
+    const dPaid = historyMap.get("paid" as OrderStatus);
+    const dShipped = historyMap.get("shipped" as OrderStatus);
+    const dDelivered = historyMap.get("delivered" as OrderStatus);
 
     return [
       {
         title: "Pedido confirmado",
-        subtitle: dConfirmado ? `Recebido em ${dateLabel(dConfirmado)}` : "Recebemos seu pedido com sucesso.",
+        subtitle: dCreated ? `Recebido em ${dateLabel(dCreated)}` : "Recebemos seu pedido com sucesso.",
         done: true,
-        active: status === "confirmado" || !status,
+        active: String(status) === "created" || !status,
       },
       {
         title: "Pagamento aprovado",
-        subtitle: dPago ? `Aprovado em ${dateLabel(dPago)}` : "Pagamento validado.",
-        done: donePago,
-        active: status === "pago",
+        subtitle: dPaid ? `Aprovado em ${dateLabel(dPaid)}` : "Pagamento validado.",
+        done: donePaid,
+        active: String(status) === "paid" || String(status) === "payment_pending",
       },
       {
         title: "Pedido enviado",
-        subtitle: dEnviado ? `Enviado em ${dateLabel(dEnviado)}` : "Seu pedido saiu para entrega.",
-        done: doneEnviado,
-        active: status === "enviado",
+        subtitle: dShipped ? `Enviado em ${dateLabel(dShipped)}` : "Seu pedido saiu para entrega.",
+        done: doneShipped,
+        active: String(status) === "shipped" || String(status) === "processing",
       },
       {
         title: "Pedido entregue",
-        subtitle: dEntregue ? `Entregue em ${dateLabel(dEntregue)}` : "Entrega concluída.",
-        done: doneEntregue,
-        active: status === "entregue",
+        subtitle: dDelivered ? `Entregue em ${dateLabel(dDelivered)}` : "Entrega concluída.",
+        done: doneDelivered,
+        active: String(status) === "delivered",
       },
     ];
   }, [order, historyMap]);
 
   const totals = useMemo(() => {
-    const items = order?.items ?? [];
-    const subtotal = items.reduce((acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0), 0);
-    const discount = Number(order?.discount ?? 0);
-    const shipping = Number(order?.shipping ?? 0);
-    const total = Math.max(0, subtotal - discount + shipping);
-    const count = items.reduce((a, b) => a + Number(b.qty ?? 0), 0);
-    return { subtotal, discount, shipping, total, count };
+    const items: any[] = Array.isArray((order as any)?.items) ? ((order as any).items as any[]) : [];
+
+    const subtotal = items.reduce(
+      (acc: number, it: any) => acc + Number(it?.price ?? 0) * Number(it?.qty ?? 0),
+      0
+    );
+
+    const discount = Number((order as any)?.discount ?? 0);
+
+    const shippingValue =
+      typeof (order as any)?.shipping === "number"
+        ? Number((order as any).shipping ?? 0)
+        : Number((order as any)?.shipping?.price ?? 0);
+
+    const total = Math.max(0, subtotal - discount + shippingValue);
+
+    const count = items.reduce((a: number, b: any) => a + Number(b?.qty ?? 0), 0);
+
+    return { subtotal, discount, shipping: shippingValue, total, count };
   }, [order]);
 
   const onCopyId = async () => {
@@ -149,7 +173,7 @@ export default function OrderDetailScreen() {
   };
 
   const onRepeatPurchase = () => {
-    const items = order?.items ?? [];
+    const items: any[] = Array.isArray((order as any)?.items) ? ((order as any).items as any[]) : [];
     if (!items.length) {
       Alert.alert("Atenção", "Este pedido não possui itens para repetir.");
       return;
@@ -164,9 +188,9 @@ export default function OrderDetailScreen() {
 
     let added = 0;
     for (const it of items) {
-      const prod = (products as any[])?.find((p) => String(p.id) === String(it.productId));
+      const prod = (products as any[])?.find((p) => String(p.id) === String(it?.productId));
       if (!prod) continue;
-      const qty = Math.max(1, Number(it.qty ?? 1));
+      const qty = Math.max(1, Number(it?.qty ?? 1));
       addOne(prod, qty);
       added += qty;
     }
@@ -190,14 +214,14 @@ export default function OrderDetailScreen() {
       return;
     }
     setOrder(updated);
-    Alert.alert("Status atualizado", `Novo status: ${updated.status}`);
+    Alert.alert("Status atualizado", `Novo status: ${normalizeStatusLabel(updated.status)}`);
   };
 
   const onShare = async () => {
     if (!orderId) return;
     try {
       await Share.share({
-        message: `Pedido Plugaí Shop #${orderId} — status: ${order?.status ?? "Confirmado"}`,
+        message: `Pedido Plugaí Shop #${orderId} — status: ${normalizeStatusLabel((order?.status ?? "created") as any)}`,
       });
     } catch {
       Alert.alert("Compartilhar", "Não foi possível compartilhar no momento.");
@@ -251,12 +275,15 @@ export default function OrderDetailScreen() {
               <View style={{ flex: 1 }}>
                 <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
                 <ThemedText style={styles.secondary}>
-                  Status: <ThemedText style={styles.bold}>{String(order.status ?? "Confirmado")}</ThemedText>
+                  Status:{" "}
+                  <ThemedText style={styles.bold}>
+                    {normalizeStatusLabel((order.status ?? "created") as any)}
+                  </ThemedText>
                 </ThemedText>
 
-                {order.trackingCode ? (
+                {(order as any).trackingCode ? (
                   <ThemedText style={styles.secondary}>
-                    Rastreio: <ThemedText style={styles.bold}>{order.trackingCode}</ThemedText>
+                    Rastreio: <ThemedText style={styles.bold}>{(order as any).trackingCode}</ThemedText>
                   </ThemedText>
                 ) : null}
               </View>
