@@ -1,12 +1,11 @@
-// app/_layout.tsx
+﻿// app/_layout.tsx
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 import { LogBox } from "react-native";
 
 export { ErrorBoundary } from "expo-router";
 
-// IMPORT CORRIGIDO (case exato do arquivo existente)
-import { GlobalChrome } from "../components/globalChrome";
+import GlobalChrome from "../components/global-chrome";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -21,7 +20,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <GlobalChrome>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -32,8 +31,6 @@ export default function RootLayout() {
         <Stack.Screen name="orders" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
-
-      <GlobalChrome />
-    </>
+    </GlobalChrome>
   );
 }

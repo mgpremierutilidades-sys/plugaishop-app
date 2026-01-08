@@ -1,11 +1,8 @@
-﻿import React from "react";
+﻿// components/global-chrome.tsx
+import type { ReactNode } from "react";
 
-export type GlobalChromeProps = {
-  children?: React.ReactNode;
-};
+type Props = { children: ReactNode };
 
-export function GlobalChrome({ children }: GlobalChromeProps) {
-  return <>{children ?? null}</>;
+export default function GlobalChrome({ children }: Props) {
+  return <>{children}</>;
 }
-
-export default GlobalChrome;
