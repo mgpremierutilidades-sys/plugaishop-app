@@ -12,17 +12,22 @@ export default function TabsLayout() {
         tabBarHideOnKeyboard: false,
         tabBarStyle: {
           borderTopColor: theme.colors.divider,
-          backgroundColor: theme.colors.surface,
+          backgroundColor: theme.colors.background,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
         },
       }}
     >
+      {/* Abas oficiais (somente estas 5) */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Início",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="home-outline" color={color} size={size ?? 22} />
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol name="house.fill" color={color} />,
         }}
       />
 
@@ -30,13 +35,7 @@ export default function TabsLayout() {
         name="explore"
         options={{
           title: "Explorar",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol
-              name="compass-outline"
-              color={color}
-              size={size ?? 22}
-            />
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol name="safari.fill" color={color} />,
         }}
       />
 
@@ -44,9 +43,9 @@ export default function TabsLayout() {
         name="cart"
         options={{
           title: "Carrinho",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="cart-outline" color={color} size={size ?? 22} />
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol name="cart.fill" color={color} />,
+          // Se você quiser seguir o padrão do projeto (Carrinho sem rodapé na primeira aba), descomente:
+          // tabBarStyle: { display: "none" },
         }}
       />
 
@@ -54,9 +53,7 @@ export default function TabsLayout() {
         name="account"
         options={{
           title: "Conta",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="person-outline" color={color} size={size ?? 22} />
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol name="person.crop.circle.fill" color={color} />,
         }}
       />
 
@@ -64,13 +61,21 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Perfil",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol
-              name="person-circle-outline"
-              color={color}
-              size={size ?? 22}
-            />
-          ),
+          tabBarIcon: ({ color }) => <IconSymbol name="person.fill" color={color} />,
+        }}
+      />
+
+      {/* Rotas internas: NÃO podem virar abas */}
+      <Tabs.Screen
+        name="orders"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="checkout"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

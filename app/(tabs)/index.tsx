@@ -46,8 +46,10 @@ export default function HomeScreen() {
       headerBackgroundColor={{ light: "#E6F4FE", dark: "#0E1720" }}
       headerImage={
         <Image
-          source={require("@/assets/images/partial-react-logo.png")}
+          // ✅ CORREÇÃO: banner oficial do projeto
+          source={require("../../assets/banners/banner-home.png")}
           style={styles.reactLogo}
+          contentFit="cover"
         />
       }
     >
@@ -71,8 +73,10 @@ export default function HomeScreen() {
             </Pressable>
           </Link>
         </View>
+
         <Image
-          source={require("@/assets/images/react-logo.png")}
+          // ✅ CORREÇÃO: troca imagem do template pelo banner oficial
+          source={require("../../assets/banners/banner-home.png")}
           style={styles.heroImage}
           contentFit="contain"
         />
