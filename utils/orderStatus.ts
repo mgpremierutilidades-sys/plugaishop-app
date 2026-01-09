@@ -1,21 +1,21 @@
 // utils/orderStatus.ts
 import type { Order, OrderDraft } from "../types/order";
-import type { OrderStatus, OrderTimelineEvent } from "../types/orderStatus";
+import type { OrderTimelineEvent } from "../types/orderStatus";
 
 export function createInitialOrderFromDraft(draft: OrderDraft): Order {
   const now = new Date().toISOString();
 
-  const initialStatus: OrderStatus =
+  const status =
     draft.payment?.status === "paid" ? "paid" : "payment_pending";
 
   const timeline: OrderTimelineEvent[] = [
     { status: "created", date: now },
-    { status: initialStatus, date: now },
+    { status, date: now },
   ];
 
   return {
-    ...draft,
-    status: initialStatus,
+    ...(draft as any),
+    status,
     timeline,
     createdAt: now,
   };

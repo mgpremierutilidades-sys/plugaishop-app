@@ -1,8 +1,7 @@
-import React from "react";
 import { StyleSheet, View } from "react-native";
+import theme, { Radius, Spacing } from "../constants/theme";
 import { ThemedText } from "./themed-text";
 import { ThemedView } from "./themed-view";
-import theme, { Radius, Spacing } from "../constants/theme";
 
 export type TimelineStep = {
   title: string;
@@ -118,12 +117,12 @@ const styles = StyleSheet.create({
   date: {
     fontFamily: "OpenSans",
     fontSize: 12,
-    color: theme.colors.muted,
+    color: theme.colors.tabIconInactive,
   },
   subtitle: {
     fontFamily: "OpenSans",
     fontSize: 12,
-    color: theme.colors.muted,
+    color: theme.colors.tabIconInactive,
     lineHeight: 16,
   },
 });

@@ -1,14 +1,12 @@
 // hooks/useCheckoutFailSafe.ts
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import { useEffect } from "react";
 
 import type { OrderDraft } from "../types/order";
 import { loadOrderDraft } from "../utils/orderStorage";
 
-/**
- * Fail-safe: se existir draft pendente, retoma automaticamente no passo certo.
- * Usado na Home para não perder checkout se o usuário saiu no meio.
- */
+type ReplaceArg = Parameters<typeof router.replace>[0];
+
 export function useCheckoutFailSafe() {
   useEffect(() => {
     let alive = true;
@@ -22,15 +20,10 @@ export function useCheckoutFailSafe() {
         // Se não tem itens, não faz nada (evita prender usuário no checkout)
         if (!Array.isArray(draft.items) || draft.items.length === 0) return;
 
-        // Descobre o próximo passo faltante
-        const href: Href =
-          !draft.address
-            ? "/checkout/address"
-            : !draft.shipping
-            ? "/checkout/shipping"
-            : !draft.payment
-            ? "/checkout/payment"
-            : "/checkout/review";
+      const step = getNextCheckoutStep(draft);
+
+      // Força o TypeScript a tratar como rota válida para o Expo Router
+      const href = stepToRoute(step) as ReplaceArg;
 
         router.replace(href);
       } catch {

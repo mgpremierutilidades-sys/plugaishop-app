@@ -1,5 +1,6 @@
 import type { Order } from "../types/order";
 import type { OrderStatus } from "../types/orderStatus";
+
 import { notifyLocal } from "./notifications";
 import {
   getLastNotifiedStatus,
@@ -14,6 +15,8 @@ function statusLabel(status: OrderStatus) {
       return "Aguardando pagamento";
     case "paid":
       return "Pagamento aprovado";
+    case "processing":
+      return "Processando";
     case "shipped":
       return "Enviado";
     case "delivered":

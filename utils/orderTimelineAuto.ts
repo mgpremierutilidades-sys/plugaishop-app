@@ -1,30 +1,41 @@
 // utils/orderTimelineAuto.ts
 import type { Order } from "../types/order";
 import type { OrderStatus, OrderTimelineEvent } from "../types/orderStatus";
-import { advanceMockStatus } from "./orderStatus";
 
-export function computeNextTimelineEvent(order: Order): OrderTimelineEvent | null {
-  const timeline = order.timeline ?? [];
-  const last = timeline[timeline.length - 1];
+const FLOW: OrderStatus[] = [
+  "created",
+  "payment_pending",
+  "paid",
+  "processing",
+  "shipped",
+  "delivered",
+];
 
-  const currentStatus: OrderStatus = last?.status ?? order.status ?? "created";
-  const nextStatus = advanceMockStatus(currentStatus);
+export function advanceMockStatus(order: Order): Order {
+  if (order.status === "delivered" || order.status === "canceled") {
+    return order;
+  }
 
-  if (nextStatus === currentStatus) return null;
+  const idx = FLOW.indexOf(order.status);
+  if (idx < 0) return order;
 
-  return {
-    status: nextStatus,
-    date: new Date().toISOString(),
-  };
-}
+  const nextStatus = FLOW[idx + 1];
+  if (!nextStatus) return order;
 
-export function applyAutoTimelineProgress(order: Order): Order {
-  const next = computeNextTimelineEvent(order);
-  if (!next) return order;
+  const now = new Date().toISOString();
+  const timeline = Array.isArray((order as any).timeline)
+    ? (order as any).timeline
+    : [];
 
   return {
     ...order,
-    status: next.status,
-    timeline: [...(order.timeline ?? []), next],
+    status: nextStatus,
+    timeline: [
+      ...timeline,
+      {
+        status: nextStatus,
+        date: now,
+      } as OrderTimelineEvent,
+    ],
   };
 }

@@ -60,96 +60,22 @@ export type InAppNotification = {
   orderId?: string;
 };
 
-export type Invoice = {
-  // alguns mocks criam invoice sem id
-  id?: string;
+/**
+ * Pedido final (já "criado" no sistema).
+ * Importante: NÃO redefinir OrderStatus aqui.
+ * Ele vem de ./orderStatus (fonte única).
+ */
+export type Order = OrderDraft & {
+  status: OrderStatus;
 
-  number?: string;
-  url?: string;
-  issuedAt?: string; // ISO
-  total?: number;
+  /**
+   * Linha do tempo do pedido (o seu orderTimelineAuto depende disso).
+   */
+  timeline: OrderTimelineEvent[];
 
-  // ordersStore usa isso
-  status?: string;
-  series?: string;
-  accessKey?: string;
-  danfeUrl?: string;
-};
-
-export type LogisticsEventType =
-  | "created"
-  | "payment_pending"
-  | "processing"
-  | "paid"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "canceled"
-  | "custom";
-
-export type LogisticsEvent = {
-  id: string;
-  type: LogisticsEventType;
-
-  // alguns mocks usam date, outros usam at
-  date?: string; // ISO
-  at?: string; // ISO
-
-  note?: string;
-  location?: string;
-
-  // ordersStore usa isso
-  title?: string;
-  description?: string;
-};
-
-export type OrderReview = {
-  id: string;
-  rating: 1 | 2 | 3 | 4 | 5;
-  comment?: string;
-  createdAt: string; // ISO
-};
-
-export type ReturnType = "refund" | "exchange" | "repair" | "other";
-
-export type ReturnAttachment = {
-  id: string;
-
-  // compatibilidade: mocks usam uri
-  uri?: string;
-
-  // compatibilidade: outros fluxos usam url
-  url?: string;
-
-  mimeType?: string;
-  name?: string;
-
-  // ordersStore usa isso
-  createdAt?: string; // ISO
-};
-
-export type ReturnRequestStatus =
-  | "requested"
-  | "approved"
-  | "rejected"
-  | "shipped_back"
-  | "completed"
-  // compatibilidade com mock pt-BR no ordersStore
-  | "ABERTA"
-  | "APROVADA"
-  | "REJEITADA"
-  | "CONCLUIDA";
-
-export type ReturnRequest = {
-  // em alguns pontos o ordersStore cria como “draft” sem id/orderId
-  id?: string;
-  orderId?: string;
-
-  type: ReturnType;
-  reason?: string;
-  status?: ReturnRequestStatus;
-  createdAt: string; // ISO
-  protocol?: string;
-
-  attachments?: ReturnAttachment[];
+  /**
+   * Contador simples para badge/alertas (se você quiser usar).
+   * Pode manter opcional sem quebrar nada.
+   */
+  unreadNotifications?: number;
 };
