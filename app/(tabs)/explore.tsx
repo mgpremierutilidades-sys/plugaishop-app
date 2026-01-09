@@ -1,13 +1,16 @@
 import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import IconSymbol from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
 
-// Carrega Collapsible de forma blindada (default vs named vs módulo quebrado)
+// Collapsible blindado
 const CollapsibleModule = require("../../components/ui/collapsible");
 const CollapsibleComp = CollapsibleModule?.default ?? CollapsibleModule?.Collapsible;
 
@@ -33,12 +36,31 @@ function toCategoryId(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+function categoryIconName(categoryName: string) {
+  const n = (categoryName || "").toLowerCase();
+
+  if (n.includes("eletro") && !n.includes("eletrod")) return "tv-outline";
+  if (n.includes("eletrod")) return "flash-outline";
+  if (n.includes("inform")) return "laptop-outline";
+  if (n.includes("casa") || n.includes("lar")) return "home-outline";
+  if (n.includes("moda") || n.includes("vest")) return "shirt-outline";
+  if (n.includes("brinqu")) return "game-controller-outline";
+  if (n.includes("pet")) return "paw-outline";
+  if (n.includes("beleza") || n.includes("perf")) return "sparkles-outline";
+  if (n.includes("acess")) return "pricetag-outline";
+
+  return "pricetag-outline";
+}
+
 export default function ExploreScreen() {
+  // ✅ status bar normal (escuro) aqui, porque o topo é claro
+  <StatusBar style="dark" />;
+
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = (p.category ?? "").trim();
+      const raw = ((p as any).category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -52,10 +74,10 @@ export default function ExploreScreen() {
       const fallback = [
         "Eletrônicos",
         "Eletrodomésticos",
+        "Acessórios",
         "Informática",
-        "Casa e Lar",
-        "Moda",
-        "Brinquedos",
+        "Vestuário",
+        "Casa",
         "Pet",
         "Beleza",
       ];
@@ -72,7 +94,9 @@ export default function ExploreScreen() {
   const featured = useMemo<Product[]>(() => (products as Product[]).slice(0, 12), []);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar style="dark" />
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Explorar</Text>
 
@@ -95,7 +119,13 @@ export default function ExploreScreen() {
                   style={styles.categoryCard}
                   onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
                 >
-                  <View style={styles.categoryIconFallback} />
+                  <View style={styles.categoryIconWrap}>
+                    <IconSymbol
+                      name={categoryIconName(c.name)}
+                      size={20}
+                      color={theme.colors.primary}
+                    />
+                  </View>
 
                   <Text
                     style={styles.categoryName}
@@ -120,7 +150,9 @@ export default function ExploreScreen() {
             }
             initiallyExpanded={false}
           >
-            <Text style={styles.helperText}>Promoções, avisos e conteúdo leve podem ficar aqui.</Text>
+            <Text style={styles.helperText}>
+              Promoções, avisos e conteúdo leve podem ficar aqui.
+            </Text>
           </SafeCollapsible>
         </View>
 
@@ -130,21 +162,21 @@ export default function ExploreScreen() {
           <View style={styles.productsGrid}>
             {featured.map((p) => (
               <Pressable
-                key={p.id}
+                key={(p as any).id}
                 style={styles.productCard}
-                onPress={() => router.push((`/product/${p.id}` as unknown) as any)}
+                onPress={() => router.push((`/product/${(p as any).id}` as unknown) as any)}
               >
-                <Image source={{ uri: p.image }} style={styles.productImage} />
+                <Image source={{ uri: (p as any).image }} style={styles.productImage} />
                 <Text style={styles.productTitle} numberOfLines={2}>
-                  {p.title}
+                  {(p as any).title}
                 </Text>
-                <Text style={styles.productPrice}>{formatCurrency(p.price)}</Text>
+                <Text style={styles.productPrice}>{formatCurrency((p as any).price)}</Text>
               </Pressable>
             ))}
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -153,13 +185,17 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    paddingTop: 14,
+    // ✅ “abaixa só um pouquinho” (SafeArea já faz o grosso)
+    paddingTop: 6,
     paddingBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerTitle: { fontSize: 24, color: theme.colors.text },
+
+  // ✅ mais vistoso (negrito)
+  headerTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text },
+
   headerAction: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -168,7 +204,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  headerActionText: { fontSize: 12, color: theme.colors.text },
+  headerActionText: { fontSize: 12, fontWeight: "700", color: theme.colors.text },
 
   content: { padding: 16, paddingBottom: 28 },
 
@@ -188,19 +224,21 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+    alignItems: "center",
   },
-  categoryIconFallback: {
+  categoryIconWrap: {
     width: 34,
     height: 34,
     borderRadius: 10,
     backgroundColor: theme.colors.surfaceAlt,
     marginBottom: 8,
-    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   categoryName: { fontSize: 12, color: theme.colors.text, textAlign: "center" },
 
   collapseTitle: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
-  collapseTitleText: { fontSize: 14, color: theme.colors.text },
+  collapseTitleText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
   helperText: { fontSize: 12, color: theme.colors.textMuted, marginTop: 8 },
 
   productsGrid: {

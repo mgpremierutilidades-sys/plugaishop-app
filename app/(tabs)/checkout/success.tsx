@@ -1,117 +1,75 @@
 // app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme from "../../../constants/theme";
 
-const FONT_BODY = "OpenSans_400Regular";
-const FONT_BOLD = "OpenSans_700Bold";
-const FONT_TITLE = "Arimo_400Regular";
-
 export default function CheckoutSuccess() {
-  const goOrders = () => {
-    router.replace("/(tabs)");
-    router.push("orders");
-  };
+  function goOrders() {
+    // ✅ rota absoluta
+    router.push("/orders");
+  }
 
-  const goHome = () => {
+  function goHome() {
+    // ✅ volta pro group das abas (home)
     router.replace("/(tabs)");
-    router.push("index");
-  };
+  }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ThemedView style={styles.container}>
-        <View style={styles.center}>
-          <ThemedText style={styles.icon}>✅</ThemedText>
+    <ThemedView style={styles.container}>
+      <View style={styles.card}>
+        <ThemedText type="title" style={styles.title}>
+          Pedido confirmado
+        </ThemedText>
 
-          <ThemedText style={styles.title}>
-            Pedido confirmado!
+        <ThemedText style={styles.text}>
+          Recebemos seu pedido. Você pode acompanhar o status na área de pedidos.
+        </ThemedText>
+
+        <Pressable onPress={goOrders} style={styles.primary}>
+          <ThemedText type="defaultSemiBold" style={styles.primaryText}>
+            Ver pedidos
           </ThemedText>
+        </Pressable>
 
-          <ThemedText style={styles.text}>
-            Seu pedido foi realizado com sucesso.
-            Você pode acompanhar o status na área de pedidos.
-          </ThemedText>
-
-          <Pressable style={styles.primary} onPress={goOrders}>
-            <ThemedText style={styles.primaryText}>
-              VER MEUS PEDIDOS
-            </ThemedText>
-          </Pressable>
-
-          <Pressable style={styles.secondary} onPress={goHome}>
-            <ThemedText style={styles.secondaryText}>
-              VOLTAR AO INÍCIO
-            </ThemedText>
-          </Pressable>
-        </View>
-      </ThemedView>
-    </SafeAreaView>
+        <Pressable onPress={goHome} style={styles.secondary}>
+          <ThemedText type="defaultSemiBold">Voltar ao início</ThemedText>
+        </Pressable>
+      </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
-  center: {
-    alignItems: "center",
-  },
-
-  icon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontFamily: FONT_TITLE,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  text: {
-    fontSize: 12,
-    fontFamily: FONT_BODY,
-    opacity: 0.85,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-
-  primary: {
-    width: "100%",
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  primaryText: {
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: FONT_BOLD,
-  },
-
-  secondary: {
-    width: "100%",
-    height: 44,
-    borderRadius: 14,
+  container: { flex: 1, padding: 16, backgroundColor: theme.colors.background },
+  card: {
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
   },
-  secondaryText: {
-    fontSize: 12,
-    fontFamily: FONT_BOLD,
+  title: { color: theme.colors.text },
+  text: { color: theme.colors.textMuted },
+
+  primary: {
+    marginTop: 6,
+    backgroundColor: theme.colors.success,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  primaryText: { color: "#000" },
+
+  secondary: {
+    backgroundColor: theme.colors.surfaceAlt,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
 });

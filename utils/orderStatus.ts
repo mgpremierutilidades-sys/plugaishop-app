@@ -1,24 +1,41 @@
-import type { OrderDraft, Order } from "../types/order";
-import type { OrderTimelineEvent } from "../types/orderStatus";
+// utils/orderStatus.ts
+import type { Order, OrderDraft } from "../types/order";
+import type { OrderStatus, OrderTimelineEvent } from "../types/orderStatus";
 
 export function createInitialOrderFromDraft(draft: OrderDraft): Order {
   const now = new Date().toISOString();
 
+  const initialStatus: OrderStatus =
+    draft.payment?.status === "paid" ? "paid" : "payment_pending";
+
   const timeline: OrderTimelineEvent[] = [
-    {
-      status: "created",
-      date: now,
-    },
-    {
-      status: draft.payment?.method ? "payment_pending" : "created",
-      date: now,
-    },
+    { status: "created", date: now },
+    { status: initialStatus, date: now },
   ];
 
   return {
     ...draft,
-    status: draft.payment?.status === "paid" ? "paid" : "payment_pending",
+    status: initialStatus,
     timeline,
     createdAt: now,
   };
+}
+
+/**
+ * Avança o status do pedido para simulação (mock).
+ * Usado pelo auto-progress do app.
+ */
+export function advanceMockStatus(current: OrderStatus): OrderStatus {
+  const flow: OrderStatus[] = [
+    "created",
+    "payment_pending",
+    "paid",
+    "shipped",
+    "delivered",
+  ];
+
+  const idx = flow.indexOf(current);
+  if (idx < 0) return "created";
+  if (idx >= flow.length - 1) return flow[flow.length - 1];
+  return flow[idx + 1];
 }

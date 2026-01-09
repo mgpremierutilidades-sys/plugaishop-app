@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { OrderStatus } from "../types/order";
+import type { OrderStatus } from "../types/orderStatus";
 
 const KEY = "@plugaishop:last_notified_status_by_order";
 

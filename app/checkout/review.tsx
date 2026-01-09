@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import theme from "../../constants/theme";
@@ -13,12 +13,14 @@ export default function Review() {
     loadOrderDraft().then(setOrder);
   }, []);
 
+  const discount = useMemo(() => Number(order?.discount ?? 0), [order]);
+
   async function handleConfirm() {
     if (!order) return;
 
-    // Bridge de pagamento (mock): marca como pendente e segue
     await saveOrderDraft({
       ...order,
+      discount,
       payment: { method: "pix", status: "pending" },
     });
 
@@ -44,7 +46,7 @@ export default function Review() {
       </Text>
 
       <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {order.discount.toFixed(2)}
+        Desconto: R$ {discount.toFixed(2)}
       </Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>

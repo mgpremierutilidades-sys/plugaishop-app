@@ -1,3 +1,5 @@
+// constants/theme.ts
+
 export const Spacing = {
   xs: 6,
   sm: 10,
@@ -50,6 +52,12 @@ const theme = {
     textMuted: "#64748B",
     textPrimary: "#0F172A",
     textSecondary: "#64748B",
+
+    // Alias exigido por alguns componentes (ex.: OrderTimeline)
+    muted: "#94A3B8",
+
+    // Alias extra (opcional, mas ajuda compatibilidade sem quebrar nada)
+    mutedText: "#64748B",
 
     primary: "#16A34A",
     primarySoft: "#DCFCE7",
