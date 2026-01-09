@@ -107,6 +107,7 @@ export default function CheckoutSuccessScreen() {
           <ThemedText style={styles.p}>
             Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
           </ThemedText>
+        </Pressable>
 
           <View style={{ height: 6 }} />
 
@@ -192,6 +193,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: theme.colors.primary,
   },
+  primaryText: { color: "#000" },
 
   ghostBtn: {
     paddingVertical: 12,

@@ -1,21 +1,30 @@
-import type { CartItem } from "../context/CartContext";
-import type { OrderDraft } from "../types/order";
+// utils/orderDraftBuilder.ts
+import type { Address, OrderDraft, Payment, Shipping } from "../types/order";
 
-export function buildOrderDraft(params: {
-  items: CartItem[];
+type BuildDraftParams = {
+  id: string;
+  items: OrderDraft["items"];
   subtotal: number;
-  discount: number;
-  shippingPrice?: number;
-}) : OrderDraft {
-  const total =
-    params.subtotal - params.discount + (params.shippingPrice ?? 0);
+  discount?: number;
+  shipping?: Shipping;
+  address?: Address;
+  payment?: Payment;
+  note?: string;
+};
+
+export function buildOrderDraft(params: BuildDraftParams): OrderDraft {
+  const shippingPrice = params.shipping?.price ?? 0;
+  const discount = params.discount ?? 0;
 
   return {
-    id: `OD-${Date.now()}`,
+    id: params.id,
     items: params.items,
     subtotal: params.subtotal,
-    discount: params.discount,
-    total,
-    createdAt: new Date().toISOString(),
+    discount,
+    shipping: params.shipping,
+    address: params.address,
+    payment: params.payment,
+    note: params.note,
+    total: params.subtotal - discount + shippingPrice,
   };
 }

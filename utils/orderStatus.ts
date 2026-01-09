@@ -20,3 +20,22 @@ export function createInitialOrderFromDraft(draft: OrderDraft): Order {
     createdAt: now,
   };
 }
+
+/**
+ * Avança o status do pedido para simulação (mock).
+ * Usado pelo auto-progress do app.
+ */
+export function advanceMockStatus(current: OrderStatus): OrderStatus {
+  const flow: OrderStatus[] = [
+    "created",
+    "payment_pending",
+    "paid",
+    "shipped",
+    "delivered",
+  ];
+
+  const idx = flow.indexOf(current);
+  if (idx < 0) return "created";
+  if (idx >= flow.length - 1) return flow[flow.length - 1];
+  return flow[idx + 1];
+}

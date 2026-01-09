@@ -12,7 +12,14 @@ export default function TabsLayout() {
         tabBarHideOnKeyboard: false,
         tabBarStyle: {
           borderTopColor: theme.colors.divider,
-          backgroundColor: theme.colors.surface,
+          backgroundColor: theme.colors.background,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
         },
       }}
     >
@@ -20,8 +27,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Início",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="home-outline" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="home-outline" color={color} size={22} />
           ),
         }}
       />
@@ -30,12 +37,8 @@ export default function TabsLayout() {
         name="explore"
         options={{
           title: "Explorar",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol
-              name="compass-outline"
-              color={color}
-              size={size ?? 22}
-            />
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="compass-outline" color={color} size={22} />
           ),
         }}
       />
@@ -44,8 +47,8 @@ export default function TabsLayout() {
         name="cart"
         options={{
           title: "Carrinho",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="cart-outline" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="cart-outline" color={color} size={22} />
           ),
         }}
       />
@@ -54,8 +57,8 @@ export default function TabsLayout() {
         name="account"
         options={{
           title: "Conta",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="person-outline" color={color} size={size ?? 22} />
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="receipt-outline" color={color} size={22} />
           ),
         }}
       />
@@ -64,12 +67,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Perfil",
-          tabBarIcon: ({ color, size }) => (
-            <IconSymbol
-              name="person-circle-outline"
-              color={color}
-              size={size ?? 22}
-            />
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="person-circle-outline" color={color} size={22} />
           ),
         }}
       />
