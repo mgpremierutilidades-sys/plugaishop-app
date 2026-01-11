@@ -1,6 +1,5 @@
-// app/(tabs)/checkout/index.tsx
 import { router } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
@@ -10,6 +9,10 @@ import theme from "../../../constants/theme";
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
 const FONT_TITLE = "Arimo_400Regular";
+
+function ComingSoon(title: string) {
+  Alert.alert(title, "Em breve no Plugaí Shop.");
+}
 
 export default function CheckoutIndex() {
   const goBack = () => router.back();
@@ -45,9 +48,36 @@ export default function CheckoutIndex() {
             <ThemedText style={styles.value}>Conferir pedido</ThemedText>
           </View>
 
-          <Pressable onPress={() => push("/(tabs)/checkout/address")} style={styles.primaryBtn} accessibilityRole="button">
+          <Pressable
+            onPress={() => push("/checkout/address")}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
           </Pressable>
+        </View>
+
+        {/* Espaço de banner / conteúdo (ocupa o “vazio” abaixo do botão e do texto) */}
+        <View style={styles.promoWrap}>
+          <Pressable onPress={() => ComingSoon("JOGOS")} style={[styles.promoCard, styles.promoCardA]} accessibilityRole="button">
+            <ThemedText style={styles.promoTitle}>JOGOS</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>Desafios, prêmios e novidades</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={() => ComingSoon("VÍDEOS")} style={[styles.promoCard, styles.promoCardB]} accessibilityRole="button">
+            <ThemedText style={styles.promoTitle}>VÍDEOS</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>Conteúdo rápido e ofertas</ThemedText>
+          </Pressable>
+
+          <View style={styles.promoRow}>
+            <Pressable onPress={() => ComingSoon("FOTOS")} style={[styles.promoMini, styles.promoMiniC]} accessibilityRole="button">
+              <ThemedText style={styles.promoMiniText}>FOTOS</ThemedText>
+            </Pressable>
+
+            <Pressable onPress={() => ComingSoon("TEXTOS")} style={[styles.promoMini, styles.promoMiniD]} accessibilityRole="button">
+              <ThemedText style={styles.promoMiniText}>TEXTOS</ThemedText>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.helpCard}>
@@ -105,7 +135,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  primaryBtnText: { color: "#fff", fontSize: 12, fontFamily: FONT_BODY_BOLD },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    textTransform: "uppercase",
+  },
+
+  promoWrap: {
+    marginTop: 12,
+    gap: 10,
+  },
+  promoCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  promoCardA: { backgroundColor: theme.colors.surface },
+  promoCardB: { backgroundColor: theme.colors.surface },
+
+  promoTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
+  promoSubtitle: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.9 },
+
+  promoRow: { flexDirection: "row", gap: 10 },
+  promoMini: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  promoMiniC: {},
+  promoMiniD: {},
+  promoMiniText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
 
   helpCard: {
     marginTop: 12,

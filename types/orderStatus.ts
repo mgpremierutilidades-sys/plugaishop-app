@@ -1,5 +1,4 @@
 // types/orderStatus.ts
-
 export type OrderStatus =
   | "created"
   | "payment_pending"
@@ -7,9 +6,10 @@ export type OrderStatus =
   | "processing"
   | "shipped"
   | "delivered"
-  | "canceled";
+  | "canceled"
+  | "cancelled"; // compatibilidade
 
 export type OrderTimelineEvent = {
   status: OrderStatus;
-  date: string;
+  date: string; // ISO
 };

@@ -37,17 +37,9 @@ type CartSection = {
   data: Row[];
 };
 
-function ProductThumb({
-  image,
-  size = 82,
-}: {
-  image?: string;
-  size?: number;
-}) {
+function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   const src: ImageSourcePropType | null =
-    typeof image === "string" && image.startsWith("http")
-      ? { uri: image }
-      : null;
+    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
 
   return (
     <View style={[styles.itemImage, { width: size, height: size }]}>
@@ -88,21 +80,22 @@ export default function CartTab() {
     const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
     if (!ctxItems) return;
 
-    // Tentativa defensiva: se vier array de {product, qty}
     if (Array.isArray(ctxItems)) {
       const mapped: Row[] = ctxItems
         .map((it: any) => {
           const p = it?.product ?? it;
           const qty = it?.qty ?? it?.quantity ?? 1;
-          if (!p?.id) return null;
+          const id = p?.id ?? it?.id ?? it?.productId;
+          if (!id) return null;
+
           return {
             type: "cart",
-            id: String(p.id),
-            title: String(p.title ?? "Produto"),
-            price: Number(p.price ?? 0),
-            oldPrice: p.oldPrice ? Number(p.oldPrice) : undefined,
-            qty: Number(qty ?? 1),
-            image: p.image,
+            id: String(id),
+            title: String(p?.title ?? it?.title ?? "Produto"),
+            price: Number(p?.price ?? it?.price ?? 0),
+            oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
+            qty: Math.max(1, Number(qty ?? 1)),
+            image: p?.image ?? it?.image,
           } as Row;
         })
         .filter(Boolean) as Row[];
@@ -111,7 +104,6 @@ export default function CartTab() {
       return;
     }
 
-    // Se vier objeto/mapa { [id]: qty }
     if (typeof ctxItems === "object") {
       const mapped: Row[] = Object.keys(ctxItems).map((id) => {
         const qty = Number((ctxItems as any)[id] ?? 1);
@@ -121,7 +113,7 @@ export default function CartTab() {
           id: String(id),
           title: String(p?.title ?? "Produto"),
           price: Number(p?.price ?? 0),
-          qty,
+          qty: Math.max(1, qty),
           image: (p as any)?.image,
         };
       });
@@ -132,7 +124,6 @@ export default function CartTab() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    // Seleciona tudo por padrão quando lista muda
     const next: Record<string, boolean> = {};
     for (const r of localRows) next[r.id] = true;
     setSelected(next);
@@ -158,31 +149,31 @@ export default function CartTab() {
   function safeAdd(product: Product) {
     const any = cartCtx as any;
     const fn =
+      any?.addItem?.bind(any) ||
       any?.add?.bind(any) ||
       any?.addToCart?.bind(any) ||
       any?.increase?.bind(any) ||
       any?.increment?.bind(any);
 
     if (fn) {
-      fn(product);
+      fn(product, 1);
       return;
     }
 
-    setLocalRows((prev) =>
-      prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r))
-    );
+    setLocalRows((prev) => prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)));
   }
 
   function safeDec(product: Product) {
     const any = cartCtx as any;
     const fn =
+      any?.decItem?.bind(any) ||
       any?.decrease?.bind(any) ||
       any?.dec?.bind(any) ||
       any?.decrement?.bind(any) ||
       any?.removeOne?.bind(any);
 
     if (fn) {
-      fn(product);
+      fn(product, 1);
       return;
     }
 
@@ -196,13 +187,14 @@ export default function CartTab() {
   function safeRemove(product: Product) {
     const any = cartCtx as any;
     const fn =
+      any?.removeItem?.bind(any) ||
       any?.remove?.bind(any) ||
       any?.removeFromCart?.bind(any) ||
       any?.deleteItem?.bind(any) ||
       any?.clearItem?.bind(any);
 
     if (fn) {
-      fn(product);
+      fn(product.id);
       return;
     }
 
@@ -235,10 +227,7 @@ export default function CartTab() {
           <Pressable
             onPress={() => toggleSelect(item.id)}
             hitSlop={10}
-            style={[
-              styles.checkbox,
-              isChecked ? styles.checkboxChecked : styles.checkboxUnchecked,
-            ]}
+            style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
             accessibilityRole="button"
             accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
           >
@@ -253,38 +242,24 @@ export default function CartTab() {
             </ThemedText>
 
             <View style={styles.priceRow}>
-              <ThemedText style={styles.price}>
-                {formatCurrency(item.price)}
-              </ThemedText>
+              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
               <ThemedText style={styles.unit}> / un</ThemedText>
             </View>
 
             {item.oldPrice ? (
-              <ThemedText style={styles.oldPrice}>
-                {formatCurrency(item.oldPrice)}
-              </ThemedText>
+              <ThemedText style={styles.oldPrice}>{formatCurrency(item.oldPrice)}</ThemedText>
             ) : null}
           </View>
         </View>
 
         <View style={styles.qtyRow}>
-          <Pressable
-            onPress={() => safeDec(product)}
-            style={styles.qtyBtn}
-            hitSlop={10}
-            accessibilityRole="button"
-          >
+          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
             <ThemedText style={styles.qtyBtnText}>-</ThemedText>
           </Pressable>
 
           <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
 
-          <Pressable
-            onPress={() => safeAdd(product)}
-            style={styles.qtyBtn}
-            hitSlop={10}
-            accessibilityRole="button"
-          >
+          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
             <ThemedText style={styles.qtyBtnText}>+</ThemedText>
           </Pressable>
 
@@ -302,7 +277,6 @@ export default function CartTab() {
   };
 
   const goCheckout = () => {
-    // Ajuste aqui se sua rota de checkout estiver em outro path
     router.push("/checkout" as any);
   };
 
@@ -310,12 +284,7 @@ export default function CartTab() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.backBtn}
-            accessibilityRole="button"
-          >
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -324,40 +293,29 @@ export default function CartTab() {
           <View style={styles.rightSpacer} />
         </View>
 
-        <View style={styles.totalWrap}>
-          <View style={styles.totalBox}>
-            <ThemedText style={styles.totalLabel}>Total</ThemedText>
-            <ThemedText style={styles.totalValue}>
-              {formatCurrency(selectedSubtotal)}
-            </ThemedText>
-          </View>
-        </View>
-
         <SectionList
           sections={sections}
           keyExtractor={(it) => `${it.type}-${it.id}`}
           renderItem={renderRow}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionHeaderText}>
-                {section.title.toUpperCase()}
-              </ThemedText>
+              <ThemedText style={styles.sectionHeaderText}>{section.title.toUpperCase()}</ThemedText>
             </View>
           )}
-          stickySectionHeadersEnabled={false}
+          stickySectionHeadersEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 72 }}
+          contentContainerStyle={{ paddingBottom: 160 }}
         />
 
+        {/* Rodapé fixo: TOTAL embaixo + botão */}
         <View style={styles.footerBar}>
-          <Pressable
-            onPress={goCheckout}
-            style={styles.footerBtn}
-            accessibilityRole="button"
-          >
-            <ThemedText style={styles.footerBtnText}>
-              Continuar a compra
-            </ThemedText>
+          <View style={styles.totalBox}>
+            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+            <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+          </View>
+
+          <Pressable onPress={goCheckout} style={styles.footerBtn} accessibilityRole="button">
+            <ThemedText style={styles.footerBtnText}>CONTINUAR A COMPRA</ThemedText>
           </Pressable>
         </View>
       </ThemedView>
@@ -394,26 +352,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontFamily: FONT_TITLE,
-    fontWeight: "700", // Carrinho: título em negrito
+    fontWeight: "700",
     textAlign: "center",
   },
 
   rightSpacer: { width: 40, height: 40 },
 
-  totalWrap: { marginBottom: 8 },
-  totalBox: {
-    backgroundColor: "#F59E0B",
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  // PRODUTOS fixo (sticky) e sempre visível
+  sectionHeader: {
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: theme.colors.background,
+    zIndex: 10,
   },
-  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
-  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
-
-  sectionHeader: { paddingTop: 10, paddingBottom: 6 },
   sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
 
   itemCard: {
@@ -421,15 +372,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: 12,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 8,
   },
 
   itemTop: { flexDirection: "row", gap: 10 },
 
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     borderRadius: 6,
     borderWidth: 1,
     alignItems: "center",
@@ -448,52 +399,72 @@ const styles = StyleSheet.create({
   itemImagePlaceholder: { flex: 1, borderRadius: 12, backgroundColor: theme.colors.surfaceAlt },
 
   itemInfo: { flex: 1 },
-  itemTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
-  priceRow: { marginTop: 10, flexDirection: "row", alignItems: "center" },
-  price: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
-  unit: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.7 },
+  itemTitle: { fontSize: 11, fontFamily: FONT_BODY_BOLD },
+  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
+  price: { fontSize: 11, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
+  unit: { fontSize: 11, fontFamily: FONT_BODY, opacity: 0.7 },
   oldPrice: {
-    marginTop: 4,
-    fontSize: 12,
+    marginTop: 3,
+    fontSize: 11,
     fontFamily: FONT_BODY,
     opacity: 0.6,
     textDecorationLine: "line-through",
   },
 
   qtyRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
 
   qtyBtn: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.colors.divider,
     alignItems: "center",
     justifyContent: "center",
   },
-  qtyBtnText: { fontSize: 16, fontFamily: FONT_BODY_BOLD },
+  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD },
 
-  qtyText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, minWidth: 20, textAlign: "center" },
+  qtyText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
 
   remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
 
+  // Rodapé: TOTAL + CTA
   footerBar: {
     position: "absolute",
     left: 14,
     right: 14,
     bottom: 10,
+    gap: 8,
   },
-  footerBtn: {
-    height: 44, // banner mais fino
+
+  totalBox: {
+    backgroundColor: "#F59E0B",
     borderRadius: 14,
-    backgroundColor: "#3F5A3A", // verde musgo
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+
+  footerBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#3F5A3A",
     alignItems: "center",
     justifyContent: "center",
   },
-  footerBtnText: { fontSize: 16, fontFamily: FONT_BODY_BOLD },
+  footerBtnText: {
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
 });

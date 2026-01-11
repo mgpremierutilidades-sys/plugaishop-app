@@ -1,6 +1,6 @@
 // app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -42,6 +42,7 @@ function normalizeCartItems(cartAny: any) {
 
 export default function CheckoutSuccessScreen() {
   const cartAny = useCart() as any;
+  const creatingRef = useRef(false);
 
   const clearCart = useCallback(() => {
     if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
@@ -50,21 +51,26 @@ export default function CheckoutSuccessScreen() {
   }, [cartAny]);
 
   const generateOrder = useCallback(async () => {
-    const items = normalizeCartItems(cartAny);
+    if (creatingRef.current) return null;
+    creatingRef.current = true;
 
-    if (!items.length) {
-      return null;
+    try {
+      const items = normalizeCartItems(cartAny);
+      if (!items.length) return null;
+
+      // Importante:
+      // status é TÉCNICO (created/paid/...) — label "Confirmado" é só para UI.
+      const order = createOrderFromCart({
+        items,
+        discount: 0,
+        shipping: 0,
+      });
+
+      await addOrder(order);
+      return order;
+    } finally {
+      creatingRef.current = false;
     }
-
-    const order = createOrderFromCart({
-      items,
-      discount: 0,
-      shipping: 0,
-      status: "Confirmado",
-    });
-
-    await addOrder(order);
-    return order;
   }, [cartAny]);
 
   const goOrders = () => router.push("/orders" as any);
@@ -107,7 +113,6 @@ export default function CheckoutSuccessScreen() {
           <ThemedText style={styles.p}>
             Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
           </ThemedText>
-        </Pressable>
 
           <View style={{ height: 6 }} />
 
@@ -193,7 +198,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: theme.colors.primary,
   },
-  primaryText: { color: "#000" },
 
   ghostBtn: {
     paddingVertical: 12,

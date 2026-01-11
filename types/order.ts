@@ -24,12 +24,17 @@ export type Payment = {
 };
 
 export type OrderDraft = {
-  id: string;
+  /**
+   * Draft pode existir sem id nas etapas iniciais do checkout.
+   * O Order final SEMPRE terá id (ver type Order abaixo).
+   */
+  id?: string;
+
   items: CartItem[];
   subtotal: number;
 
   /** desconto total aplicado ao pedido (default: 0) */
-  discount: number;
+  discount?: number;
 
   shipping?: Shipping;
   total: number;
@@ -38,15 +43,15 @@ export type OrderDraft = {
   note?: string;
 };
 
-export type Order = OrderDraft & {
+export type Order = Omit<OrderDraft, "id"> & {
+  id: string;
   status: OrderStatus;
   timeline: OrderTimelineEvent[];
-  createdAt: string; // ISO string
+  createdAt: string; // ISO
 };
 
 /**
  * Tipos adicionais usados pelo ordersStore (stubs tipados e compatíveis com mocks).
- * Mantemos permissivos para não quebrar o app e permitir evolução futura.
  */
 export type InAppNotification = {
   id: string;
@@ -55,27 +60,85 @@ export type InAppNotification = {
   createdAt: string; // ISO
   read?: boolean;
   data?: Record<string, any>;
-
-  // ordersStore usa isso em alguns pontos
   orderId?: string;
 };
 
-/**
- * Pedido final (já "criado" no sistema).
- * Importante: NÃO redefinir OrderStatus aqui.
- * Ele vem de ./orderStatus (fonte única).
- */
-export type Order = OrderDraft & {
-  status: OrderStatus;
+export type Invoice = {
+  id?: string;
+  number?: string;
+  url?: string;
+  issuedAt?: string; // ISO
+  total?: number;
 
-  /**
-   * Linha do tempo do pedido (o seu orderTimelineAuto depende disso).
-   */
-  timeline: OrderTimelineEvent[];
+  status?: string;
+  series?: string;
+  accessKey?: string;
+  danfeUrl?: string;
+};
 
-  /**
-   * Contador simples para badge/alertas (se você quiser usar).
-   * Pode manter opcional sem quebrar nada.
-   */
-  unreadNotifications?: number;
+export type LogisticsEventType =
+  | "created"
+  | "payment_pending"
+  | "processing"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "canceled"
+  | "custom";
+
+export type LogisticsEvent = {
+  id: string;
+  type: LogisticsEventType;
+
+  date?: string; // ISO
+  at?: string; // ISO
+
+  note?: string;
+  location?: string;
+
+  title?: string;
+  description?: string;
+};
+
+export type OrderReview = {
+  id?: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment?: string;
+  createdAt: string; // ISO
+};
+
+export type ReturnType = "refund" | "exchange" | "repair" | "other";
+
+export type ReturnAttachment = {
+  id: string;
+  uri?: string;
+  url?: string;
+  mimeType?: string;
+  name?: string;
+  createdAt?: string; // ISO
+};
+
+export type ReturnRequestStatus =
+  | "requested"
+  | "approved"
+  | "rejected"
+  | "shipped_back"
+  | "completed"
+  | "ABERTA"
+  | "APROVADA"
+  | "REJEITADA"
+  | "CONCLUIDA";
+
+export type ReturnRequest = {
+  id?: string;
+  orderId?: string;
+
+  type: ReturnType;
+  reason?: string;
+  status?: ReturnRequestStatus;
+  createdAt: string; // ISO
+  protocol?: string;
+
+  attachments?: ReturnAttachment[];
 };

@@ -6,10 +6,6 @@ export type LocalNotificationPayload = {
   data?: Record<string, unknown>;
 };
 
-/**
- * Handler padrão (Expo SDK mais recente exige shouldShowBanner/shouldShowList também).
- * Chame initNotifications() uma vez no app (ex.: no app/_layout.tsx) se quiser.
- */
 export function initNotifications() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -22,9 +18,6 @@ export function initNotifications() {
   });
 }
 
-/**
- * Dispara uma notificação local simples.
- */
 export async function notifyLocal(payload: LocalNotificationPayload): Promise<void> {
   const { title, body, data } = payload;
 

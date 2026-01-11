@@ -22,9 +22,9 @@ export default function Review() {
       ...order,
       discount,
       payment: { method: "pix", status: "pending" },
-    });
+    } as any);
 
-    router.push("/checkout/success");
+    router.push("/checkout/success" as any);
   }
 
   if (!order) {
@@ -46,7 +46,7 @@ export default function Review() {
       </Text>
 
       <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {discount.toFixed(2)}
+        Desconto: R$ {(order.discount ?? 0).toFixed(2)}
       </Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>

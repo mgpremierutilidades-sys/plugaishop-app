@@ -7,6 +7,28 @@ import { loadOrderDraft } from "../utils/orderStorage";
 
 type ReplaceArg = Parameters<typeof router.replace>[0];
 
+type CheckoutStep = "address" | "shipping" | "payment" | "review";
+
+function getNextCheckoutStep(draft: OrderDraft): CheckoutStep {
+  if (!draft.address) return "address";
+  if (!draft.shipping) return "shipping";
+  if (!draft.payment?.method) return "payment";
+  return "review";
+}
+
+function stepToRoute(step: CheckoutStep) {
+  switch (step) {
+    case "address":
+      return "/checkout/address";
+    case "shipping":
+      return "/checkout/shipping";
+    case "payment":
+      return "/checkout/payment";
+    default:
+      return "/checkout/review";
+  }
+}
+
 export function useCheckoutFailSafe() {
   useEffect(() => {
     let alive = true;
@@ -17,17 +39,14 @@ export function useCheckoutFailSafe() {
         if (!alive) return;
         if (!draft) return;
 
-        // Se não tem itens, não faz nada (evita prender usuário no checkout)
         if (!Array.isArray(draft.items) || draft.items.length === 0) return;
 
-      const step = getNextCheckoutStep(draft);
-
-      // Força o TypeScript a tratar como rota válida para o Expo Router
-      const href = stepToRoute(step) as ReplaceArg;
+        const step = getNextCheckoutStep(draft);
+        const href = stepToRoute(step) as ReplaceArg;
 
         router.replace(href);
       } catch {
-        // silencioso: fail-safe não pode travar o app
+        // fail-safe não pode travar o app
       }
     })();
 
@@ -36,4 +55,3 @@ export function useCheckoutFailSafe() {
     };
   }, []);
 }
-

@@ -1,4 +1,3 @@
-// app/(tabs)/checkout/address.tsx
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -142,7 +141,7 @@ export default function CheckoutAddress() {
           />
 
           <Pressable
-            onPress={() => push("/(tabs)/checkout/shipping")}
+            onPress={() => push("/checkout/shipping")}
             style={[styles.primaryBtn, !canContinue ? styles.primaryBtnDisabled : null]}
             accessibilityRole="button"
             disabled={!canContinue}
@@ -151,7 +150,9 @@ export default function CheckoutAddress() {
           </Pressable>
 
           {!canContinue ? (
-            <ThemedText style={styles.hint}>Preencha CEP, número, rua, bairro e cidade/UF para continuar.</ThemedText>
+            <ThemedText style={styles.hint}>
+              Preencha CEP, número, rua, bairro e cidade/UF para continuar.
+            </ThemedText>
           ) : null}
         </View>
       </ThemedView>
@@ -207,7 +208,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: "#fff", fontSize: 12, fontFamily: FONT_BODY_BOLD },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    textTransform: "uppercase",
+  },
 
   hint: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.75 },
 });

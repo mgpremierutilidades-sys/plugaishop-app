@@ -1,11 +1,15 @@
 // utils/orderStatus.ts
 import type { Order, OrderDraft } from "../types/order";
-import type { OrderTimelineEvent } from "../types/orderStatus";
+import type { OrderStatus, OrderTimelineEvent } from "../types/orderStatus";
+
+function uid(prefix = "order") {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
 
 export function createInitialOrderFromDraft(draft: OrderDraft): Order {
   const now = new Date().toISOString();
 
-  const status =
+  const status: OrderStatus =
     draft.payment?.status === "paid" ? "paid" : "payment_pending";
 
   const timeline: OrderTimelineEvent[] = [
@@ -15,21 +19,19 @@ export function createInitialOrderFromDraft(draft: OrderDraft): Order {
 
   return {
     ...(draft as any),
+    id: String(draft.id ?? uid("order")),
     status,
     timeline,
     createdAt: now,
-  };
+  } as Order;
 }
 
-/**
- * Avança o status do pedido para simulação (mock).
- * Usado pelo auto-progress do app.
- */
 export function advanceMockStatus(current: OrderStatus): OrderStatus {
   const flow: OrderStatus[] = [
     "created",
     "payment_pending",
     "paid",
+    "processing",
     "shipped",
     "delivered",
   ];

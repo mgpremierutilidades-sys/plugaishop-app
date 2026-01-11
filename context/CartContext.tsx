@@ -42,7 +42,6 @@ function emit() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  // IMPORTANTÍSSIMO: cleanup precisa retornar void (não boolean)
   return () => {
     listeners.delete(listener);
   };
@@ -83,7 +82,6 @@ function upsert(product: Product, qtyDelta: number) {
   const pid = (product as any).id;
   const index = current.findIndex((i) => i.id === pid);
 
-  // novo item
   if (index === -1) {
     setItems([...current, toCartItem(product, Math.max(1, qtyDelta))]);
     return;
@@ -91,13 +89,11 @@ function upsert(product: Product, qtyDelta: number) {
 
   const nextQty = current[index].qty + qtyDelta;
 
-  // remover
   if (nextQty <= 0) {
     setItems(current.filter((_, i) => i !== index));
     return;
   }
 
-  // atualizar qty (e manter espelho do product)
   setItems(
     current.map((it, i) => (i === index ? { ...toCartItem(it.product, nextQty), qty: nextQty } : it))
   );
@@ -129,7 +125,7 @@ export function useCart() {
 
   useEffect(() => {
     const unsub = subscribe(() => setSnap(getSnapshot()));
-    return unsub; // agora retorna void corretamente
+    return unsub;
   }, []);
 
   const totalQty = useMemo(() => snap.items.reduce((acc, it) => acc + it.qty, 0), [snap.items]);
@@ -141,14 +137,8 @@ export function useCart() {
     }, 0);
   }, [snap.items]);
 
-  // Por enquanto, total = subtotal (frete entra depois na etapa Shipping)
   const total = subtotal;
 
-  /**
-   * COMPAT:
-   * - seu cart.tsx provavelmente chama addItem(product, n) (2 args)
-   * - removeItem(id, n) (2 args) -> ignoramos o 2º arg
-   */
   const addItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, qtyDelta), []);
   const decItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, -Math.abs(qtyDelta)), []);
 
@@ -157,29 +147,22 @@ export function useCart() {
   const clearCart = useCallback(() => clear(), []);
 
   return {
-    // estado
     items: snap.items,
 
-    // somatórios
     totalQty,
     subtotal,
     total,
 
-    // ações
     addItem,
     decItem,
     removeItem,
     setItemQty,
     clearCart,
 
-    // alias (para cart.tsx antigo)
     setQty: setItemQty,
   };
 }
 
-/**
- * Provider (mantém compatibilidade com quem envolve o app)
- */
 const DummyCartContext = createContext(true);
 
 export function CartProvider({ children }: { children: ReactNode }) {
