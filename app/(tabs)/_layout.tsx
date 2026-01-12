@@ -1,7 +1,7 @@
-﻿// app/(tabs)/_layout.tsx
+// app/(tabs)/_layout.tsx
 import { Tabs, router, useSegments } from "expo-router";
 import { useEffect, useMemo } from "react";
-import IconSymbol from "../../components/ui/icon-symbol";
+import Icon from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 
 // GARANTE: no primeiro boot do app, se ele abrir “preso” no checkout, volta pro Home uma vez.
@@ -64,7 +64,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Início",
-          tabBarIcon: ({ color }) => <IconSymbol name="home-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <Icon name="home-outline" color={color} size={22} />,
         }}
       />
 
@@ -72,7 +72,7 @@ export default function TabsLayout() {
         name="explore"
         options={{
           title: "Explorar",
-          tabBarIcon: ({ color }) => <IconSymbol name="compass-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <Icon name="compass-outline" color={color} size={22} />,
         }}
       />
 
@@ -80,7 +80,7 @@ export default function TabsLayout() {
         name="cart"
         options={{
           title: "Carrinho",
-          tabBarIcon: ({ color }) => <IconSymbol name="cart-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <Icon name="cart-outline" color={color} size={22} />,
         }}
       />
 
@@ -88,7 +88,7 @@ export default function TabsLayout() {
         name="account"
         options={{
           title: "Conta",
-          tabBarIcon: ({ color }) => <IconSymbol name="receipt-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <Icon name="receipt-outline" color={color} size={22} />,
         }}
       />
 
@@ -96,7 +96,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Perfil",
-          tabBarIcon: ({ color }) => <IconSymbol name="person-circle-outline" color={color} size={22} />,
+          tabBarIcon: ({ color }) => <Icon name="person-circle-outline" color={color} size={22} />,
         }}
       />
     </Tabs>

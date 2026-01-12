@@ -1,4 +1,4 @@
-﻿import { Stack, router, useSegments } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 
 export const unstable_settings = {
