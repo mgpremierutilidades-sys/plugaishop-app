@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
+  Modal,
   Pressable,
   SectionList,
   StyleSheet,
@@ -15,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
+import IconSymbol from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import { useCart } from "../../context/CartContext";
 import type { Product } from "../../data/catalog";
@@ -89,6 +91,14 @@ type SavedItem = {
   unitLabel?: string;
 };
 
+// Proteção (upsell estilo Magalu)
+type ProtectionPlan = {
+  months: number;
+  price: number;
+  installments: number; // só UX
+  recommended?: boolean;
+};
+
 function toImageSource(img: any): ImageSourcePropType | undefined {
   if (!img) return undefined;
   if (typeof img === "number") return img;
@@ -113,9 +123,6 @@ function normalizeCep(raw: string) {
 }
 
 function estimateShipping(cep8: string): number {
-  // Mock simples (apenas UX):
-  // - sem CEP => 0 (não calculado)
-  // - GO (74/75) barato, SP (01-19) médio, resto mais caro
   if (!cep8 || cep8.length !== 8) return 0;
 
   const prefix2 = cep8.slice(0, 2);
@@ -132,6 +139,23 @@ function calcUnitWithProductDiscount(unit: number, discountPercent?: number) {
   if (!Number.isFinite(pct) || pct <= 0) return unit;
   const discounted = unit * (1 - pct / 100);
   return clampMoney(discounted);
+}
+
+function roundToCents(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+// Precificação simples de proteção (UX)
+function buildProtectionPlans(unitFinal: number): ProtectionPlan[] {
+  const u = clampMoney(unitFinal);
+
+  const p12 = roundToCents(Math.min(Math.max(u * 0.13, 9.9), 399));
+  const p24 = roundToCents(Math.min(Math.max(u * 0.18, 14.9), 549));
+
+  return [
+    { months: 12, price: p12, installments: 10, recommended: true },
+    { months: 24, price: p24, installments: 12 },
+  ];
 }
 
 export default function CartTab() {
@@ -312,7 +336,6 @@ export default function CartTab() {
 
   const moveSavedToCart = useCallback(
     (it: SavedItem) => {
-      // Reinsere a qty salva
       safeAdd(it.id, Math.max(1, it.qty));
       setSaved((prev) => prev.filter((p) => p.id !== it.id));
     },
@@ -348,29 +371,26 @@ export default function CartTab() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponMsg, setCouponMsg] = useState<string>("");
 
-  const applyCouponCode = useCallback(
-    (codeRaw: string) => {
-      const code = String(codeRaw ?? "")
-        .trim()
-        .toUpperCase();
+  const applyCouponCode = useCallback((codeRaw: string) => {
+    const code = String(codeRaw ?? "")
+      .trim()
+      .toUpperCase();
 
-      if (!code) {
-        setCouponMsg("Digite um cupom.");
-        return;
-      }
+    if (!code) {
+      setCouponMsg("Digite um cupom.");
+      return;
+    }
 
-      const found = COUPONS.find((c) => c.code === code) ?? null;
-      if (!found) {
-        setAppliedCoupon(null);
-        setCouponMsg("Cupom inválido.");
-        return;
-      }
+    const found = COUPONS.find((c) => c.code === code) ?? null;
+    if (!found) {
+      setAppliedCoupon(null);
+      setCouponMsg("Cupom inválido.");
+      return;
+    }
 
-      setAppliedCoupon(found);
-      setCouponMsg(`Cupom aplicado: ${found.code} (${found.label})`);
-    },
-    []
-  );
+    setAppliedCoupon(found);
+    setCouponMsg(`Cupom aplicado: ${found.code} (${found.label})`);
+  }, []);
 
   const applyCoupon = useCallback(() => applyCouponCode(couponInput), [applyCouponCode, couponInput]);
 
@@ -385,6 +405,33 @@ export default function CartTab() {
   const [cepInput, setCepInput] = useState<string>("");
 
   const cep8 = useMemo(() => normalizeCep(cepInput), [cepInput]);
+
+  // === Proteção (local) ===
+  const [protectionById, setProtectionById] = useState<Record<string, number | undefined>>({});
+  const [protectionModalFor, setProtectionModalFor] = useState<{ id: string; unitFinal: number } | null>(null);
+
+  useEffect(() => {
+    setProtectionById((prev) => {
+      const ids = new Set(cartRows.map((r) => r.id));
+      const next: Record<string, number | undefined> = {};
+      for (const k of Object.keys(prev)) {
+        if (ids.has(k)) next[k] = prev[k];
+      }
+      return next;
+    });
+  }, [cartRows]);
+
+  const openProtectionModal = useCallback((id: string, unitFinal: number) => {
+    setProtectionModalFor({ id, unitFinal });
+  }, []);
+
+  const removeProtection = useCallback((id: string) => {
+    setProtectionById((prev) => ({ ...prev, [id]: undefined }));
+  }, []);
+
+  const chooseProtection = useCallback((id: string, months: number) => {
+    setProtectionById((prev) => ({ ...prev, [id]: months }));
+  }, []);
 
   // Totais (apenas selecionados)
   const subtotalRaw = useMemo(() => {
@@ -427,7 +474,27 @@ export default function CartTab() {
     return 0;
   }, [appliedCoupon, subtotalAfterProductDiscount]);
 
-  const discountTotal = useMemo(() => clampMoney(productDiscountTotal + couponDiscount), [productDiscountTotal, couponDiscount]);
+  const discountTotal = useMemo(
+    () => clampMoney(productDiscountTotal + couponDiscount),
+    [productDiscountTotal, couponDiscount]
+  );
+
+  const protectionTotal = useMemo(() => {
+    return cartRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+
+      const months = protectionById[r.id];
+      if (!months) return acc;
+
+      const unit = Number(r.price ?? 0);
+      const unitFinal = calcUnitWithProductDiscount(unit, r.discountPercent);
+      const plans = buildProtectionPlans(unitFinal);
+      const plan = plans.find((p) => p.months === months) ?? null;
+      if (!plan) return acc;
+
+      return acc + plan.price;
+    }, 0);
+  }, [cartRows, protectionById, selected]);
 
   const shippingEstimated = useMemo(() => {
     if (!hasCart) return 0;
@@ -440,9 +507,9 @@ export default function CartTab() {
   }, [appliedCoupon, cep8, hasCart, shippingMethod, subtotalAfterProductDiscount]);
 
   const total = useMemo(() => {
-    const t = subtotalAfterProductDiscount - couponDiscount + shippingEstimated;
+    const t = subtotalAfterProductDiscount - couponDiscount + shippingEstimated + protectionTotal;
     return t < 0 ? 0 : t;
-  }, [couponDiscount, shippingEstimated, subtotalAfterProductDiscount]);
+  }, [couponDiscount, shippingEstimated, subtotalAfterProductDiscount, protectionTotal]);
 
   const freeShippingProgress = useMemo(() => {
     const v = subtotalAfterProductDiscount;
@@ -451,7 +518,7 @@ export default function CartTab() {
     return { ratio, missing, reached: v >= FREE_SHIPPING_THRESHOLD };
   }, [subtotalAfterProductDiscount]);
 
-  // Seções (ordem correta de conversão: itens -> resumo -> recomendações -> ofertas)
+  // Seções
   const sections: CartSection[] = useMemo(() => {
     const s: CartSection[] = [];
 
@@ -468,7 +535,6 @@ export default function CartTab() {
     return s;
   }, [cartRows, dealRows, hasCart, saved.length]);
 
-  // Header topo (vazio / tools)
   const headerContent = useMemo(() => {
     if (!hasCart) {
       return (
@@ -519,7 +585,11 @@ export default function CartTab() {
         accessibilityLabel={`Abrir produto ${item.title}`}
       >
         <View style={styles.dealImageWrap}>
-          {item.image ? <Image source={item.image} style={styles.dealImage} resizeMode="cover" /> : <View style={styles.dealImagePlaceholder} />}
+          {item.image ? (
+            <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
+          ) : (
+            <View style={styles.dealImagePlaceholder} />
+          )}
         </View>
 
         <View style={{ flex: 1 }}>
@@ -546,6 +616,10 @@ export default function CartTab() {
       const lineTotal = unitFinal * item.qty;
 
       const fomo = Number(item.discountPercent ?? 0) >= 15;
+
+      const plans = buildProtectionPlans(unitFinal);
+      const chosenMonths = protectionById[item.id];
+      const chosenPlan = chosenMonths ? plans.find((p) => p.months === chosenMonths) ?? null : null;
 
       return (
         <View style={styles.itemCard}>
@@ -585,7 +659,7 @@ export default function CartTab() {
                   accessibilityRole="button"
                   accessibilityLabel="Diminuir quantidade"
                 >
-                  <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+                  <IconSymbol name="remove-outline" size={18} color={theme.colors.text} />
                 </Pressable>
 
                 <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
@@ -597,7 +671,7 @@ export default function CartTab() {
                   accessibilityRole="button"
                   accessibilityLabel="Aumentar quantidade"
                 >
-                  <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+                  <IconSymbol name="add-outline" size={18} color={theme.colors.text} />
                 </Pressable>
 
                 <View style={{ marginLeft: "auto", alignItems: "flex-end" }}>
@@ -626,12 +700,54 @@ export default function CartTab() {
                   </View>
                 </View>
               </View>
+
+              <Pressable
+                onPress={() => openProtectionModal(item.id, unitFinal)}
+                style={styles.protectionRow}
+                accessibilityRole="button"
+                accessibilityLabel="Incluir proteção"
+              >
+                <View style={[styles.protectionCheck, chosenPlan ? styles.protectionCheckOn : styles.protectionCheckOff]}>
+                  {chosenPlan ? <View style={styles.protectionDot} /> : null}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ThemedText style={styles.protectionTitle}>
+                      {chosenPlan ? `Garantia Estendida ${chosenPlan.months} meses` : "Garantia Estendida"}
+                    </ThemedText>
+                    <View style={styles.badgeRec}>
+                      <ThemedText style={styles.badgeRecText}>Recomendado</ThemedText>
+                    </View>
+                  </View>
+
+                  {chosenPlan ? (
+                    <ThemedText style={styles.protectionSub}>
+                      {chosenPlan.installments}x de {formatCurrency(chosenPlan.price / chosenPlan.installments)} sem juros • ou {formatCurrency(chosenPlan.price)} no Pix
+                    </ThemedText>
+                  ) : (
+                    <ThemedText style={styles.protectionSub}>Toque para incluir proteção no seu pedido.</ThemedText>
+                  )}
+                </View>
+
+                {chosenPlan ? (
+                  <Pressable
+                    onPress={() => removeProtection(item.id)}
+                    hitSlop={10}
+                    style={styles.protectionRemove}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remover proteção"
+                  >
+                    <ThemedText style={styles.protectionRemoveText}>Remover</ThemedText>
+                  </Pressable>
+                ) : null}
+              </Pressable>
             </View>
           </View>
         </View>
       );
     },
-    [safeAdd, safeDec, safeRemove, saveForLater, selected, toggleSelect]
+    [openProtectionModal, protectionById, removeProtection, safeAdd, safeDec, safeRemove, saveForLater, selected, toggleSelect]
   );
 
   const renderSavedRow = useCallback(() => {
@@ -657,21 +773,11 @@ export default function CartTab() {
               </View>
 
               <View style={styles.savedRight}>
-                <Pressable
-                  onPress={() => moveSavedToCart(it)}
-                  style={styles.savedBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mover para o carrinho"
-                >
+                <Pressable onPress={() => moveSavedToCart(it)} style={styles.savedBtn} accessibilityRole="button" accessibilityLabel="Mover para o carrinho">
                   <ThemedText style={styles.savedBtnText}>Mover</ThemedText>
                 </Pressable>
 
-                <Pressable
-                  onPress={() => removeSaved(it.id)}
-                  style={styles.savedBtnOutline}
-                  accessibilityRole="button"
-                  accessibilityLabel="Remover dos salvos"
-                >
+                <Pressable onPress={() => removeSaved(it.id)} style={styles.savedBtnOutline} accessibilityRole="button" accessibilityLabel="Remover dos salvos">
                   <ThemedText style={styles.savedBtnOutlineText}>Excluir</ThemedText>
                 </Pressable>
               </View>
@@ -687,7 +793,6 @@ export default function CartTab() {
 
     return (
       <View style={styles.blockStack}>
-        {/* Frete grátis progress */}
         <View style={styles.blockCard}>
           <ThemedText style={styles.blockTitle}>Frete grátis</ThemedText>
 
@@ -706,7 +811,6 @@ export default function CartTab() {
           </View>
         </View>
 
-        {/* Cupom */}
         <View style={styles.blockCard}>
           <View style={styles.blockTopRow}>
             <ThemedText style={styles.blockTitle}>Aplicar cupom</ThemedText>
@@ -752,7 +856,6 @@ export default function CartTab() {
           {couponMsg ? <ThemedText style={styles.hintText}>{couponMsg}</ThemedText> : null}
         </View>
 
-        {/* Entrega / Retirada + CEP */}
         <View style={styles.blockCard}>
           <ThemedText style={styles.blockTitle}>Entrega</ThemedText>
 
@@ -797,7 +900,6 @@ export default function CartTab() {
           )}
         </View>
 
-        {/* Resumo transparente */}
         <View style={styles.blockCard}>
           <ThemedText style={styles.blockTitle}>Resumo</ThemedText>
 
@@ -811,17 +913,19 @@ export default function CartTab() {
             <ThemedText style={styles.summaryValue}>- {formatCurrency(discountTotal)}</ThemedText>
           </View>
 
+          {protectionTotal > 0 ? (
+            <View style={styles.summaryRow}>
+              <ThemedText style={styles.summaryLabel}>Proteção</ThemedText>
+              <ThemedText style={styles.summaryValue}>{formatCurrency(protectionTotal)}</ThemedText>
+            </View>
+          ) : null}
+
           <View style={[styles.summaryRow, { marginBottom: 0 }]}>
             <ThemedText style={styles.summaryLabel}>Frete</ThemedText>
             <ThemedText style={styles.summaryValue}>{formatCurrency(shippingEstimated)}</ThemedText>
           </View>
 
-          <Pressable
-            onPress={() => router.push("/(tabs)/explore" as any)}
-            style={styles.outlineBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Continuar comprando"
-          >
+          <Pressable onPress={() => router.push("/(tabs)/explore" as any)} style={styles.outlineBtn} accessibilityRole="button" accessibilityLabel="Continuar comprando">
             <ThemedText style={styles.outlineBtnText}>Continuar comprando</ThemedText>
           </Pressable>
 
@@ -848,6 +952,7 @@ export default function CartTab() {
     shippingEstimated,
     shippingMethod,
     subtotalRaw,
+    protectionTotal,
   ]);
 
   const renderRecoRow = useCallback(() => {
@@ -887,12 +992,7 @@ export default function CartTab() {
                   <ThemedText style={styles.recoPrice}>{formatCurrency(unitFinal)}</ThemedText>
                 </View>
 
-                <Pressable
-                  onPress={() => safeAdd(String(item.id))}
-                  style={styles.recoAdd}
-                  accessibilityRole="button"
-                  accessibilityLabel="Adicionar recomendado ao carrinho"
-                >
+                <Pressable onPress={() => safeAdd(String(item.id))} style={styles.recoAdd} accessibilityRole="button" accessibilityLabel="Adicionar recomendado ao carrinho">
                   <ThemedText style={styles.recoAddText}>Adicionar</ThemedText>
                 </Pressable>
               </Pressable>
@@ -927,10 +1027,19 @@ export default function CartTab() {
 
   const goHome = useCallback(() => router.push("/(tabs)" as any), []);
 
-  // CTA principal: ir direto para address (evita falha se /checkout/index não existir)
   const goCheckout = useCallback(() => {
     router.push("/(tabs)/checkout/address" as any);
   }, []);
+
+  const protectionModalPlans = useMemo(() => {
+    if (!protectionModalFor) return [];
+    return buildProtectionPlans(protectionModalFor.unitFinal);
+  }, [protectionModalFor]);
+
+  const protectionModalChosen = useMemo(() => {
+    if (!protectionModalFor) return undefined;
+    return protectionById[protectionModalFor.id];
+  }, [protectionById, protectionModalFor]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -958,12 +1067,10 @@ export default function CartTab() {
           )}
           stickySectionHeadersEnabled
           showsVerticalScrollIndicator={false}
-          // Espaço suficiente para o bottom bar fixo (apenas Total + CTA)
           contentContainerStyle={{ paddingBottom: hasCart ? 140 : 20 }}
           ListHeaderComponent={headerContent}
         />
 
-        {/* Bottom bar fixo (apenas o essencial) */}
         {hasCart ? (
           <View style={styles.bottomBar}>
             <View style={styles.totalBox}>
@@ -976,6 +1083,78 @@ export default function CartTab() {
             </Pressable>
           </View>
         ) : null}
+
+        <Modal visible={!!protectionModalFor} transparent animationType="fade" onRequestClose={() => setProtectionModalFor(null)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setProtectionModalFor(null)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Pressable onPress={() => setProtectionModalFor(null)} hitSlop={12} style={styles.modalClose}>
+                <ThemedText style={styles.modalCloseText}>×</ThemedText>
+              </Pressable>
+              <ThemedText style={styles.modalTitle}>Incluir proteção</ThemedText>
+              <View style={{ width: 32 }} />
+            </View>
+
+            <View style={styles.modalBody}>
+              {protectionModalPlans.map((p) => {
+                const isOn = protectionModalChosen === p.months;
+                return (
+                  <Pressable
+                    key={String(p.months)}
+                    onPress={() => {
+                      if (!protectionModalFor) return;
+                      chooseProtection(protectionModalFor.id, p.months);
+                    }}
+                    style={[styles.planCard, isOn ? styles.planCardOn : null]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Selecionar garantia ${p.months} meses`}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={[styles.planCheck, isOn ? styles.planCheckOn : styles.planCheckOff]}>{isOn ? <View style={styles.planDot} /> : null}</View>
+                        <View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <ThemedText style={styles.planTitle}>Garantia Estendida {p.months} meses</ThemedText>
+                            {p.recommended ? (
+                              <View style={styles.planBadge}>
+                                <ThemedText style={styles.planBadgeText}>Recomendado</ThemedText>
+                              </View>
+                            ) : null}
+                          </View>
+                          <ThemedText style={styles.planSub}>
+                            {p.installments}x de {formatCurrency(p.price / p.installments)} sem juros • ou {formatCurrency(p.price)} no Pix
+                          </ThemedText>
+                        </View>
+                      </View>
+
+                      <ThemedText style={styles.planPrice}>{formatCurrency(p.price)}</ThemedText>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                onPress={() => {
+                  if (protectionModalFor) removeProtection(protectionModalFor.id);
+                  setProtectionModalFor(null);
+                }}
+                style={styles.modalBtnOutline}
+                accessibilityRole="button"
+                accessibilityLabel="Agora não"
+              >
+                <ThemedText style={styles.modalBtnOutlineText}>Agora não</ThemedText>
+              </Pressable>
+
+              <Pressable onPress={() => setProtectionModalFor(null)} style={styles.modalBtnPrimary} accessibilityRole="button" accessibilityLabel="Incluir">
+                <ThemedText style={styles.modalBtnPrimaryText}>Incluir</ThemedText>
+              </Pressable>
+            </View>
+
+            <ThemedText style={styles.modalFinePrint}>Ao clicar em "Incluir" você concorda com os termos de autorização de cobrança.</ThemedText>
+          </View>
+        </Modal>
       </ThemedView>
     </SafeAreaView>
   );
@@ -1003,7 +1182,6 @@ const styles = StyleSheet.create({
   sectionHeader: { paddingTop: 10, paddingBottom: 8, backgroundColor: theme.colors.background },
   sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  // Tools bar
   toolsBar: { marginTop: 6, marginBottom: 10, flexDirection: "row", gap: 10 },
   toolsBtn: {
     flex: 1,
@@ -1029,7 +1207,6 @@ const styles = StyleSheet.create({
   toolsBtnDangerText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "rgba(185,28,28,1)" },
   toolsBtnDisabled: { opacity: 0.45 },
 
-  // Cart item
   itemCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
@@ -1085,7 +1262,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.surface,
   },
-  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   qtyText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center", color: theme.colors.text },
 
   itemActionsRow: { marginTop: 6, flexDirection: "row", gap: 8, justifyContent: "flex-end" },
@@ -1114,12 +1290,44 @@ const styles = StyleSheet.create({
 
   lineTotal: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  // Promo
+  protectionRow: {
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  protectionCheck: { width: 18, height: 18, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  protectionCheckOff: { borderColor: theme.colors.divider, backgroundColor: theme.colors.surface },
+  protectionCheckOn: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  protectionDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
+
+  protectionTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  protectionSub: { marginTop: 3, fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
+
+  badgeRec: { paddingHorizontal: 10, height: 22, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.06)", alignItems: "center", justifyContent: "center" },
+  badgeRecText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  protectionRemove: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+    backgroundColor: "rgba(239,68,68,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  protectionRemoveText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, color: "rgba(185,28,28,1)" },
+
   priceLine: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   priceStriked: { fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.55)", textDecorationLine: "line-through" },
   priceStrikedSmall: { fontSize: 10, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.55)", textDecorationLine: "line-through" },
 
-  // Empty
   emptyWrap: {
     marginTop: 10,
     backgroundColor: theme.colors.surface,
@@ -1134,7 +1342,6 @@ const styles = StyleSheet.create({
   emptyBtn: { height: 42, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
   emptyBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  // Deals
   dealCard: {
     flexDirection: "row",
     gap: 12,
@@ -1160,7 +1367,6 @@ const styles = StyleSheet.create({
   dealTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   dealPrice: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
 
-  // Summary blocks
   blockStack: { gap: 10, marginBottom: 8 },
   blockCard: {
     backgroundColor: theme.colors.surface,
@@ -1258,7 +1464,6 @@ const styles = StyleSheet.create({
   trustRow: { alignItems: "center", justifyContent: "center", paddingTop: 10 },
   trustText: { fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.55)" },
 
-  // Recomendações
   recoWrap: {
     marginTop: 6,
     marginBottom: 6,
@@ -1300,7 +1505,6 @@ const styles = StyleSheet.create({
   },
   recoAddText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  // Salvos
   savedWrap: { marginBottom: 8 },
   savedCard: {
     backgroundColor: theme.colors.surface,
@@ -1350,7 +1554,6 @@ const styles = StyleSheet.create({
   },
   savedBtnOutlineText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  // Bottom bar fixo minimalista
   bottomBar: {
     position: "absolute",
     left: 14,
@@ -1359,7 +1562,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  // Total (regra)
   totalBox: {
     backgroundColor: "#F59E0B",
     borderRadius: 14,
@@ -1374,7 +1576,6 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
-  // CTA verde musgo (regra)
   ctaPrimary: {
     height: 44,
     borderRadius: 14,
@@ -1383,4 +1584,74 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ctaPrimaryText: { fontSize: 16, fontFamily: FONT_BODY_BOLD, color: "#FFFFFF" },
+
+  modalBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.35)" },
+  modalSheet: {
+    marginTop: "auto",
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  modalHeader: {
+    height: 52,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
+  },
+  modalClose: { width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  modalCloseText: { fontSize: 24, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  modalTitle: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  modalBody: { padding: 12, gap: 10 },
+  planCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    padding: 12,
+  },
+  planCardOn: { borderColor: theme.colors.primary },
+
+  planCheck: { width: 18, height: 18, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  planCheckOff: { borderColor: theme.colors.divider, backgroundColor: theme.colors.surface },
+  planCheckOn: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  planDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
+
+  planTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  planSub: { marginTop: 4, fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
+  planPrice: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  planBadge: { height: 22, paddingHorizontal: 10, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.06)", alignItems: "center", justifyContent: "center" },
+  planBadgeText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  modalFooter: { paddingHorizontal: 12, flexDirection: "row", gap: 10 },
+  modalBtnOutline: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnOutlineText: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  modalBtnPrimary: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnPrimaryText: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#fff" },
+
+  modalFinePrint: { marginTop: 10, paddingHorizontal: 12, fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.55)" },
 });

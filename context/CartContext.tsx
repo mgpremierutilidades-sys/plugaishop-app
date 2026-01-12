@@ -38,6 +38,9 @@ const CART_STORAGE_KEY = "plugaishop.cart.v1";
 const QTY_MIN = 1;
 const QTY_MAX = 99;
 
+// Seed DEV: para conseguir testar o Carrinho direto na aba, sem precisar entrar pelo Explore
+const CART_DEV_SEEDED_KEY = "plugaishop.cart.dev_seeded.v1";
+
 /**
  * Store interno (module singleton)
  */
@@ -50,7 +53,6 @@ function emit() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  // cleanup deve retornar void
   return () => {
     listeners.delete(listener);
   };
@@ -85,7 +87,7 @@ function toCartItem(product: Product, qty: number): CartItem {
 
 function buildCatalogMap() {
   const map = new Map<string, Product>();
-  for (const p of products) map.set(String(p.id), p);
+  for (const p of products) map.set(String((p as any).id), p);
   return map;
 }
 
@@ -160,7 +162,48 @@ function setItems(next: CartItem[], opts?: { source?: "user" | "hydrate"; persis
 }
 
 /**
+ * Seed DEV (somente em desenvolvimento):
+ * - Injeta 6 itens do catálogo para teste do Carrinho ( + / - / remover / cupons / frete )
+ * - Roda apenas se NÃO existir carrinho persistido
+ * - Roda apenas 1x por instalação (chave própria)
+ */
+async function maybeSeedCartForDevWhenEmpty() {
+  if (!__DEV__) return;
+
+  try {
+    const already = await AsyncStorage.getItem(CART_DEV_SEEDED_KEY);
+    if (already === "1") return;
+
+    const pick = (id: string) => (products as Product[]).find((p) => String((p as any).id) === id);
+
+    const list: Array<{ id: string; qty: number }> = [
+      { id: "p-001", qty: 1 },
+      { id: "p-002", qty: 1 },
+      { id: "p-003", qty: 2 },
+      { id: "p-004", qty: 1 },
+      { id: "p-005", qty: 1 },
+      { id: "p-006", qty: 2 },
+    ];
+
+    const next: CartItem[] = [];
+    for (const it of list) {
+      const p = pick(it.id);
+      if (!p) continue;
+      next.push(toCartItem(p, it.qty));
+    }
+
+    if (next.length === 0) return;
+
+    setItems(next, { source: "hydrate", persist: true });
+    await AsyncStorage.setItem(CART_DEV_SEEDED_KEY, "1");
+  } catch {
+    // silencioso
+  }
+}
+
+/**
  * Hidratação pública (deduplicada)
+ * - Correção B: não sobrescreve se houve mutação do usuário durante a hidratação
  */
 export async function ensureCartHydrated() {
   if (hydrated) return;
@@ -171,7 +214,15 @@ export async function ensureCartHydrated() {
   hydrationInFlight = (async () => {
     try {
       const raw = await AsyncStorage.getItem(CART_STORAGE_KEY);
+
+      // Caso 1: não existe snapshot salvo -> seed DEV (para conseguir testar o carrinho direto na aba)
       if (!raw) {
+        if (userMutationCounter !== mutationAtStart) {
+          hydrated = true;
+          return;
+        }
+
+        await maybeSeedCartForDevWhenEmpty();
         hydrated = true;
         return;
       }
@@ -213,6 +264,8 @@ export async function ensureCartHydrated() {
 export async function clearCartStorage() {
   try {
     await AsyncStorage.removeItem(CART_STORAGE_KEY);
+    // permite reseed no DEV se você quiser limpar e re-testar
+    if (__DEV__) await AsyncStorage.removeItem(CART_DEV_SEEDED_KEY);
   } catch {
     // noop
   }
@@ -242,10 +295,9 @@ function upsert(product: Product, qtyDelta: number) {
   const fresh = catalog.get(pid) ?? current[idx].product;
   const nextQty = clampQty(rawNext);
 
-  setItems(
-    current.map((it, i) => (i === idx ? { ...toCartItem(fresh, nextQty), qty: nextQty } : it)),
-    { source: "user" }
-  );
+  setItems(current.map((it, i) => (i === idx ? { ...toCartItem(fresh, nextQty), qty: nextQty } : it)), {
+    source: "user",
+  });
 }
 
 function setQty(productId: string, qty: number) {
@@ -355,6 +407,7 @@ export function useCart() {
 
 /**
  * Provider guard (compat)
+ * Observação: esse Provider é propositalmente "dummy" porque o store é singleton.
  */
 const DummyCartContext = createContext(true);
 

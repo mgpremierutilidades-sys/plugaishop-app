@@ -96,7 +96,7 @@ export default function Review() {
 
     const total =
       storedDraft.total == null
-        ? Math.max(0, subtotal - discount + shippingPrice)
+        ? Math.max(0, subtotal - (discount ?? 0) + shippingPrice)
         : Math.max(0, n(storedDraft.total));
 
     return {
@@ -290,3 +290,4 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 });
+

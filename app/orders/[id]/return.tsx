@@ -1,24 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+// app/orders/[id]/return.tsx
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
 import type { Order, ReturnType } from "../../../utils/ordersStore";
-import {
-  createReturnRequest,
-  getOrderById,
-  addReturnAttachment,
-} from "../../../utils/ordersStore";
+import { addReturnAttachment, createReturnRequest, getOrderById } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -39,13 +29,7 @@ async function copyToClipboard(text: string) {
   }
 }
 
-const REASONS = [
-  "Produto com defeito",
-  "Produto diferente do anunciado",
-  "Arrependimento",
-  "Tamanho incorreto",
-  "Outro",
-];
+const REASONS = ["Produto com defeito", "Produto diferente do anunciado", "Arrependimento", "Tamanho incorreto", "Outro"];
 
 export default function OrderReturnScreen() {
   const params = useLocalSearchParams();
@@ -62,12 +46,12 @@ export default function OrderReturnScreen() {
       return;
     }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
 
     if (found?.returnRequest) {
       setType(found.returnRequest.type);
       setReasonQuick("Outro");
-      setReasonText(found.returnRequest.reason);
+      setReasonText(String(found.returnRequest.reason ?? ""));
     }
   }, [orderId]);
 
@@ -97,10 +81,7 @@ export default function OrderReturnScreen() {
     }
 
     setOrder(updated);
-    Alert.alert(
-      "Solicitação criada",
-      `Protocolo: ${updated.returnRequest?.protocol}`
-    );
+    Alert.alert("Solicitação criada", `Protocolo: ${updated.returnRequest?.protocol}`);
   };
 
   const copyProtocol = async () => {
@@ -112,12 +93,6 @@ export default function OrderReturnScreen() {
     else Alert.alert("Copiar", `Copie manualmente: ${p}`);
   };
 
-  /**
-   * MOCK DE ANEXO
-   * Aqui NÃO usamos image-picker para não quebrar TS/bundler.
-   * Apenas simulamos a existência de um anexo.
-   * No futuro: trocar por upload real (Bling / S3 / Backend).
-   */
   const addMockAttachment = async () => {
     if (!orderId || !order?.returnRequest) {
       Alert.alert("Anexos", "Abra a solicitação antes de anexar.");
@@ -136,13 +111,11 @@ export default function OrderReturnScreen() {
     Alert.alert("Anexo adicionado", "Foto anexada (mock).");
   };
 
-  const attachmentsCount =
-    order?.returnRequest?.attachments?.length ?? 0;
+  const attachmentsCount = order?.returnRequest?.attachments?.length ?? 0;
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
-        {/* Topbar */}
         <View style={styles.topbar}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <ThemedText style={styles.backArrow}>←</ThemedText>
@@ -186,9 +159,7 @@ export default function OrderReturnScreen() {
                 </View>
               </ThemedView>
             ) : (
-              <ThemedText style={styles.secondary}>
-                Abra a solicitação para habilitar anexos.
-              </ThemedText>
+              <ThemedText style={styles.secondary}>Abra a solicitação para habilitar anexos.</ThemedText>
             )}
 
             <View style={styles.divider} />
@@ -204,12 +175,7 @@ export default function OrderReturnScreen() {
                     onPress={() => setType(t)}
                     style={[styles.pill, active ? styles.pillActive : styles.pillIdle]}
                   >
-                    <ThemedText
-                      style={[
-                        styles.pillText,
-                        active ? styles.pillTextActive : styles.pillTextIdle,
-                      ]}
-                    >
+                    <ThemedText style={[styles.pillText, active ? styles.pillTextActive : styles.pillTextIdle]}>
                       {t}
                     </ThemedText>
                   </Pressable>
@@ -228,12 +194,7 @@ export default function OrderReturnScreen() {
                     onPress={() => setReasonQuick(r)}
                     style={[styles.reasonPill, active ? styles.reasonActive : styles.reasonIdle]}
                   >
-                    <ThemedText
-                      style={[
-                        styles.reasonText,
-                        active ? styles.reasonTextActive : styles.reasonTextIdle,
-                      ]}
-                    >
+                    <ThemedText style={[styles.reasonText, active ? styles.reasonTextActive : styles.reasonTextIdle]}>
                       {r}
                     </ThemedText>
                   </Pressable>

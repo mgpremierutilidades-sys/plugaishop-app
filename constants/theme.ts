@@ -78,6 +78,13 @@ const theme = {
   spacing: Spacing,
   radius: Radius,
 
+  // Adicionado para compat com arquivos que usam theme.fonts.*
+  fonts: {
+    title: "Arimo",
+    body: "OpenSans",
+    bodyBold: "OpenSans",
+  },
+
   typography: {
     h1: { fontSize: 28, lineHeight: 34, fontWeight: "800" as const },
     h2: { fontSize: 22, lineHeight: 28, fontWeight: "800" as const },
