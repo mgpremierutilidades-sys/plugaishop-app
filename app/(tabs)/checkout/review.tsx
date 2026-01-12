@@ -1,4 +1,4 @@
-﻿// app/(tabs)/checkout/review.tsx
+// app/(tabs)/checkout/review.tsx
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";

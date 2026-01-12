@@ -15,7 +15,15 @@ function safeNumber(v: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeCartItems(cartAny: any) {
+type NormalizedCartItem = {
+  productId: string;
+  qty: number;
+  price: number;
+  title: string;
+  image?: any;
+};
+
+function normalizeCartItems(cartAny: any): NormalizedCartItem[] {
   const raw = cartAny?.items ?? cartAny?.cartItems ?? cartAny?.cart ?? cartAny?.products ?? [];
   if (!Array.isArray(raw)) return [];
 
@@ -39,9 +47,9 @@ function normalizeCartItems(cartAny: any) {
         price,
         qty,
         image,
-      };
+      } satisfies NormalizedCartItem;
     })
-    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string; image?: any }>;
+    .filter(Boolean) as NormalizedCartItem[];
 }
 
 export default function CheckoutSuccessScreen() {

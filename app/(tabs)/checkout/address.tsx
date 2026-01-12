@@ -1,4 +1,4 @@
-﻿// app/(tabs)/checkout/address.tsx
+// app/(tabs)/checkout/address.tsx
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {

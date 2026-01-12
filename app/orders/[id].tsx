@@ -57,7 +57,15 @@ function getHistoryDate(order: Order | null, status: OrderStatus) {
   return at ? formatDate(at) : "";
 }
 
-function normalizeOrderItems(order: Order | null) {
+type NormalizedOrderItem = {
+  productId: string;
+  title: string;
+  qty: number;
+  price: number;
+  lineTotal: number;
+};
+
+function normalizeOrderItems(order: Order | null): NormalizedOrderItem[] {
   const raw = Array.isArray((order as any)?.items) ? (((order as any).items as any[]) ?? []) : [];
 
   return raw
@@ -77,9 +85,9 @@ function normalizeOrderItems(order: Order | null) {
         qty,
         price,
         lineTotal: price * qty,
-      };
+      } satisfies NormalizedOrderItem;
     })
-    .filter(Boolean) as Array<{ productId: string; title: string; qty: number; price: number; lineTotal: number }>;
+    .filter(Boolean) as NormalizedOrderItem[];
 }
 
 export default function OrderDetailScreen() {
@@ -325,7 +333,9 @@ export default function OrderDetailScreen() {
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Frete</ThemedText>
-              <ThemedText style={styles.v}>{totals.shipping === 0 ? "Grátis" : formatCurrency(totals.shipping)}</ThemedText>
+              <ThemedText style={styles.v}>
+                {totals.shipping === 0 ? "Grátis" : formatCurrency(totals.shipping)}
+              </ThemedText>
             </View>
 
             <View style={styles.divider} />

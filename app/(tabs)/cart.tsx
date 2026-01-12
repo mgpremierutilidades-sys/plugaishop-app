@@ -2,6 +2,7 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -9,6 +10,7 @@ import {
   SectionList,
   StyleSheet,
   TextInput,
+  Vibration,
   View,
   type ImageSourcePropType,
 } from "react-native";
@@ -16,7 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
-import IconSymbol from "../../components/ui/icon-symbol";
+import Icon from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import { useCart } from "../../context/CartContext";
 import type { Product } from "../../data/catalog";
@@ -30,7 +32,8 @@ const FONT_BODY_BOLD = "OpenSans_700Bold";
 // ==== Regras congeladas do Carrinho (teste/UX) ====
 // - Total em box laranja com letra preta
 // - CTA verde musgo “Continuar a compra” (mais fino), texto 16 bold
-const CTA_GREEN = "#3F5A3A";
+// Ajuste Etapa 17: mantém “musgo”, mas com mais contraste/legibilidade.
+const CTA_GREEN = "#2F5D3A"; // mais profundo (melhor contraste), ainda “musgo”
 
 // Frete grátis (mock/UX nudge)
 const FREE_SHIPPING_THRESHOLD = 199.9;
@@ -158,6 +161,15 @@ function buildProtectionPlans(unitFinal: number): ProtectionPlan[] {
   ];
 }
 
+// microfeedback nativo (sem dependência extra)
+function softHaptic() {
+  try {
+    Vibration.vibrate(8);
+  } catch {
+    // noop
+  }
+}
+
 export default function CartTab() {
   const cartCtx = useCart() as any;
 
@@ -228,10 +240,12 @@ export default function CartTab() {
   }, [cartRows]);
 
   const toggleSelect = useCallback((id: string) => {
+    softHaptic();
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
   const selectAll = useCallback(() => {
+    softHaptic();
     setSelected((prev) => {
       const next: Record<string, boolean> = { ...prev };
       for (const r of cartRows) next[r.id] = true;
@@ -244,6 +258,12 @@ export default function CartTab() {
       if (selected[r.id]) return true;
     }
     return false;
+  }, [cartRows, selected]);
+
+  const selectedCount = useMemo(() => {
+    let c = 0;
+    for (const r of cartRows) if (selected[r.id]) c += 1;
+    return c;
   }, [cartRows, selected]);
 
   // Ações seguras (compat com CartContext)
@@ -299,6 +319,7 @@ export default function CartTab() {
   );
 
   const removeSelected = useCallback(() => {
+    softHaptic();
     for (const r of cartRows) {
       if (selected[r.id]) safeRemove(r.id);
     }
@@ -309,6 +330,7 @@ export default function CartTab() {
 
   const saveForLater = useCallback(
     (row: CartRow) => {
+      softHaptic();
       setSaved((prev) => {
         const idx = prev.findIndex((p) => p.id === row.id);
         if (idx >= 0) {
@@ -336,6 +358,7 @@ export default function CartTab() {
 
   const moveSavedToCart = useCallback(
     (it: SavedItem) => {
+      softHaptic();
       safeAdd(it.id, Math.max(1, it.qty));
       setSaved((prev) => prev.filter((p) => p.id !== it.id));
     },
@@ -343,6 +366,7 @@ export default function CartTab() {
   );
 
   const removeSaved = useCallback((id: string) => {
+    softHaptic();
     setSaved((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
@@ -372,6 +396,7 @@ export default function CartTab() {
   const [couponMsg, setCouponMsg] = useState<string>("");
 
   const applyCouponCode = useCallback((codeRaw: string) => {
+    softHaptic();
     const code = String(codeRaw ?? "")
       .trim()
       .toUpperCase();
@@ -395,6 +420,7 @@ export default function CartTab() {
   const applyCoupon = useCallback(() => applyCouponCode(couponInput), [applyCouponCode, couponInput]);
 
   const clearCoupon = useCallback(() => {
+    softHaptic();
     setAppliedCoupon(null);
     setCouponMsg("");
     setCouponInput("");
@@ -422,14 +448,17 @@ export default function CartTab() {
   }, [cartRows]);
 
   const openProtectionModal = useCallback((id: string, unitFinal: number) => {
+    softHaptic();
     setProtectionModalFor({ id, unitFinal });
   }, []);
 
   const removeProtection = useCallback((id: string) => {
+    softHaptic();
     setProtectionById((prev) => ({ ...prev, [id]: undefined }));
   }, []);
 
   const chooseProtection = useCallback((id: string, months: number) => {
+    softHaptic();
     setProtectionById((prev) => ({ ...prev, [id]: months }));
   }, []);
 
@@ -553,6 +582,9 @@ export default function CartTab() {
       );
     }
 
+    // Etapa 17: só faz sentido exibir ferramentas quando houver múltiplos itens
+    if (cartRows.length < 2) return <View style={{ height: 6 }} />;
+
     return (
       <View style={styles.toolsBar}>
         <Pressable onPress={selectAll} style={styles.toolsBtn} accessibilityRole="button" accessibilityLabel="Selecionar todos">
@@ -570,7 +602,7 @@ export default function CartTab() {
         </Pressable>
       </View>
     );
-  }, [anySelected, hasCart, removeSelected, selectAll]);
+  }, [anySelected, hasCart, cartRows.length, removeSelected, selectAll]);
 
   const renderDeal = useCallback(({ item }: { item: DealRow }) => {
     const unit = item.price;
@@ -648,33 +680,41 @@ export default function CartTab() {
               <View style={styles.priceRow}>
                 {hasPromo ? <ThemedText style={styles.priceStriked}>{formatCurrency(unit)}</ThemedText> : null}
                 <ThemedText style={styles.price}>{formatCurrency(unitFinal)}</ThemedText>
+                {/* Etapa 17: unit label mais discreto */}
                 <ThemedText style={styles.unit}> {item.unitLabel ?? "/ un"}</ThemedText>
               </View>
 
               <View style={styles.qtyRow}>
                 <Pressable
-                  onPress={() => safeDec(item.id)}
+                  onPress={() => {
+                    softHaptic();
+                    safeDec(item.id);
+                  }}
                   style={styles.qtyBtn}
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Diminuir quantidade"
                 >
-                  <IconSymbol name="remove-outline" size={18} color={theme.colors.text} />
+                  <Icon name="remove-outline" size={18} color={theme.colors.text} />
                 </Pressable>
 
                 <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
 
                 <Pressable
-                  onPress={() => safeAdd(item.id)}
+                  onPress={() => {
+                    softHaptic();
+                    safeAdd(item.id);
+                  }}
                   style={styles.qtyBtn}
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel="Aumentar quantidade"
                 >
-                  <IconSymbol name="add-outline" size={18} color={theme.colors.text} />
+                  <Icon name="add-outline" size={18} color={theme.colors.text} />
                 </Pressable>
 
                 <View style={{ marginLeft: "auto", alignItems: "flex-end" }}>
+                  {/* Etapa 17: total do item mais evidente */}
                   <ThemedText style={styles.lineTotal}>{formatCurrency(lineTotal)}</ThemedText>
 
                   <View style={styles.itemActionsRow}>
@@ -689,7 +729,10 @@ export default function CartTab() {
                     </Pressable>
 
                     <Pressable
-                      onPress={() => safeRemove(item.id)}
+                      onPress={() => {
+                        softHaptic();
+                        safeRemove(item.id);
+                      }}
                       hitSlop={10}
                       accessibilityRole="button"
                       accessibilityLabel="Remover item"
@@ -830,6 +873,8 @@ export default function CartTab() {
               autoCapitalize="characters"
               style={styles.input}
               accessibilityLabel="Campo de cupom"
+              returnKeyType="done"
+              onSubmitEditing={applyCoupon}
             />
             <Pressable onPress={applyCoupon} style={styles.primaryMiniBtn} accessibilityRole="button" accessibilityLabel="Aplicar cupom">
               <ThemedText style={styles.primaryMiniBtnText}>OK</ThemedText>
@@ -861,7 +906,10 @@ export default function CartTab() {
 
           <View style={styles.segment}>
             <Pressable
-              onPress={() => setShippingMethod("delivery")}
+              onPress={() => {
+                softHaptic();
+                setShippingMethod("delivery");
+              }}
               style={[styles.segmentBtn, shippingMethod === "delivery" ? styles.segmentBtnOn : null]}
               accessibilityRole="button"
               accessibilityLabel="Selecionar entrega em casa"
@@ -870,7 +918,10 @@ export default function CartTab() {
             </Pressable>
 
             <Pressable
-              onPress={() => setShippingMethod("pickup")}
+              onPress={() => {
+                softHaptic();
+                setShippingMethod("pickup");
+              }}
               style={[styles.segmentBtn, shippingMethod === "pickup" ? styles.segmentBtnOn : null]}
               accessibilityRole="button"
               accessibilityLabel="Selecionar retirada em loja"
@@ -992,7 +1043,15 @@ export default function CartTab() {
                   <ThemedText style={styles.recoPrice}>{formatCurrency(unitFinal)}</ThemedText>
                 </View>
 
-                <Pressable onPress={() => safeAdd(String(item.id))} style={styles.recoAdd} accessibilityRole="button" accessibilityLabel="Adicionar recomendado ao carrinho">
+                <Pressable
+                  onPress={() => {
+                    softHaptic();
+                    safeAdd(String(item.id));
+                  }}
+                  style={styles.recoAdd}
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar recomendado ao carrinho"
+                >
                   <ThemedText style={styles.recoAddText}>Adicionar</ThemedText>
                 </Pressable>
               </Pressable>
@@ -1028,8 +1087,13 @@ export default function CartTab() {
   const goHome = useCallback(() => router.push("/(tabs)" as any), []);
 
   const goCheckout = useCallback(() => {
+    if (!anySelected) {
+      Alert.alert("Carrinho", "Selecione pelo menos 1 item para continuar.");
+      return;
+    }
+    softHaptic();
     router.push("/(tabs)/checkout/address" as any);
-  }, []);
+  }, [anySelected]);
 
   const protectionModalPlans = useMemo(() => {
     if (!protectionModalFor) return [];
@@ -1075,11 +1139,22 @@ export default function CartTab() {
           <View style={styles.bottomBar}>
             <View style={styles.totalBox}>
               <ThemedText style={styles.totalLabel}>Total</ThemedText>
-              <ThemedText style={styles.totalValue}>{formatCurrency(total)}</ThemedText>
+              <View style={{ alignItems: "flex-end" }}>
+                <ThemedText style={styles.totalValue}>{formatCurrency(total)}</ThemedText>
+                <ThemedText style={styles.totalMeta}>{selectedCount} selecionado(s)</ThemedText>
+              </View>
             </View>
 
-            <Pressable onPress={goCheckout} style={styles.ctaPrimary} accessibilityRole="button" accessibilityLabel="Continuar a compra">
-              <ThemedText style={styles.ctaPrimaryText}>Continuar a compra</ThemedText>
+            <Pressable
+              onPress={goCheckout}
+              disabled={!anySelected}
+              style={[styles.ctaPrimary, !anySelected ? styles.ctaPrimaryDisabled : null]}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar a compra"
+            >
+              <ThemedText style={[styles.ctaPrimaryText, !anySelected ? styles.ctaPrimaryTextDisabled : null]}>
+                Continuar a compra
+              </ThemedText>
             </Pressable>
           </View>
         ) : null}
@@ -1111,7 +1186,9 @@ export default function CartTab() {
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <View style={[styles.planCheck, isOn ? styles.planCheckOn : styles.planCheckOff]}>{isOn ? <View style={styles.planDot} /> : null}</View>
+                        <View style={[styles.planCheck, isOn ? styles.planCheckOn : styles.planCheckOff]}>
+                          {isOn ? <View style={styles.planDot} /> : null}
+                        </View>
                         <View>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                             <ThemedText style={styles.planTitle}>Garantia Estendida {p.months} meses</ThemedText>
@@ -1152,7 +1229,7 @@ export default function CartTab() {
               </Pressable>
             </View>
 
-            <ThemedText style={styles.modalFinePrint}>Ao clicar em "Incluir" você concorda com os termos de autorização de cobrança.</ThemedText>
+            <ThemedText style={styles.modalFinePrint}>Ao clicar em &quot;Incluir&quot; você concorda com os termos de autorização de cobrança.</ThemedText>
           </View>
         </Modal>
       </ThemedView>
@@ -1248,7 +1325,8 @@ const styles = StyleSheet.create({
 
   priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   price: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  unit: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  // Etapa 17: “/ un” discreto
+  unit: { fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.60)" },
 
   qtyRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10 },
 
@@ -1288,7 +1366,8 @@ const styles = StyleSheet.create({
   },
   actionPillDangerText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, color: "rgba(185,28,28,1)" },
 
-  lineTotal: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  // Etapa 17: total do item mais evidente
+  lineTotal: { fontSize: 13, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
   protectionRow: {
     marginTop: 10,
@@ -1575,6 +1654,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalMeta: { marginTop: 2, fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.70)" },
 
   ctaPrimary: {
     height: 44,
@@ -1582,8 +1662,17 @@ const styles = StyleSheet.create({
     backgroundColor: CTA_GREEN,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.10)",
+    shadowColor: "#000",
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   ctaPrimaryText: { fontSize: 16, fontFamily: FONT_BODY_BOLD, color: "#FFFFFF" },
+  ctaPrimaryDisabled: { opacity: 0.45 },
+  ctaPrimaryTextDisabled: { color: "rgba(255,255,255,0.85)" },
 
   modalBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.35)" },
   modalSheet: {

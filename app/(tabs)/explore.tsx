@@ -1,29 +1,16 @@
+// app/(tabs)/explore.tsx
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import IconSymbol from "../../components/ui/icon-symbol";
+import Collapsible from "../../components/ui/collapsible";
+import Icon from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
-
-// Collapsible blindado
-const CollapsibleModule = require("../../components/ui/collapsible");
-const CollapsibleComp = CollapsibleModule?.default ?? CollapsibleModule?.Collapsible;
-
-const SafeCollapsible =
-  CollapsibleComp ??
-  function FallbackCollapsible(props: any) {
-    return (
-      <View>
-        {props?.title ? <View style={{ marginBottom: 8 }}>{props.title}</View> : null}
-        <View>{props?.children}</View>
-      </View>
-    );
-  };
 
 type CategoryItem = { id: string; name: string };
 
@@ -53,14 +40,11 @@ function categoryIconName(categoryName: string) {
 }
 
 export default function ExploreScreen() {
-  // ✅ status bar normal (escuro) aqui, porque o topo é claro
-  <StatusBar style="dark" />;
-
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = ((p as any).category ?? "").trim();
+      const raw = String((p as any).category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -71,17 +55,7 @@ export default function ExploreScreen() {
     }
 
     if (map.size === 0) {
-      const fallback = [
-        "Eletrônicos",
-        "Eletrodomésticos",
-        "Acessórios",
-        "Informática",
-        "Vestuário",
-        "Casa",
-        "Pet",
-        "Beleza",
-      ];
-
+      const fallback = ["Eletrônicos", "Eletrodomésticos", "Acessórios", "Informática", "Vestuário", "Casa", "Pet", "Beleza"];
       for (const name of fallback) {
         const id = toCategoryId(name);
         map.set(id, { id, name });
@@ -100,7 +74,7 @@ export default function ExploreScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Explorar</Text>
 
-        <Pressable style={styles.headerAction} onPress={() => {}}>
+        <Pressable style={styles.headerAction} onPress={() => {}} accessibilityRole="button" accessibilityLabel="Buscar">
           <Text style={styles.headerActionText}>Buscar</Text>
         </Pressable>
       </View>
@@ -118,13 +92,11 @@ export default function ExploreScreen() {
                   key={c.id}
                   style={styles.categoryCard}
                   onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir categoria ${c.name}`}
                 >
                   <View style={styles.categoryIconWrap}>
-                    <IconSymbol
-                      name={categoryIconName(c.name)}
-                      size={20}
-                      color={theme.colors.primary}
-                    />
+                    <Icon name={categoryIconName(c.name)} size={20} color={theme.colors.primary} />
                   </View>
 
                   <Text
@@ -142,18 +114,9 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.section}>
-          <SafeCollapsible
-            title={
-              <View style={styles.collapseTitle}>
-                <Text style={styles.collapseTitleText}>Dicas e novidades</Text>
-              </View>
-            }
-            initiallyExpanded={false}
-          >
-            <Text style={styles.helperText}>
-              Promoções, avisos e conteúdo leve podem ficar aqui.
-            </Text>
-          </SafeCollapsible>
+          <Collapsible title="Dicas e novidades">
+            <Text style={styles.helperText}>Promoções, avisos e conteúdo leve podem ficar aqui.</Text>
+          </Collapsible>
         </View>
 
         <View style={styles.section}>
@@ -162,15 +125,17 @@ export default function ExploreScreen() {
           <View style={styles.productsGrid}>
             {featured.map((p) => (
               <Pressable
-                key={(p as any).id}
+                key={String((p as any).id)}
                 style={styles.productCard}
-                onPress={() => router.push((`/product/${(p as any).id}` as unknown) as any)}
+                onPress={() => router.push((`/product/${String((p as any).id)}` as unknown) as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir produto ${(p as any).title}`}
               >
-                <Image source={{ uri: (p as any).image }} style={styles.productImage} />
+                <Image source={{ uri: String((p as any).image) }} style={styles.productImage} />
                 <Text style={styles.productTitle} numberOfLines={2}>
-                  {(p as any).title}
+                  {String((p as any).title)}
                 </Text>
-                <Text style={styles.productPrice}>{formatCurrency((p as any).price)}</Text>
+                <Text style={styles.productPrice}>{formatCurrency(Number((p as any).price ?? 0))}</Text>
               </Pressable>
             ))}
           </View>
@@ -185,7 +150,6 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    // ✅ “abaixa só um pouquinho” (SafeArea já faz o grosso)
     paddingTop: 6,
     paddingBottom: 10,
     flexDirection: "row",
@@ -193,7 +157,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  // ✅ mais vistoso (negrito)
   headerTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text },
 
   headerAction: {
@@ -237,8 +200,6 @@ const styles = StyleSheet.create({
   },
   categoryName: { fontSize: 12, color: theme.colors.text, textAlign: "center" },
 
-  collapseTitle: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
-  collapseTitleText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
   helperText: { fontSize: 12, color: theme.colors.textMuted, marginTop: 8 },
 
   productsGrid: {
