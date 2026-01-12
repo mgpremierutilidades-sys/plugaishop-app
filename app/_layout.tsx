@@ -1,22 +1,39 @@
-// app/_layout.tsx
-import { Stack } from "expo-router";
+﻿import { Stack, router, useSegments } from "expo-router";
+import { useEffect, useRef } from "react";
 
-import GlobalChrome from "../components/global-chrome";
+export const unstable_settings = {
+  initialRouteName: "(tabs)",
+};
 
 export default function RootLayout() {
+  // FIX TS: evita inferência "never[]"
+  const segments = useSegments() as string[];
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    // espera router “acordar”
+    if (!segments || segments.length === 0) return;
+    if (handledRef.current) return;
+
+    const inCheckout = segments.includes("checkout");
+
+    // Se o app abriu direto em qualquer tela do checkout (por restore/deep link),
+    // força voltar para a home das tabs UMA VEZ.
+    if (inCheckout) {
+      handledRef.current = true;
+      router.replace("/(tabs)" as any);
+      return;
+    }
+
+    handledRef.current = true;
+  }, [segments]);
+
   return (
     <Stack
+      initialRouteName="(tabs)"
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
       }}
-    >
-      {/* Rotas reais de topo */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="orders" options={{ headerShown: false }} />
-
-      {/* Modal (se existir app/modal.tsx) */}
-      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-    </Stack>
+    />
   );
 }

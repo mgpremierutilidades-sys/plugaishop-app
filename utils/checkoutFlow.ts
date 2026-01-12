@@ -1,31 +1,37 @@
-import type { OrderDraft } from "../types/order";
+﻿import type { OrderDraft } from "../types/order";
 
-export type CheckoutStep = "address" | "shipping" | "payment" | "review";
-
-export function getNextCheckoutStep(draft: OrderDraft | null): CheckoutStep {
-  if (!draft) return "address";
-
-  const hasZip = !!draft.address?.zip && String(draft.address?.zip).length === 8;
-  const hasShipping = !!draft.shipping && typeof draft.shipping.price === "number";
-  const hasPayment = !!draft.payment?.method;
-
-  if (!hasZip) return "address";
-  if (!hasShipping) return "shipping";
-  if (!hasPayment) return "payment";
-
-  return "review";
+function hasValue(v: unknown) {
+  return v != null && String(v).trim().length > 0;
 }
 
-export function stepToRoute(step: CheckoutStep): string {
-  switch (step) {
-    case "address":
-      return "/checkout/address";
-    case "shipping":
-      return "/checkout/shipping";
-    case "payment":
-      return "/checkout/payment";
-    case "review":
-    default:
-      return "/checkout/review";
-  }
+export function getCheckoutResumeHref(draft: OrderDraft | null | undefined): string | null {
+  if (!draft || typeof draft !== "object") return null;
+
+  const items = Array.isArray((draft as any).items) ? (draft as any).items : [];
+  if (!items.length) return null;
+
+  const address = (draft as any).address;
+  const shipping = (draft as any).shipping;
+  const payment = (draft as any).payment;
+
+  const hasAddress =
+    !!address &&
+    (hasValue(address.label) ||
+      hasValue(address.street) ||
+      hasValue(address.city) ||
+      hasValue(address.state) ||
+      hasValue(address.zip));
+
+  const hasShipping =
+    !!shipping &&
+    (hasValue(shipping.method) || Number.isFinite(Number(shipping.price)));
+
+  const hasPayment =
+    !!payment && hasValue(payment.method);
+
+  if (!hasAddress) return "/(tabs)/checkout/address";
+  if (!hasShipping) return "/(tabs)/checkout/shipping";
+  if (!hasPayment) return "/(tabs)/checkout/payment";
+
+  return "/(tabs)/checkout/review";
 }

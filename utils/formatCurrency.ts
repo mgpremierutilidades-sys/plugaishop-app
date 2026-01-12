@@ -1,13 +1,13 @@
+// utils/formatCurrency.ts
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
 
   if (typeof value === "string") {
-    // remove "R$", espaços e converte "129,90" -> "129.90"
     const cleaned = value
       .replace(/\s/g, "")
       .replace("R$", "")
-      .replace(/\./g, "") // remove separador de milhar (se houver)
-      .replace(",", "."); // converte decimal BR
+      .replace(/\./g, "")
+      .replace(",", ".");
 
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : 0;

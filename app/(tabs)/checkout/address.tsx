@@ -1,6 +1,15 @@
+﻿// app/(tabs)/checkout/address.tsx
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
@@ -32,6 +41,7 @@ function maskCep(v: string) {
 
 export default function CheckoutAddress() {
   const goBack = () => router.back();
+  const push = (path: string) => router.push(path as any);
 
   const [form, setForm] = useState<AddressForm>({
     cep: "",
@@ -51,118 +61,142 @@ export default function CheckoutAddress() {
     return cepOk && numberOk && streetOk && districtOk && cityOk;
   }, [form]);
 
-  const push = (path: string) => router.push(path as any);
-
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
-            <ThemedText style={styles.backIcon}>←</ThemedText>
-          </Pressable>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Offset real para iPhone: header (~44) + folga do teclado/sugestões
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
+        <ThemedView style={styles.container}>
+          <View style={styles.header}>
+            <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+              <ThemedText style={styles.backIcon}>←</ThemedText>
+            </Pressable>
 
-          <ThemedText style={styles.title}>Endereço</ThemedText>
-          <View style={styles.rightSpacer} />
-        </View>
+            <ThemedText style={styles.title}>Endereço</ThemedText>
+            <View style={styles.rightSpacer} />
+          </View>
 
-        <View style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>Informe seu endereço</ThemedText>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : undefined}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.card}>
+              <ThemedText style={styles.sectionTitle}>Informe seu endereço</ThemedText>
 
-          <ThemedText style={styles.label}>CEP</ThemedText>
-          <TextInput
-            value={form.cep}
-            onChangeText={(t) => setForm((p) => ({ ...p, cep: maskCep(t) }))}
-            placeholder="00000-000"
-            placeholderTextColor="#94A3B8"
-            keyboardType="number-pad"
-            style={styles.input}
-            maxLength={9}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-
-          <View style={styles.twoCols}>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.label}>Número</ThemedText>
+              <ThemedText style={styles.label}>CEP</ThemedText>
               <TextInput
-                value={form.number}
-                onChangeText={(t) => setForm((p) => ({ ...p, number: t }))}
-                placeholder="Nº"
+                value={form.cep}
+                onChangeText={(t) => setForm((p) => ({ ...p, cep: maskCep(t) }))}
+                placeholder="00000-000"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 style={styles.input}
+                maxLength={9}
                 autoCorrect={false}
                 autoCapitalize="none"
+                returnKeyType="next"
               />
-            </View>
 
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.label}>Complemento</ThemedText>
+              <View style={styles.twoCols}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.label}>Número</ThemedText>
+                  <TextInput
+                    value={form.number}
+                    onChangeText={(t) => setForm((p) => ({ ...p, number: t }))}
+                    placeholder="Nº"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="number-pad"
+                    style={styles.input}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.label}>Complemento</ThemedText>
+                  <TextInput
+                    value={form.complement}
+                    onChangeText={(t) => setForm((p) => ({ ...p, complement: t }))}
+                    placeholder="Apto, casa..."
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    autoCorrect={false}
+                    returnKeyType="next"
+                  />
+                </View>
+              </View>
+
+              <ThemedText style={styles.label}>Rua</ThemedText>
               <TextInput
-                value={form.complement}
-                onChangeText={(t) => setForm((p) => ({ ...p, complement: t }))}
-                placeholder="Apto, casa..."
+                value={form.street}
+                onChangeText={(t) => setForm((p) => ({ ...p, street: t }))}
+                placeholder="Nome da rua"
                 placeholderTextColor="#94A3B8"
                 style={styles.input}
                 autoCorrect={false}
+                returnKeyType="next"
               />
+
+              <ThemedText style={styles.label}>Bairro</ThemedText>
+              <TextInput
+                value={form.district}
+                onChangeText={(t) => setForm((p) => ({ ...p, district: t }))}
+                placeholder="Seu bairro"
+                placeholderTextColor="#94A3B8"
+                style={styles.input}
+                autoCorrect={false}
+                returnKeyType="next"
+              />
+
+              <ThemedText style={styles.label}>Cidade/UF</ThemedText>
+              <TextInput
+                value={form.cityUf}
+                onChangeText={(t) => setForm((p) => ({ ...p, cityUf: t }))}
+                placeholder="Goiânia/GO"
+                placeholderTextColor="#94A3B8"
+                style={styles.input}
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="done"
+              />
+
+              <Pressable
+                onPress={() => push("/(tabs)/checkout/shipping")}
+                style={[styles.primaryBtn, !canContinue ? styles.primaryBtnDisabled : null]}
+                accessibilityRole="button"
+                disabled={!canContinue}
+              >
+                <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
+              </Pressable>
+
+              {!canContinue ? (
+                <ThemedText style={styles.hint}>
+                  Preencha CEP, número, rua, bairro e cidade/UF para continuar.
+                </ThemedText>
+              ) : null}
             </View>
-          </View>
-
-          <ThemedText style={styles.label}>Rua</ThemedText>
-          <TextInput
-            value={form.street}
-            onChangeText={(t) => setForm((p) => ({ ...p, street: t }))}
-            placeholder="Nome da rua"
-            placeholderTextColor="#94A3B8"
-            style={styles.input}
-            autoCorrect={false}
-          />
-
-          <ThemedText style={styles.label}>Bairro</ThemedText>
-          <TextInput
-            value={form.district}
-            onChangeText={(t) => setForm((p) => ({ ...p, district: t }))}
-            placeholder="Seu bairro"
-            placeholderTextColor="#94A3B8"
-            style={styles.input}
-            autoCorrect={false}
-          />
-
-          <ThemedText style={styles.label}>Cidade/UF</ThemedText>
-          <TextInput
-            value={form.cityUf}
-            onChangeText={(t) => setForm((p) => ({ ...p, cityUf: t }))}
-            placeholder="Goiânia/GO"
-            placeholderTextColor="#94A3B8"
-            style={styles.input}
-            autoCorrect={false}
-            autoCapitalize="words"
-          />
-
-          <Pressable
-            onPress={() => push("/checkout/shipping")}
-            style={[styles.primaryBtn, !canContinue ? styles.primaryBtnDisabled : null]}
-            accessibilityRole="button"
-            disabled={!canContinue}
-          >
-            <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
-          </Pressable>
-
-          {!canContinue ? (
-            <ThemedText style={styles.hint}>
-              Preencha CEP, número, rua, bairro e cidade/UF para continuar.
-            </ThemedText>
-          ) : null}
-        </View>
-      </ThemedView>
+          </ScrollView>
+        </ThemedView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+  kav: { flex: 1, backgroundColor: theme.colors.background },
+
+  container: { flex: 1, paddingHorizontal: 14, paddingTop: 4, backgroundColor: theme.colors.background },
+
+  // Mais espaço inferior para nunca “comer” Cidade/UF no iPhone + footer do teclado
+  scrollContent: { paddingBottom: 220 },
 
   header: {
     height: 44,

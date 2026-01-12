@@ -1,13 +1,7 @@
+// app/(tabs)/cart.tsx
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Image,
-  Pressable,
-  SectionList,
-  StyleSheet,
-  View,
-  type ImageSourcePropType,
-} from "react-native";
+import { Image, Pressable, SectionList, StyleSheet, View, type ImageSourcePropType } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
@@ -22,131 +16,122 @@ const FONT_TITLE = "Arimo_400Regular";
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
 
-type Row = {
+// ==== Regras congeladas do Carrinho (teste/UX) ====
+// - Total em box laranja com letra preta
+// - Rodapé com banner verde musgo “Continuar a compra” (mais fino), texto 16 bold
+const CTA_GREEN = "#3F5A3A";
+
+type CartRow = {
   type: "cart";
   id: string;
   title: string;
   price: number;
-  oldPrice?: number;
   qty: number;
-  image?: string;
+  image?: ImageSourcePropType;
 };
+
+type DealRow = {
+  type: "deal";
+  id: string;
+  title: string;
+  price: number;
+  image?: ImageSourcePropType;
+};
+
+type Row = CartRow | DealRow;
 
 type CartSection = {
   title: string;
   data: Row[];
 };
 
-function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
-  const src: ImageSourcePropType | null =
-    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
+function toImageSource(img: any): ImageSourcePropType | undefined {
+  if (!img) return undefined;
+  if (typeof img === "number") return img;
+  if (typeof img === "string") {
+    if (img.startsWith("http")) return { uri: img };
+    return undefined;
+  }
+  return img as ImageSourcePropType;
+}
 
-  return (
-    <View style={[styles.itemImage, { width: size, height: size }]}>
-      {src ? (
-        <Image
-          source={src}
-          style={{ width: "100%", height: "100%", borderRadius: 12 }}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.itemImagePlaceholder} />
-      )}
-    </View>
-  );
+function findProductById(id: string) {
+  return (products as Product[]).find((p) => String(p.id) === String(id));
 }
 
 export default function CartTab() {
   const cartCtx = useCart() as any;
 
-  // Fallback local (para o caso do contexto ainda não estar 100% pronto)
-  const seededRows = useMemo<Row[]>(() => {
-    const base = (products as Product[]).slice(0, 6);
-    return base.map((p, idx) => ({
-      type: "cart",
-      id: p.id,
-      title: p.title,
-      price: p.price,
-      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
-      qty: 1 + (idx % 3),
-      image: (p as any).image,
-    }));
-  }, []);
-
-  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
-
-  // Se o contexto expuser itens, tentamos refletir (sem depender do formato exato)
-  useEffect(() => {
+  // ---- Lê itens do contexto com fallback robusto ----
+  const cartRows: CartRow[] = useMemo(() => {
     const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
-    if (!ctxItems) return;
 
+    // Formato A: array
     if (Array.isArray(ctxItems)) {
-      const mapped: Row[] = ctxItems
+      const mapped = ctxItems
         .map((it: any) => {
           const p = it?.product ?? it;
-          const qty = it?.qty ?? it?.quantity ?? 1;
+          const qty = Number(it?.qty ?? it?.quantity ?? 1);
           const id = p?.id ?? it?.id ?? it?.productId;
           if (!id) return null;
+
+          const price = Number(p?.price ?? it?.price ?? 0);
+          const title = String(p?.title ?? it?.title ?? "Produto");
+          const image = toImageSource(p?.image ?? it?.image);
 
           return {
             type: "cart",
             id: String(id),
-            title: String(p?.title ?? it?.title ?? "Produto"),
-            price: Number(p?.price ?? it?.price ?? 0),
-            oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
-            qty: Math.max(1, Number(qty ?? 1)),
-            image: p?.image ?? it?.image,
-          } as Row;
+            title,
+            price,
+            qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
+            image,
+          } as CartRow;
         })
-        .filter(Boolean) as Row[];
+        .filter(Boolean) as CartRow[];
 
-      if (mapped.length) setLocalRows(mapped);
-      return;
+      return mapped;
     }
 
-    if (typeof ctxItems === "object") {
-      const mapped: Row[] = Object.keys(ctxItems).map((id) => {
+    // Formato B: objeto { [id]: qty }
+    if (ctxItems && typeof ctxItems === "object") {
+      const mapped = Object.keys(ctxItems).map((id) => {
         const qty = Number((ctxItems as any)[id] ?? 1);
-        const p = (products as Product[]).find((x) => String(x.id) === String(id));
+        const p = findProductById(String(id));
         return {
           type: "cart",
           id: String(id),
           title: String(p?.title ?? "Produto"),
           price: Number(p?.price ?? 0),
-          qty: Math.max(1, qty),
-          image: (p as any)?.image,
-        };
+          qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
+          image: toImageSource((p as any)?.image),
+        } as CartRow;
       });
-      if (mapped.length) setLocalRows(mapped);
+      return mapped;
     }
-  }, [cartCtx, seededRows]);
 
+    // Sem contexto -> vazio (não inventa carrinho cheio)
+    return [];
+  }, [cartCtx]);
+
+  const hasCart = cartRows.length > 0;
+
+  // Checkbox: tudo marcado por padrão (igual estava)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-
   useEffect(() => {
     const next: Record<string, boolean> = {};
-    for (const r of localRows) next[r.id] = true;
+    for (const r of cartRows) next[r.id] = true;
     setSelected(next);
-  }, [localRows]);
-
-  function toProduct(row: Row): Product {
-    const p = (products as Product[]).find((x) => x.id === row.id);
-    return (
-      p ?? {
-        id: row.id,
-        title: row.title,
-        price: row.price,
-        category: "",
-        image: row.image ?? "",
-      }
-    );
-  }
+  }, [cartRows]);
 
   function toggleSelect(id: string) {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
-  function safeAdd(product: Product) {
+  function safeAdd(productId: string) {
+    const p = findProductById(productId);
+    if (!p) return;
+
     const any = cartCtx as any;
     const fn =
       any?.addItem?.bind(any) ||
@@ -156,14 +141,15 @@ export default function CartTab() {
       any?.increment?.bind(any);
 
     if (fn) {
-      fn(product, 1);
+      fn(p, 1);
       return;
     }
-
-    setLocalRows((prev) => prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)));
   }
 
-  function safeDec(product: Product) {
+  function safeDec(productId: string) {
+    const p = findProductById(productId);
+    if (!p) return;
+
     const any = cartCtx as any;
     const fn =
       any?.decItem?.bind(any) ||
@@ -173,18 +159,12 @@ export default function CartTab() {
       any?.removeOne?.bind(any);
 
     if (fn) {
-      fn(product, 1);
+      fn(p, 1);
       return;
     }
-
-    setLocalRows((prev) =>
-      prev
-        .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
-        .filter((r) => r.qty > 0)
-    );
   }
 
-  function safeRemove(product: Product) {
+  function safeRemove(productId: string) {
     const any = cartCtx as any;
     const fn =
       any?.removeItem?.bind(any) ||
@@ -194,32 +174,69 @@ export default function CartTab() {
       any?.clearItem?.bind(any);
 
     if (fn) {
-      fn(product.id);
+      fn(productId);
       return;
     }
-
-    setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
   }
 
-  const selectedSubtotal = useMemo(() => {
-    return localRows.reduce((acc, r) => {
+  // ---- Produtos imperdíveis (sempre aparecem; garantem scroll) ----
+  const dealRows: DealRow[] = useMemo(() => {
+    // pega um bloco maior para garantir rolagem quando carrinho vazio
+    const list = (products as Product[]).slice(0, 14);
+    return list.map((p) => ({
+      type: "deal",
+      id: String(p.id),
+      title: String(p.title),
+      price: Number(p.price ?? 0),
+      image: toImageSource((p as any).image),
+    }));
+  }, []);
+
+  // ---- Totais (apenas do que está selecionado) ----
+  const subtotal = useMemo(() => {
+    return cartRows.reduce((acc, r) => {
       if (!selected[r.id]) return acc;
       return acc + r.price * r.qty;
     }, 0);
-  }, [localRows, selected]);
+  }, [cartRows, selected]);
+
+  const total = subtotal; // carrinho aprovado aqui trabalha “simples”: subtotal = total (sem inventar frete/cupom)
 
   const sections: CartSection[] = useMemo(() => {
     return [
-      {
-        title: "Produtos",
-        data: localRows,
-      },
+      { title: "Produtos", data: cartRows as Row[] },
+      { title: "PRODUTOS IMPERDÍVEIS", data: dealRows as Row[] },
     ];
-  }, [localRows]);
+  }, [cartRows, dealRows]);
 
-  const renderRow = ({ item }: { item: Row }) => {
+  function renderRow({ item }: { item: Row }) {
+    if (item.type === "deal") {
+      return (
+        <Pressable
+          onPress={() => router.push(`/product/${item.id}` as any)}
+          style={styles.dealCard}
+          accessibilityRole="button"
+        >
+          <View style={styles.dealImageWrap}>
+            {item.image ? (
+              <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.dealImagePlaceholder} />
+            )}
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <ThemedText numberOfLines={2} style={styles.dealTitle}>
+              {item.title}
+            </ThemedText>
+
+            <ThemedText style={styles.dealPrice}>{formatCurrency(item.price)}</ThemedText>
+          </View>
+        </Pressable>
+      );
+    }
+
     const isChecked = !!selected[item.id];
-    const product = toProduct(item);
 
     return (
       <View style={styles.itemCard}>
@@ -234,7 +251,13 @@ export default function CartTab() {
             {isChecked ? <View style={styles.checkboxDot} /> : null}
           </Pressable>
 
-          <ProductThumb image={item.image} />
+          <View style={styles.itemImageWrap}>
+            {item.image ? (
+              <Image source={item.image} style={styles.itemImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.itemImagePlaceholder} />
+            )}
+          </View>
 
           <View style={styles.itemInfo}>
             <ThemedText numberOfLines={2} style={styles.itemTitle}>
@@ -246,39 +269,31 @@ export default function CartTab() {
               <ThemedText style={styles.unit}> / un</ThemedText>
             </View>
 
-            {item.oldPrice ? (
-              <ThemedText style={styles.oldPrice}>{formatCurrency(item.oldPrice)}</ThemedText>
-            ) : null}
+            <View style={styles.qtyRow}>
+              <Pressable onPress={() => safeDec(item.id)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+                <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+              </Pressable>
+
+              <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+
+              <Pressable onPress={() => safeAdd(item.id)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+                <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => safeRemove(item.id)}
+                hitSlop={10}
+                accessibilityRole="button"
+                style={{ marginLeft: "auto" }}
+              >
+                <ThemedText style={styles.remove}>✕</ThemedText>
+              </Pressable>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.qtyRow}>
-          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
-            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
-          </Pressable>
-
-          <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
-
-          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
-            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => safeRemove(product)}
-            hitSlop={10}
-            accessibilityRole="button"
-            style={{ marginLeft: "auto" }}
-          >
-            <ThemedText style={styles.remove}>✕</ThemedText>
-          </Pressable>
         </View>
       </View>
     );
-  };
-
-  const goCheckout = () => {
-    router.push("/checkout" as any);
-  };
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -299,25 +314,42 @@ export default function CartTab() {
           renderItem={renderRow}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionHeaderText}>{section.title.toUpperCase()}</ThemedText>
+              <ThemedText style={styles.sectionHeaderText}>{section.title}</ThemedText>
             </View>
           )}
           stickySectionHeadersEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 160 }}
+          contentContainerStyle={{ paddingBottom: hasCart ? 140 : 20 }}
+          ListHeaderComponent={
+            !hasCart ? (
+              <View style={styles.emptyWrap}>
+                <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
+                <ThemedText style={styles.emptyText}>Confira os produtos imperdíveis abaixo e adicione ao carrinho.</ThemedText>
+                <Pressable
+                  onPress={() => router.push("/(tabs)/explore" as any)}
+                  style={styles.emptyBtn}
+                  accessibilityRole="button"
+                >
+                  <ThemedText style={styles.emptyBtnText}>EXPLORAR OFERTAS</ThemedText>
+                </Pressable>
+              </View>
+            ) : null
+          }
         />
 
-        {/* Rodapé fixo: TOTAL embaixo + botão */}
-        <View style={styles.footerBar}>
-          <View style={styles.totalBox}>
-            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
-            <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
-          </View>
+        {/* Rodapé fixo (somente quando tem carrinho) */}
+        {hasCart ? (
+          <View style={styles.footerBar}>
+            <View style={styles.totalBox}>
+              <ThemedText style={styles.totalLabel}>Total</ThemedText>
+              <ThemedText style={styles.totalValue}>{formatCurrency(total)}</ThemedText>
+            </View>
 
-          <Pressable onPress={goCheckout} style={styles.footerBtn} accessibilityRole="button">
-            <ThemedText style={styles.footerBtnText}>CONTINUAR A COMPRA</ThemedText>
-          </Pressable>
-        </View>
+            <Pressable onPress={() => router.push("/(tabs)/checkout" as any)} style={styles.ctaPrimary} accessibilityRole="button">
+              <ThemedText style={styles.ctaPrimaryText}>Continuar a compra</ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
       </ThemedView>
     </SafeAreaView>
   );
@@ -325,12 +357,7 @@ export default function CartTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 14,
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background, paddingHorizontal: 14 },
 
   header: {
     height: 44,
@@ -339,43 +366,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
+  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
-
-  title: {
-    fontSize: 24,
-    fontFamily: FONT_TITLE,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-
+  // Carrinho (regra especial: título 24 em negrito)
+  title: { fontSize: 24, fontFamily: FONT_TITLE, fontWeight: "700", textAlign: "center", color: theme.colors.text },
   rightSpacer: { width: 40, height: 40 },
 
-  // PRODUTOS fixo (sticky) e sempre visível
-  sectionHeader: {
-    paddingTop: 8,
-    paddingBottom: 6,
-    backgroundColor: theme.colors.background,
-    zIndex: 10,
-  },
-  sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+  sectionHeader: { paddingTop: 10, paddingBottom: 8, backgroundColor: theme.colors.background },
+  sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
+  // Card item do carrinho
   itemCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.divider,
     padding: 10,
     marginBottom: 8,
   },
-
   itemTop: { flexDirection: "row", gap: 10 },
 
   checkbox: {
@@ -391,32 +400,26 @@ const styles = StyleSheet.create({
   checkboxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
   checkboxDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
 
-  itemImage: {
+  itemImageWrap: {
+    width: 72,
+    height: 72,
     borderRadius: 12,
-    backgroundColor: theme.colors.surfaceAlt,
     overflow: "hidden",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
-  itemImagePlaceholder: { flex: 1, borderRadius: 12, backgroundColor: theme.colors.surfaceAlt },
+  itemImage: { width: "100%", height: "100%" },
+  itemImagePlaceholder: { flex: 1, backgroundColor: theme.colors.surfaceAlt },
 
   itemInfo: { flex: 1 },
-  itemTitle: { fontSize: 11, fontFamily: FONT_BODY_BOLD },
-  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
-  price: { fontSize: 11, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
-  unit: { fontSize: 11, fontFamily: FONT_BODY, opacity: 0.7 },
-  oldPrice: {
-    marginTop: 3,
-    fontSize: 11,
-    fontFamily: FONT_BODY,
-    opacity: 0.6,
-    textDecorationLine: "line-through",
-  },
+  itemTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  qtyRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
+  price: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  unit: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text }, // “/ un” em negrito (regra)
+
+  qtyRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10 },
 
   qtyBtn: {
     width: 30,
@@ -426,21 +429,55 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.divider,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: theme.colors.surface,
   },
-  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD },
+  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  qtyText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center", color: theme.colors.text },
+  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "rgba(0,0,0,0.55)" },
 
-  qtyText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
-
-  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
-
-  // Rodapé: TOTAL + CTA
-  footerBar: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 10,
-    gap: 8,
+  // Vazio
+  emptyWrap: {
+    marginTop: 10,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 14,
+    marginBottom: 10,
   },
+  emptyTitle: { fontSize: 13, fontFamily: FONT_BODY_BOLD, color: theme.colors.text, marginBottom: 6 },
+  emptyText: { fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)", marginBottom: 12 },
+  emptyBtn: { height: 42, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
+  emptyBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
+
+  // Imperdíveis (card simples, padrão marketplace)
+  dealCard: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  dealImageWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  dealImage: { width: "100%", height: "100%" },
+  dealImagePlaceholder: { flex: 1, backgroundColor: theme.colors.surfaceAlt },
+  dealTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  dealPrice: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+
+  // Rodapé fixo (sem TabBar no carrinho)
+  footerBar: { position: "absolute", left: 14, right: 14, bottom: 10, gap: 8 },
 
   totalBox: {
     backgroundColor: "#F59E0B",
@@ -450,21 +487,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
   },
-  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" }, // “Total” em negrito (regra)
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
-  footerBtn: {
+  // Banner verde musgo (mais fino), texto 16 bold (regra)
+  ctaPrimary: {
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#3F5A3A",
+    backgroundColor: CTA_GREEN,
     alignItems: "center",
     justifyContent: "center",
   },
-  footerBtnText: {
-    fontSize: 16,
-    fontFamily: FONT_BODY_BOLD,
-    color: "#FFFFFF",
-    textTransform: "uppercase",
-  },
+  ctaPrimaryText: { fontSize: 16, fontFamily: FONT_BODY_BOLD, color: "#FFFFFF" },
 });

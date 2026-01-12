@@ -11,13 +11,7 @@ import { useCart } from "../../../context/CartContext";
 import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
 function normalizeCartItems(cartAny: any) {
-  const raw =
-    cartAny?.items ??
-    cartAny?.cartItems ??
-    cartAny?.cart ??
-    cartAny?.products ??
-    [];
-
+  const raw = cartAny?.items ?? cartAny?.cartItems ?? cartAny?.cart ?? cartAny?.products ?? [];
   if (!Array.isArray(raw)) return [];
 
   return raw
@@ -58,8 +52,6 @@ export default function CheckoutSuccessScreen() {
       const items = normalizeCartItems(cartAny);
       if (!items.length) return null;
 
-      // Importante:
-      // status é TÉCNICO (created/paid/...) — label "Confirmado" é só para UI.
       const order = createOrderFromCart({
         items,
         discount: 0,
@@ -74,7 +66,7 @@ export default function CheckoutSuccessScreen() {
   }, [cartAny]);
 
   const goOrders = () => router.push("/orders" as any);
-  const goHome = () => router.push("/(tabs)" as any);
+  const goHome = () => router.push("/" as any);
 
   const goToLatestOrder = async () => {
     const order = await generateOrder();

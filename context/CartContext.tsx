@@ -50,7 +50,7 @@ function emit() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  // IMPORTANTE: cleanup deve retornar void (não boolean)
+  // cleanup deve retornar void
   return () => {
     listeners.delete(listener);
   };
@@ -144,7 +144,7 @@ function schedulePersist(items: CartItem[]) {
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     void persistSnapshot(items).catch(() => {
-      // silencioso por padrão
+      // silencioso
     });
   }, 80);
 }

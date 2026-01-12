@@ -1,57 +1,41 @@
-// hooks/useCheckoutFailSafe.ts
-import { router } from "expo-router";
-import { useEffect } from "react";
+﻿import { router, useSegments } from "expo-router";
+import { useEffect, useRef } from "react";
 
-import type { OrderDraft } from "../types/order";
 import { loadOrderDraft } from "../utils/orderStorage";
-
-type ReplaceArg = Parameters<typeof router.replace>[0];
-
-type CheckoutStep = "address" | "shipping" | "payment" | "review";
-
-function getNextCheckoutStep(draft: OrderDraft): CheckoutStep {
-  if (!draft.address) return "address";
-  if (!draft.shipping) return "shipping";
-  if (!draft.payment?.method) return "payment";
-  return "review";
-}
-
-function stepToRoute(step: CheckoutStep) {
-  switch (step) {
-    case "address":
-      return "/checkout/address";
-    case "shipping":
-      return "/checkout/shipping";
-    case "payment":
-      return "/checkout/payment";
-    default:
-      return "/checkout/review";
-  }
-}
+import { getCheckoutResumeHref } from "../utils/checkoutFlow";
 
 export function useCheckoutFailSafe() {
+  // FIX TS: evita inferência "never[]"
+  const segments = useSegments() as string[];
+  const ranRef = useRef(false);
+
   useEffect(() => {
+    // IMPORTANTÍSSIMO:
+    // Este failsafe NÃO pode rodar fora do fluxo de checkout, senão ele “puxa” o app para /address no boot.
+    const inCheckout = segments.includes("checkout");
+    if (!inCheckout) return;
+
+    if (ranRef.current) return;
+    ranRef.current = true;
+
     let alive = true;
 
     (async () => {
       try {
-        const draft = (await loadOrderDraft()) as OrderDraft | null;
+        const draft = await loadOrderDraft();
+        const href = getCheckoutResumeHref(draft);
+
         if (!alive) return;
-        if (!draft) return;
 
-        if (!Array.isArray(draft.items) || draft.items.length === 0) return;
-
-        const step = getNextCheckoutStep(draft);
-        const href = stepToRoute(step) as ReplaceArg;
-
-        router.replace(href);
+        // Se existir um “ponto de retomada”, garante que estamos na etapa certa.
+        if (href) router.replace(href as any);
       } catch {
-        // fail-safe não pode travar o app
+        // silencioso para não travar o app
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, []);
+  }, [segments]);
 }

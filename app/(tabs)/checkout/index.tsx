@@ -49,7 +49,7 @@ export default function CheckoutIndex() {
           </View>
 
           <Pressable
-            onPress={() => push("/checkout/address")}
+            onPress={() => push("/(tabs)/checkout/address")}
             style={styles.primaryBtn}
             accessibilityRole="button"
           >
@@ -57,24 +57,39 @@ export default function CheckoutIndex() {
           </Pressable>
         </View>
 
-        {/* Espaço de banner / conteúdo (ocupa o “vazio” abaixo do botão e do texto) */}
         <View style={styles.promoWrap}>
-          <Pressable onPress={() => ComingSoon("JOGOS")} style={[styles.promoCard, styles.promoCardA]} accessibilityRole="button">
+          <Pressable
+            onPress={() => ComingSoon("JOGOS")}
+            style={[styles.promoCard, styles.promoCardA]}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.promoTitle}>JOGOS</ThemedText>
             <ThemedText style={styles.promoSubtitle}>Desafios, prêmios e novidades</ThemedText>
           </Pressable>
 
-          <Pressable onPress={() => ComingSoon("VÍDEOS")} style={[styles.promoCard, styles.promoCardB]} accessibilityRole="button">
+          <Pressable
+            onPress={() => ComingSoon("VÍDEOS")}
+            style={[styles.promoCard, styles.promoCardB]}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.promoTitle}>VÍDEOS</ThemedText>
             <ThemedText style={styles.promoSubtitle}>Conteúdo rápido e ofertas</ThemedText>
           </Pressable>
 
           <View style={styles.promoRow}>
-            <Pressable onPress={() => ComingSoon("FOTOS")} style={[styles.promoMini, styles.promoMiniC]} accessibilityRole="button">
+            <Pressable
+              onPress={() => ComingSoon("FOTOS")}
+              style={[styles.promoMini, styles.promoMiniC]}
+              accessibilityRole="button"
+            >
               <ThemedText style={styles.promoMiniText}>FOTOS</ThemedText>
             </Pressable>
 
-            <Pressable onPress={() => ComingSoon("TEXTOS")} style={[styles.promoMini, styles.promoMiniD]} accessibilityRole="button">
+            <Pressable
+              onPress={() => ComingSoon("TEXTOS")}
+              style={[styles.promoMini, styles.promoMiniD]}
+              accessibilityRole="button"
+            >
               <ThemedText style={styles.promoMiniText}>TEXTOS</ThemedText>
             </Pressable>
           </View>
