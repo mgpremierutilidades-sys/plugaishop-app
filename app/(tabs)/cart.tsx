@@ -2,9 +2,9 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  FlatList,
   Image,
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   TextInput,
@@ -30,17 +30,23 @@ const FONT_BODY_BOLD = "OpenSans_700Bold";
 // - Rodapé com banner verde musgo “Continuar a compra” (mais fino), texto 16 bold
 const CTA_GREEN = "#3F5A3A";
 
-// Mock de frete / promo
-const SHIPPING_BASE = 19.9;
-const FREE_SHIPPING_THRESHOLD = 149.9;
+// Frete grátis (mock/UX nudge)
+const FREE_SHIPPING_THRESHOLD = 199.9;
 
-// Cupons (mock)
-type Coupon = { code: string; percent: number };
+// Cupom mock (mantenha simples por enquanto)
+type Coupon =
+  | { code: string; type: "percent"; value: number; label: string }
+  | { code: string; type: "fixed"; value: number; label: string }
+  | { code: string; type: "free_shipping"; value: 0; label: string };
+
 const COUPONS: Coupon[] = [
-  { code: "PLUGA10", percent: 10 },
-  { code: "PLUGA15", percent: 15 },
-  { code: "FRETE", percent: 0 },
+  { code: "PLUGA10", type: "percent", value: 10, label: "10% OFF" },
+  { code: "PLUGA20", type: "percent", value: 20, label: "20% OFF" },
+  { code: "MENOS15", type: "fixed", value: 15, label: "R$ 15 OFF" },
+  { code: "FRETE", type: "free_shipping", value: 0, label: "FRETE GRÁTIS" },
 ];
+
+type ShippingMethod = "delivery" | "pickup";
 
 type CartRow = {
   type: "cart";
@@ -49,6 +55,8 @@ type CartRow = {
   price: number;
   qty: number;
   image?: ImageSourcePropType;
+  discountPercent?: number;
+  unitLabel?: string;
 };
 
 type DealRow = {
@@ -57,6 +65,7 @@ type DealRow = {
   title: string;
   price: number;
   image?: ImageSourcePropType;
+  discountPercent?: number;
 };
 
 type Row = CartRow | DealRow;
@@ -80,8 +89,35 @@ function findProductById(id: string) {
   return (products as Product[]).find((p) => String(p.id) === String(id));
 }
 
-function normalizeCepDigits(raw: string) {
-  return String(raw ?? "").replace(/\D/g, "").slice(0, 8);
+function clampMoney(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, n);
+}
+
+function normalizeCep(raw: string) {
+  return String(raw ?? "").replace(/\D+/g, "").slice(0, 8);
+}
+
+function estimateShipping(cep8: string): number {
+  // Mock simples (apenas UX):
+  // - sem CEP => 0 (não calculado)
+  // - GO (74/75) barato, SP (01-19) médio, resto mais caro
+  if (!cep8 || cep8.length !== 8) return 0;
+
+  const prefix2 = cep8.slice(0, 2);
+  const p2 = Number(prefix2);
+
+  if (prefix2 === "74" || prefix2 === "75") return 9.9;
+  if (p2 >= 1 && p2 <= 19) return 14.9;
+  if (p2 >= 20 && p2 <= 39) return 19.9;
+  return 24.9;
+}
+
+function calcUnitWithProductDiscount(unit: number, discountPercent?: number) {
+  const pct = Number(discountPercent ?? 0);
+  if (!Number.isFinite(pct) || pct <= 0) return unit;
+  const discounted = unit * (1 - pct / 100);
+  return clampMoney(discounted);
 }
 
 export default function CartTab() {
@@ -100,9 +136,10 @@ export default function CartTab() {
           const id = p?.id ?? it?.id ?? it?.productId;
           if (!id) return null;
 
-          const price = Number(p?.price ?? it?.price ?? 0);
-          const title = String(p?.title ?? it?.title ?? "Produto");
-          const image = toImageSource(p?.image ?? it?.image);
+          const catalogP = findProductById(String(id));
+          const price = Number(p?.price ?? it?.price ?? catalogP?.price ?? 0);
+          const title = String(p?.title ?? it?.title ?? catalogP?.title ?? "Produto");
+          const image = toImageSource(p?.image ?? it?.image ?? catalogP?.image);
 
           return {
             type: "cart",
@@ -111,6 +148,8 @@ export default function CartTab() {
             price,
             qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
             image,
+            discountPercent: Number(p?.discountPercent ?? catalogP?.discountPercent ?? 0) || undefined,
+            unitLabel: String(p?.unitLabel ?? catalogP?.unitLabel ?? "/ un"),
           } as CartRow;
         })
         .filter(Boolean) as CartRow[];
@@ -130,17 +169,20 @@ export default function CartTab() {
           price: Number(p?.price ?? 0),
           qty: Math.max(1, Number.isFinite(qty) ? qty : 1),
           image: toImageSource((p as any)?.image),
+          discountPercent: Number((p as any)?.discountPercent ?? 0) || undefined,
+          unitLabel: String((p as any)?.unitLabel ?? "/ un"),
         } as CartRow;
       });
       return mapped;
     }
 
+    // Sem contexto -> vazio (não inventa carrinho cheio)
     return [];
   }, [cartCtx]);
 
   const hasCart = cartRows.length > 0;
 
-  // Seleção
+  // Checkbox: tudo marcado por padrão (igual estava)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -152,7 +194,21 @@ export default function CartTab() {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  // Ações seguras (estáveis para o lint)
+  const selectAll = useCallback(() => {
+    setSelected((prev) => {
+      const next: Record<string, boolean> = { ...prev };
+      for (const r of cartRows) next[r.id] = true;
+      return next;
+    });
+  }, [cartRows]);
+
+  const anySelected = useMemo(() => {
+    for (const r of cartRows) {
+      if (selected[r.id]) return true;
+    }
+    return false;
+  }, [cartRows, selected]);
+
   const safeAdd = useCallback(
     (productId: string) => {
       const p = findProductById(productId);
@@ -205,9 +261,9 @@ export default function CartTab() {
   );
 
   const removeSelected = useCallback(() => {
-    const ids = cartRows.map((r) => r.id).filter((id) => !!selected[id]);
-    if (ids.length === 0) return;
-    for (const id of ids) safeRemove(id);
+    for (const r of cartRows) {
+      if (selected[r.id]) safeRemove(r.id);
+    }
   }, [cartRows, selected, safeRemove]);
 
   // ---- Produtos imperdíveis (sempre aparecem; garantem scroll) ----
@@ -219,105 +275,122 @@ export default function CartTab() {
       title: String(p.title),
       price: Number(p.price ?? 0),
       image: toImageSource((p as any).image),
+      discountPercent: Number((p as any)?.discountPercent ?? 0) || undefined,
     }));
   }, []);
 
-  const selectedCount = useMemo(() => {
-    return cartRows.reduce((acc, r) => acc + (selected[r.id] ? 1 : 0), 0);
-  }, [cartRows, selected]);
+  // ---- Recomendações (carrossel) ----
+  const recommended: Product[] = useMemo(() => {
+    // Mock: produtos fora do carrinho, pega alguns para cross-sell
+    const inCart = new Set(cartRows.map((r) => String(r.id)));
+    const pool = (products as Product[]).filter((p) => !inCart.has(String(p.id)));
+    return pool.slice(0, 8);
+  }, [cartRows]);
 
-  // ---- Totais / descontos (apenas selecionados) ----
-  const subtotal = useMemo(() => {
+  // ---- Cupom ----
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponMsg, setCouponMsg] = useState<string>("");
+
+  const applyCoupon = useCallback(() => {
+    const code = String(couponInput ?? "")
+      .trim()
+      .toUpperCase();
+
+    if (!code) {
+      setCouponMsg("Digite um cupom.");
+      return;
+    }
+
+    const found = COUPONS.find((c) => c.code === code) ?? null;
+    if (!found) {
+      setAppliedCoupon(null);
+      setCouponMsg("Cupom inválido.");
+      return;
+    }
+
+    setAppliedCoupon(found);
+    setCouponMsg(`Cupom aplicado: ${found.code} (${found.label})`);
+  }, [couponInput]);
+
+  const clearCoupon = useCallback(() => {
+    setAppliedCoupon(null);
+    setCouponMsg("");
+    setCouponInput("");
+  }, []);
+
+  // ---- Entrega / Retirada + CEP ----
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("delivery");
+  const [cepInput, setCepInput] = useState<string>("");
+
+  const cep8 = useMemo(() => normalizeCep(cepInput), [cepInput]);
+
+  // ---- Totais (apenas do que está selecionado) ----
+  const subtotalRaw = useMemo(() => {
     return cartRows.reduce((acc, r) => {
       if (!selected[r.id]) return acc;
       return acc + r.price * r.qty;
     }, 0);
   }, [cartRows, selected]);
 
-  const itemDiscountTotal = useMemo(() => {
+  const productDiscountTotal = useMemo(() => {
     return cartRows.reduce((acc, r) => {
       if (!selected[r.id]) return acc;
-      const p = findProductById(r.id);
-      const pct = Number((p as any)?.discountPercent ?? 0);
+      const pct = Number(r.discountPercent ?? 0);
       if (!Number.isFinite(pct) || pct <= 0) return acc;
-      const d = (Number(r.price) * pct) / 100;
-      return acc + d * r.qty;
+      const dUnit = (r.price * pct) / 100;
+      return acc + dUnit * r.qty;
     }, 0);
   }, [cartRows, selected]);
 
-  // ---- Cupom (mock) ----
-  const [couponInput, setCouponInput] = useState<string>("");
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-  const [couponError, setCouponError] = useState<string | null>(null);
-
-  const applyCoupon = useCallback(() => {
-    const code = String(couponInput ?? "").trim().toUpperCase();
-    if (!code) {
-      setAppliedCoupon(null);
-      setCouponError("Digite um cupom.");
-      return;
-    }
-
-    const found = COUPONS.find((c) => c.code === code);
-    if (!found) {
-      setAppliedCoupon(null);
-      setCouponError("Cupom inválido.");
-      return;
-    }
-
-    setCouponError(null);
-    setAppliedCoupon(found);
-  }, [couponInput]);
+  const subtotalAfterProductDiscount = useMemo(() => {
+    return clampMoney(subtotalRaw - productDiscountTotal);
+  }, [subtotalRaw, productDiscountTotal]);
 
   const couponDiscount = useMemo(() => {
     if (!appliedCoupon) return 0;
-    if (appliedCoupon.code === "FRETE") return 0;
+    if (appliedCoupon.type === "free_shipping") return 0;
 
-    const pct = Number(appliedCoupon.percent ?? 0);
-    if (!Number.isFinite(pct) || pct <= 0) return 0;
+    if (appliedCoupon.type === "percent") {
+      const pct = Number(appliedCoupon.value ?? 0);
+      if (!Number.isFinite(pct) || pct <= 0) return 0;
+      return clampMoney((subtotalAfterProductDiscount * pct) / 100);
+    }
 
-    const base = Math.max(0, subtotal - itemDiscountTotal);
-    return (base * pct) / 100;
-  }, [appliedCoupon, subtotal, itemDiscountTotal]);
+    if (appliedCoupon.type === "fixed") {
+      const v = Number(appliedCoupon.value ?? 0);
+      if (!Number.isFinite(v) || v <= 0) return 0;
+      return clampMoney(v);
+    }
 
-  // ---- Entrega (mock) ----
-  const [deliveryMode, setDeliveryMode] = useState<"delivery" | "pickup">("delivery");
-  const [cepInput, setCepInput] = useState<string>("");
-  const [cepTouched, setCepTouched] = useState(false);
+    return 0;
+  }, [appliedCoupon, subtotalAfterProductDiscount]);
 
-  const cepDigits = useMemo(() => normalizeCepDigits(cepInput), [cepInput]);
-  const cepOk = cepDigits.length === 8;
+  const discountTotal = useMemo(() => {
+    return clampMoney(productDiscountTotal + couponDiscount);
+  }, [productDiscountTotal, couponDiscount]);
 
-  const afterDiscounts = useMemo(() => {
-    const v = subtotal - itemDiscountTotal - couponDiscount;
-    return v < 0 ? 0 : v;
-  }, [subtotal, itemDiscountTotal, couponDiscount]);
+  const shippingEstimated = useMemo(() => {
+    if (shippingMethod === "pickup") return 0;
+    if (appliedCoupon?.type === "free_shipping") return 0;
 
-  const qualifiesFreeShipping = afterDiscounts >= FREE_SHIPPING_THRESHOLD;
+    // Barra de frete grátis: atingiu threshold => frete 0
+    if (subtotalAfterProductDiscount >= FREE_SHIPPING_THRESHOLD) return 0;
 
-  const shipping = useMemo(() => {
-    if (!hasCart) return 0;
-    if (deliveryMode === "pickup") return 0;
-    if (appliedCoupon?.code === "FRETE") return 0;
-    if (qualifiesFreeShipping) return 0;
-    if (!cepOk) return 0;
-    return SHIPPING_BASE;
-  }, [hasCart, deliveryMode, appliedCoupon, qualifiesFreeShipping, cepOk]);
+    return estimateShipping(cep8);
+  }, [appliedCoupon, cep8, shippingMethod, subtotalAfterProductDiscount]);
 
   const total = useMemo(() => {
-    const t = afterDiscounts + shipping;
+    const t = subtotalAfterProductDiscount - couponDiscount + shippingEstimated;
     return t < 0 ? 0 : t;
-  }, [afterDiscounts, shipping]);
+  }, [couponDiscount, shippingEstimated, subtotalAfterProductDiscount]);
 
-  const freeShippingMissing = Math.max(0, FREE_SHIPPING_THRESHOLD - afterDiscounts);
-  const freeShippingProgress =
-    FREE_SHIPPING_THRESHOLD <= 0 ? 0 : Math.max(0, Math.min(1, afterDiscounts / FREE_SHIPPING_THRESHOLD));
-
-  // Recomendações (carrossel)
-  const recommended = useMemo(() => {
-    const inCart = new Set(cartRows.map((r) => String(r.id)));
-    return (products as Product[]).filter((p) => !inCart.has(String(p.id))).slice(0, 10);
-  }, [cartRows]);
+  const freeShippingProgress = useMemo(() => {
+    const v = subtotalAfterProductDiscount;
+    const ratio = FREE_SHIPPING_THRESHOLD <= 0 ? 0 : Math.min(1, v / FREE_SHIPPING_THRESHOLD);
+    const missing = clampMoney(FREE_SHIPPING_THRESHOLD - v);
+    return { ratio, missing, reached: v >= FREE_SHIPPING_THRESHOLD };
+  }, [subtotalAfterProductDiscount]);
 
   const sections: CartSection[] = useMemo(() => {
     return [
@@ -326,41 +399,53 @@ export default function CartTab() {
     ];
   }, [cartRows, dealRows]);
 
-  const renderRow = useCallback(
-    ({ item }: { item: Row }) => {
-      if (item.type === "deal") {
-        return (
-          <Pressable
-            onPress={() => router.push(`/product/${item.id}` as any)}
-            style={styles.dealCard}
-            accessibilityRole="button"
-            accessibilityLabel={`Abrir produto ${item.title}`}
-          >
-            <View style={styles.dealImageWrap}>
-              {item.image ? (
-                <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
-              ) : (
-                <View style={styles.dealImagePlaceholder} />
-              )}
+  const renderDeal = useCallback(
+    ({ item }: { item: DealRow }) => {
+      const unit = item.price;
+      const unitFinal = calcUnitWithProductDiscount(unit, item.discountPercent);
+      const hasPromo = unitFinal !== unit;
+
+      return (
+        <Pressable
+          onPress={() => router.push(`/product/${item.id}` as any)}
+          style={styles.dealCard}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir produto ${item.title}`}
+        >
+          <View style={styles.dealImageWrap}>
+            {item.image ? (
+              <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.dealImagePlaceholder} />
+            )}
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <ThemedText numberOfLines={2} style={styles.dealTitle}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceLine}>
+              {hasPromo ? (
+                <ThemedText style={styles.priceStriked}>{formatCurrency(unit)}</ThemedText>
+              ) : null}
+              <ThemedText style={styles.dealPrice}>{formatCurrency(unitFinal)}</ThemedText>
             </View>
+          </View>
+        </Pressable>
+      );
+    },
+    []
+  );
 
-            <View style={{ flex: 1 }}>
-              <ThemedText numberOfLines={2} style={styles.dealTitle}>
-                {item.title}
-              </ThemedText>
-
-              <ThemedText style={styles.dealPrice}>{formatCurrency(item.price)}</ThemedText>
-            </View>
-          </Pressable>
-        );
-      }
-
+  const renderCartItem = useCallback(
+    ({ item }: { item: CartRow }) => {
       const isChecked = !!selected[item.id];
-      const p = findProductById(item.id);
-      const pct = Number((p as any)?.discountPercent ?? 0);
-      const hasPromo = Number.isFinite(pct) && pct > 0;
-      const discountedUnit = hasPromo ? item.price - (item.price * pct) / 100 : item.price;
-      const discountedUnitSafe = Number.isFinite(discountedUnit) ? Math.max(0, discountedUnit) : item.price;
+
+      const unit = Number(item.price ?? 0);
+      const unitFinal = calcUnitWithProductDiscount(unit, item.discountPercent);
+      const hasPromo = unitFinal !== unit;
+      const lineTotal = unitFinal * item.qty;
 
       return (
         <View style={styles.itemCard}>
@@ -390,14 +475,10 @@ export default function CartTab() {
 
               <View style={styles.priceRow}>
                 {hasPromo ? (
-                  <>
-                    <ThemedText style={styles.price}>{formatCurrency(discountedUnitSafe)}</ThemedText>
-                    <ThemedText style={styles.oldPrice}>{formatCurrency(item.price)}</ThemedText>
-                  </>
-                ) : (
-                  <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
-                )}
-                <ThemedText style={styles.unit}> / un</ThemedText>
+                  <ThemedText style={styles.priceStriked}>{formatCurrency(unit)}</ThemedText>
+                ) : null}
+                <ThemedText style={styles.price}>{formatCurrency(unitFinal)}</ThemedText>
+                <ThemedText style={styles.unit}> {item.unitLabel ?? "/ un"}</ThemedText>
               </View>
 
               <View style={styles.qtyRow}>
@@ -424,16 +505,17 @@ export default function CartTab() {
                 </Pressable>
 
                 <View style={{ marginLeft: "auto", alignItems: "flex-end" }}>
+                  <ThemedText style={styles.lineTotal}>{formatCurrency(lineTotal)}</ThemedText>
+
                   <Pressable
                     onPress={() => safeRemove(item.id)}
                     hitSlop={10}
                     accessibilityRole="button"
                     accessibilityLabel="Remover item"
+                    style={styles.removeBtn}
                   >
                     <ThemedText style={styles.remove}>✕</ThemedText>
                   </Pressable>
-
-                  <ThemedText style={styles.lineTotal}>{formatCurrency(discountedUnitSafe * item.qty)}</ThemedText>
                 </View>
               </View>
             </View>
@@ -441,186 +523,123 @@ export default function CartTab() {
         </View>
       );
     },
-    [selected, toggleSelect, safeDec, safeAdd, safeRemove]
+    [safeAdd, safeDec, safeRemove, selected, toggleSelect]
   );
 
-  // Footer da lista (sem useMemo para não gerar warning de deps)
-  const listFooter = !hasCart ? (
-    <View style={{ height: 10 }} />
-  ) : (
-    <View style={{ paddingTop: 6, paddingBottom: 10 }}>
-      {/* Cupom + remover selecionados */}
-      <View style={styles.panelCard}>
-        <View style={styles.panelHeaderRow}>
-          <ThemedText style={styles.panelTitle}>Cupom</ThemedText>
+  const renderRow = useCallback(
+    ({ item }: { item: Row }) => {
+      if (item.type === "deal") return renderDeal({ item });
+      return renderCartItem({ item });
+    },
+    [renderCartItem, renderDeal]
+  );
 
-          {selectedCount > 0 ? (
-            <Pressable
-              onPress={removeSelected}
-              style={styles.removeSelectedBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Remover itens selecionados"
-            >
-              <ThemedText style={styles.removeSelectedText}>Remover selecionados</ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.couponRow}>
-          <TextInput
-            value={couponInput}
-            onChangeText={(t) => {
-              setCouponInput(t);
-              setCouponError(null);
-            }}
-            placeholder="Digite seu cupom (ex.: PLUGA10)"
-            placeholderTextColor="rgba(0,0,0,0.45)"
-            style={styles.couponInput}
-            autoCapitalize="characters"
-            accessibilityLabel="Campo de cupom"
-          />
-
-          <Pressable onPress={applyCoupon} style={styles.couponOk} accessibilityRole="button" accessibilityLabel="Aplicar cupom">
-            <ThemedText style={styles.couponOkText}>OK</ThemedText>
+  const headerContent = useMemo(() => {
+    if (!hasCart) {
+      return (
+        <View style={styles.emptyWrap}>
+          <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
+          <ThemedText style={styles.emptyText}>Confira os produtos imperdíveis abaixo e adicione ao carrinho.</ThemedText>
+          <Pressable
+            onPress={() => router.push("/(tabs)/explore" as any)}
+            style={styles.emptyBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Explorar ofertas"
+          >
+            <ThemedText style={styles.emptyBtnText}>EXPLORAR OFERTAS</ThemedText>
           </Pressable>
         </View>
+      );
+    }
 
-        {couponError ? <ThemedText style={styles.helperError}>{couponError}</ThemedText> : null}
-        {appliedCoupon ? (
-          <ThemedText style={styles.helperOk}>
-            Cupom aplicado: <ThemedText style={styles.helperOkStrong}>{appliedCoupon.code}</ThemedText>
-          </ThemedText>
-        ) : null}
+    return (
+      <View style={styles.toolsBar}>
+        <Pressable
+          onPress={selectAll}
+          style={styles.toolsBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Selecionar todos"
+        >
+          <ThemedText style={styles.toolsBtnText}>Selecionar tudo</ThemedText>
+        </Pressable>
+
+        <Pressable
+          onPress={removeSelected}
+          disabled={!anySelected}
+          style={[styles.toolsBtnDanger, !anySelected ? styles.toolsBtnDisabled : null]}
+          accessibilityRole="button"
+          accessibilityLabel="Remover selecionados"
+        >
+          <ThemedText style={styles.toolsBtnDangerText}>Remover selecionados</ThemedText>
+        </Pressable>
       </View>
+    );
+  }, [anySelected, hasCart, removeSelected, selectAll]);
 
-      {/* Frete + opção entrega/retirada */}
-      <View style={styles.panelCard}>
-        <ThemedText style={styles.panelTitle}>Frete</ThemedText>
+  const footerContent = useMemo(() => {
+    if (!hasCart) return null;
 
-        {freeShippingMissing > 0 ? (
-          <ThemedText style={styles.helperText}>
-            Faltam <ThemedText style={styles.helperStrong}>{formatCurrency(freeShippingMissing)}</ThemedText> para frete grátis.
-          </ThemedText>
-        ) : (
-          <ThemedText style={styles.helperOk}>
-            Você ganhou <ThemedText style={styles.helperOkStrong}>frete grátis</ThemedText>.
-          </ThemedText>
-        )}
-
-        <View style={styles.progressTrack} accessibilityLabel="Progresso para frete grátis">
-          <View style={[styles.progressFill, { width: `${Math.round(freeShippingProgress * 100)}%` }]} />
-        </View>
-
-        <View style={styles.deliveryToggleRow}>
-          <Pressable
-            onPress={() => setDeliveryMode("delivery")}
-            style={[styles.togglePill, deliveryMode === "delivery" ? styles.togglePillOn : styles.togglePillOff]}
-            accessibilityRole="button"
-            accessibilityLabel="Selecionar entrega em casa"
-          >
-            <ThemedText style={[styles.togglePillText, deliveryMode === "delivery" ? styles.togglePillTextOn : styles.togglePillTextOff]}>
-              Entrega
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setDeliveryMode("pickup")}
-            style={[styles.togglePill, deliveryMode === "pickup" ? styles.togglePillOn : styles.togglePillOff]}
-            accessibilityRole="button"
-            accessibilityLabel="Selecionar retirada em loja"
-          >
-            <ThemedText style={[styles.togglePillText, deliveryMode === "pickup" ? styles.togglePillTextOn : styles.togglePillTextOff]}>
-              Retirada
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        {deliveryMode === "delivery" ? (
-          <View style={styles.cepRow}>
-            <TextInput
-              value={cepInput}
-              onChangeText={(t) => {
-                setCepInput(t);
-                setCepTouched(true);
-              }}
-              placeholder="CEP (8 dígitos)"
-              placeholderTextColor="rgba(0,0,0,0.45)"
-              keyboardType="number-pad"
-              style={styles.cepInput}
-              accessibilityLabel="Campo de CEP"
-            />
-            <View style={styles.shippingTag}>
-              <ThemedText style={styles.shippingTagText}>
-                {appliedCoupon?.code === "FRETE"
-                  ? "Frete grátis (cupom)"
-                  : qualifiesFreeShipping
-                    ? "Frete grátis"
-                    : cepOk
-                      ? `Estimado: ${formatCurrency(SHIPPING_BASE)}`
-                      : "Adicionar frete"}
-              </ThemedText>
-            </View>
+    return (
+      <View style={{ paddingBottom: 12 }}>
+        <View style={styles.recoWrap}>
+          <View style={styles.recoHeader}>
+            <ThemedText style={styles.recoTitle}>Você também pode gostar</ThemedText>
           </View>
-        ) : (
-          <ThemedText style={styles.helperText}>Retirada gratuita (sem frete).</ThemedText>
-        )}
 
-        {deliveryMode === "delivery" && cepTouched && !cepOk ? (
-          <ThemedText style={styles.helperText}>Digite um CEP válido para estimar o frete.</ThemedText>
-        ) : null}
-      </View>
+          <FlatList
+            data={recommended}
+            keyExtractor={(p) => String(p.id)}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}
+            renderItem={({ item }) => {
+              const img = toImageSource((item as any).image);
+              const unit = Number((item as any).price ?? 0);
+              const unitFinal = calcUnitWithProductDiscount(unit, (item as any).discountPercent);
+              const hasPromo = unitFinal !== unit;
 
-      {/* Recomendações */}
-      <View style={styles.panelCard}>
-        <ThemedText style={styles.panelTitle}>Você também pode gostar</ThemedText>
+              return (
+                <Pressable
+                  onPress={() => router.push(`/product/${String(item.id)}` as any)}
+                  style={styles.recoCard}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir recomendado ${String(item.title)}`}
+                >
+                  <View style={styles.recoImgWrap}>
+                    {img ? <Image source={img} style={styles.recoImg} resizeMode="cover" /> : <View style={styles.recoImgPh} />}
+                  </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recoRow}>
-          {recommended.map((p) => {
-            const img = toImageSource((p as any).image);
-            const pid = String(p.id);
-            return (
-              <Pressable
-                key={pid}
-                onPress={() => router.push(`/product/${pid}` as any)}
-                style={styles.recoCard}
-                accessibilityRole="button"
-                accessibilityLabel={`Abrir recomendação ${p.title}`}
-              >
-                <View style={styles.recoImageWrap}>
-                  {img ? <Image source={img} style={styles.recoImage} resizeMode="cover" /> : <View style={styles.recoImagePlaceholder} />}
-                </View>
+                  <ThemedText numberOfLines={2} style={styles.recoName}>
+                    {String(item.title)}
+                  </ThemedText>
 
-                <ThemedText numberOfLines={2} style={styles.recoTitle}>
-                  {String(p.title)}
-                </ThemedText>
-
-                <View style={styles.recoBottomRow}>
-                  <ThemedText style={styles.recoPrice}>{formatCurrency(Number((p as any).price ?? 0))}</ThemedText>
+                  <View style={styles.priceLine}>
+                    {hasPromo ? <ThemedText style={styles.priceStrikedSmall}>{formatCurrency(unit)}</ThemedText> : null}
+                    <ThemedText style={styles.recoPrice}>{formatCurrency(unitFinal)}</ThemedText>
+                  </View>
 
                   <Pressable
-                    onPress={() => safeAdd(pid)}
+                    onPress={() => safeAdd(String(item.id))}
                     style={styles.recoAdd}
                     accessibilityRole="button"
-                    accessibilityLabel={`Adicionar ${p.title} ao carrinho`}
+                    accessibilityLabel="Adicionar recomendado ao carrinho"
                   >
                     <ThemedText style={styles.recoAddText}>Adicionar</ThemedText>
                   </Pressable>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                </Pressable>
+              );
+            }}
+          />
+        </View>
       </View>
-
-      <View style={{ height: 14 }} />
-    </View>
-  );
+    );
+  }, [hasCart, recommended, safeAdd]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Voltar">
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -640,66 +659,166 @@ export default function CartTab() {
           )}
           stickySectionHeadersEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: hasCart ? 260 : 20 }}
-          ListHeaderComponent={
-            !hasCart ? (
-              <View style={styles.emptyWrap}>
-                <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
-                <ThemedText style={styles.emptyText}>Confira os produtos imperdíveis abaixo e adicione ao carrinho.</ThemedText>
-                <Pressable onPress={() => router.push("/(tabs)/explore" as any)} style={styles.emptyBtn} accessibilityRole="button">
-                  <ThemedText style={styles.emptyBtnText}>EXPLORAR OFERTAS</ThemedText>
-                </Pressable>
-              </View>
-            ) : null
-          }
-          ListFooterComponent={listFooter}
+          contentContainerStyle={{ paddingBottom: hasCart ? 320 : 20 }}
+          ListHeaderComponent={headerContent}
+          ListFooterComponent={footerContent}
         />
 
         {/* Rodapé fixo (somente quando tem carrinho) */}
         {hasCart ? (
           <View style={styles.footerBar}>
-            {/* Resumo de custos */}
-            <View style={styles.summaryCard} accessibilityLabel="Resumo de custos">
+            {/* Barra de frete grátis (nudge) */}
+            <View style={styles.freeShipCard}>
+              <ThemedText style={styles.freeShipText}>
+                {appliedCoupon?.type === "free_shipping" ? (
+                  <ThemedText style={styles.freeShipTextBold}>Cupom de frete grátis aplicado.</ThemedText>
+                ) : freeShippingProgress.reached ? (
+                  <ThemedText style={styles.freeShipTextBold}>Você ganhou frete grátis.</ThemedText>
+                ) : (
+                  <>
+                    <ThemedText style={styles.freeShipTextBold}>Faltam </ThemedText>
+                    <ThemedText style={styles.freeShipTextBold}>{formatCurrency(freeShippingProgress.missing)}</ThemedText>
+                    <ThemedText style={styles.freeShipTextBold}> para frete grátis.</ThemedText>
+                  </>
+                )}
+              </ThemedText>
+
+              <View style={styles.progressTrack} accessibilityLabel="Progresso para frete grátis">
+                <View style={[styles.progressFill, { width: `${Math.round(freeShippingProgress.ratio * 100)}%` }]} />
+              </View>
+            </View>
+
+            {/* Cupom */}
+            <View style={styles.couponCard}>
+              <View style={styles.couponTop}>
+                <ThemedText style={styles.couponLabel}>Aplicar cupom</ThemedText>
+                {appliedCoupon ? (
+                  <Pressable onPress={clearCoupon} accessibilityRole="button" accessibilityLabel="Remover cupom">
+                    <ThemedText style={styles.couponClear}>Remover</ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={styles.couponRow}>
+                <TextInput
+                  value={couponInput}
+                  onChangeText={(t) => setCouponInput(t)}
+                  placeholder="Digite o cupom"
+                  placeholderTextColor={"rgba(0,0,0,0.45)"}
+                  autoCapitalize="characters"
+                  style={styles.couponInput}
+                  accessibilityLabel="Campo de cupom"
+                />
+                <Pressable
+                  onPress={applyCoupon}
+                  style={styles.couponBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Aplicar cupom"
+                >
+                  <ThemedText style={styles.couponBtnText}>OK</ThemedText>
+                </Pressable>
+              </View>
+
+              {couponMsg ? <ThemedText style={styles.couponMsg}>{couponMsg}</ThemedText> : null}
+            </View>
+
+            {/* Entrega / Retirada + CEP */}
+            <View style={styles.shippingCard}>
+              <ThemedText style={styles.shippingLabel}>Entrega</ThemedText>
+
+              <View style={styles.segment}>
+                <Pressable
+                  onPress={() => setShippingMethod("delivery")}
+                  style={[styles.segmentBtn, shippingMethod === "delivery" ? styles.segmentBtnOn : null]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Selecionar entrega em casa"
+                >
+                  <ThemedText style={[styles.segmentText, shippingMethod === "delivery" ? styles.segmentTextOn : null]}>
+                    Entrega
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  onPress={() => setShippingMethod("pickup")}
+                  style={[styles.segmentBtn, shippingMethod === "pickup" ? styles.segmentBtnOn : null]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Selecionar retirada em loja"
+                >
+                  <ThemedText style={[styles.segmentText, shippingMethod === "pickup" ? styles.segmentTextOn : null]}>
+                    Retirada
+                  </ThemedText>
+                </Pressable>
+              </View>
+
+              {shippingMethod === "delivery" ? (
+                <View style={styles.cepRow}>
+                  <TextInput
+                    value={cepInput}
+                    onChangeText={(t) => setCepInput(normalizeCep(t))}
+                    placeholder="CEP (somente números)"
+                    placeholderTextColor={"rgba(0,0,0,0.45)"}
+                    keyboardType="numeric"
+                    style={styles.cepInput}
+                    maxLength={8}
+                    accessibilityLabel="Campo de CEP"
+                  />
+                  <View style={styles.cepHintWrap}>
+                    <ThemedText style={styles.cepHint}>
+                      {cep8.length === 8 ? `Frete estimado: ${formatCurrency(shippingEstimated)}` : "Adicionar frete"}
+                    </ThemedText>
+                  </View>
+                </View>
+              ) : (
+                <ThemedText style={styles.cepHint}>Retirada em loja: frete grátis.</ThemedText>
+              )}
+            </View>
+
+            {/* Resumo custos */}
+            <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Subtotal</ThemedText>
-                <ThemedText style={styles.summaryValue}>{formatCurrency(subtotal)}</ThemedText>
+                <ThemedText style={styles.summaryValue}>{formatCurrency(subtotalRaw)}</ThemedText>
               </View>
 
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Descontos</ThemedText>
-                <ThemedText style={styles.summaryValue}>- {formatCurrency(Math.max(0, itemDiscountTotal + couponDiscount))}</ThemedText>
+                <ThemedText style={styles.summaryValue}>- {formatCurrency(discountTotal)}</ThemedText>
               </View>
 
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Frete</ThemedText>
-                <ThemedText style={styles.summaryValue}>{shipping <= 0 ? "—" : formatCurrency(shipping)}</ThemedText>
+                <ThemedText style={styles.summaryValue}>{formatCurrency(shippingEstimated)}</ThemedText>
               </View>
-
-              <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <ThemedText style={styles.summaryTotalLabel}>Total</ThemedText>
-                <ThemedText style={styles.summaryTotalValue}>{formatCurrency(total)}</ThemedText>
-              </View>
-
-              <ThemedText style={styles.trustNote}>Pagamento seguro. Dados protegidos.</ThemedText>
             </View>
 
-            {/* Total em box laranja (regra congelada) */}
+            {/* Total (regra) */}
             <View style={styles.totalBox}>
               <ThemedText style={styles.totalLabel}>Total</ThemedText>
               <ThemedText style={styles.totalValue}>{formatCurrency(total)}</ThemedText>
             </View>
 
-            {/* CTA principal (regra congelada) */}
-            <Pressable onPress={() => router.push("/(tabs)/checkout" as any)} style={styles.ctaPrimary} accessibilityRole="button">
+            {/* CTAs */}
+            <Pressable
+              onPress={() => router.push("/(tabs)/checkout" as any)}
+              style={styles.ctaPrimary}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar a compra"
+            >
               <ThemedText style={styles.ctaPrimaryText}>Continuar a compra</ThemedText>
             </Pressable>
 
-            {/* CTA secundário */}
-            <Pressable onPress={() => router.push("/(tabs)/explore" as any)} style={styles.ctaSecondary} accessibilityRole="button">
+            <Pressable
+              onPress={() => router.push("/(tabs)/explore" as any)}
+              style={styles.ctaSecondary}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar comprando"
+            >
               <ThemedText style={styles.ctaSecondaryText}>Continuar comprando</ThemedText>
             </Pressable>
+
+            {/* Trust microcopy */}
+            <View style={styles.trustRow}>
+              <ThemedText style={styles.trustText}>Pagamento seguro • Suporte rápido • Compra protegida</ThemedText>
+            </View>
           </View>
         ) : null}
       </ThemedView>
@@ -727,6 +846,37 @@ const styles = StyleSheet.create({
 
   sectionHeader: { paddingTop: 10, paddingBottom: 8, backgroundColor: theme.colors.background },
   sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  // Tools bar (seleção / remover selecionados)
+  toolsBar: {
+    marginTop: 6,
+    marginBottom: 10,
+    flexDirection: "row",
+    gap: 10,
+  },
+  toolsBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toolsBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  toolsBtnDanger: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+    backgroundColor: "rgba(239,68,68,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toolsBtnDangerText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "rgba(185,28,28,1)" },
+  toolsBtnDisabled: { opacity: 0.45 },
 
   // Card item do carrinho
   itemCard: {
@@ -767,9 +917,8 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
 
-  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8 },
+  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   price: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  oldPrice: { fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.45)", textDecorationLine: "line-through" },
   unit: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text }, // “/ un” em negrito (regra)
 
   qtyRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10 },
@@ -787,8 +936,35 @@ const styles = StyleSheet.create({
   qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   qtyText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center", color: theme.colors.text },
 
+  removeBtn: {
+    marginTop: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.10)",
+    backgroundColor: "rgba(0,0,0,0.04)",
+    alignSelf: "flex-end",
+  },
   remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "rgba(0,0,0,0.55)" },
-  lineTotal: { marginTop: 8, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  lineTotal: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  // Promo
+  priceLine: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  priceStriked: {
+    fontSize: 11,
+    fontFamily: FONT_BODY,
+    color: "rgba(0,0,0,0.55)",
+    textDecorationLine: "line-through",
+  },
+  priceStrikedSmall: {
+    fontSize: 10,
+    fontFamily: FONT_BODY,
+    color: "rgba(0,0,0,0.55)",
+    textDecorationLine: "line-through",
+  },
 
   // Vazio
   emptyWrap: {
@@ -802,10 +978,16 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 13, fontFamily: FONT_BODY_BOLD, color: theme.colors.text, marginBottom: 6 },
   emptyText: { fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)", marginBottom: 12 },
-  emptyBtn: { height: 42, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
+  emptyBtn: {
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   emptyBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  // Imperdíveis
+  // Imperdíveis (card simples, padrão marketplace)
   dealCard: {
     flexDirection: "row",
     gap: 12,
@@ -831,57 +1013,63 @@ const styles = StyleSheet.create({
   dealTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   dealPrice: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
 
-  // Panels
-  panelCard: {
+  // Recomendações
+  recoWrap: {
+    marginTop: 6,
+    marginBottom: 6,
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    padding: 12,
-    marginBottom: 10,
+    overflow: "hidden",
   },
-  panelHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  panelTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-
-  removeSelectedBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 12,
+  recoHeader: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
+  recoTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  recoCard: {
+    width: 160,
+    marginRight: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
     backgroundColor: theme.colors.surface,
+    padding: 10,
   },
-  removeSelectedText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-
-  couponRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10 },
-  couponInput: {
-    flex: 1,
-    height: 42,
+  recoImgWrap: {
+    width: "100%",
+    height: 92,
     borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surfaceAlt,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    paddingHorizontal: 12,
-    fontFamily: FONT_BODY,
-    fontSize: 12,
-    color: theme.colors.text,
-    backgroundColor: theme.colors.surface,
   },
-  couponOk: {
-    height: 42,
-    paddingHorizontal: 14,
+  recoImg: { width: "100%", height: "100%" },
+  recoImgPh: { flex: 1, backgroundColor: theme.colors.surfaceAlt },
+  recoName: { marginTop: 8, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text, minHeight: 34 },
+  recoPrice: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+  recoAdd: {
+    marginTop: 10,
+    height: 34,
     borderRadius: 12,
     backgroundColor: theme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  couponOkText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
+  recoAddText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  helperText: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
-  helperStrong: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  helperError: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#B91C1C" },
-  helperOk: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.75)" },
-  helperOkStrong: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  // Rodapé fixo (sem TabBar no carrinho)
+  footerBar: { position: "absolute", left: 14, right: 14, bottom: 10, gap: 8 },
 
+  // Frete grátis progress
+  freeShipCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 12,
+  },
+  freeShipText: { fontSize: 12, fontFamily: FONT_BODY, color: theme.colors.text },
+  freeShipTextBold: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   progressTrack: {
     marginTop: 10,
     height: 10,
@@ -889,21 +1077,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
     overflow: "hidden",
   },
-  progressFill: { height: "100%", backgroundColor: theme.colors.primary, borderRadius: 999 },
+  progressFill: { height: "100%", borderRadius: 999, backgroundColor: theme.colors.primary },
 
-  deliveryToggleRow: { marginTop: 12, flexDirection: "row", gap: 10 },
-  togglePill: { flex: 1, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  togglePillOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  togglePillOff: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  togglePillText: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
-  togglePillTextOn: { color: "#fff" },
-  togglePillTextOff: { color: theme.colors.text },
-
-  cepRow: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  cepInput: {
+  // Cupom
+  couponCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 12,
+  },
+  couponTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  couponLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  couponClear: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+  couponRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  couponInput: {
     flex: 1,
     height: 42,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
     paddingHorizontal: 12,
@@ -912,62 +1103,69 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     backgroundColor: theme.colors.surface,
   },
-  shippingTag: {
+  couponBtn: {
+    width: 56,
     height: 42,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
   },
-  shippingTagText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+  couponBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
+  couponMsg: { marginTop: 8, fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
 
-  recoRow: { paddingTop: 10, paddingBottom: 2, gap: 10 },
-  recoCard: {
-    width: 180,
+  // Shipping
+  shippingCard: {
+    backgroundColor: theme.colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.surface,
-    padding: 10,
+    padding: 12,
   },
-  recoImageWrap: {
-    height: 90,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: theme.colors.surfaceAlt,
+  shippingLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text, marginBottom: 10 },
+
+  segment: {
+    flexDirection: "row",
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface,
   },
-  recoImage: { width: "100%", height: "100%" },
-  recoImagePlaceholder: { flex: 1, backgroundColor: theme.colors.surfaceAlt },
-  recoTitle: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  recoBottomRow: { marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  recoPrice: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  recoAdd: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: theme.colors.primary },
-  recoAddText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
+  segmentBtn: { flex: 1, height: 40, alignItems: "center", justifyContent: "center" },
+  segmentBtnOn: { backgroundColor: "rgba(0,0,0,0.04)" },
+  segmentText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "rgba(0,0,0,0.65)" },
+  segmentTextOn: { color: theme.colors.text },
 
-  // Rodapé fixo
-  footerBar: { position: "absolute", left: 14, right: 14, bottom: 10, gap: 8 },
+  cepRow: { marginTop: 10, flexDirection: "row", gap: 10, alignItems: "center" },
+  cepInput: {
+    flex: 1,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    paddingHorizontal: 12,
+    fontFamily: FONT_BODY,
+    fontSize: 12,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.surface,
+  },
+  cepHintWrap: { paddingRight: 4 },
+  cepHint: { marginTop: 8, fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
 
+  // Summary
   summaryCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.divider,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    padding: 12,
   },
-  summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 3 },
-  summaryLabel: { fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.7)" },
+  summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  summaryLabel: { fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.70)" },
   summaryValue: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  summaryDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 6 },
-  summaryTotalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  summaryTotalValue: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
-  trustNote: { marginTop: 8, fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
 
+  // Total (regra)
   totalBox: {
     backgroundColor: "#F59E0B",
     borderRadius: 14,
@@ -979,9 +1177,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.08)",
   },
-  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" }, // “Total” em negrito (regra)
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
+  // Banner verde musgo (mais fino), texto 16 bold (regra)
   ctaPrimary: {
     height: 44,
     borderRadius: 14,
@@ -991,14 +1190,18 @@ const styles = StyleSheet.create({
   },
   ctaPrimaryText: { fontSize: 16, fontFamily: FONT_BODY_BOLD, color: "#FFFFFF" },
 
+  // CTA secundário (outline)
   ctaSecondary: {
     height: 44,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
     backgroundColor: theme.colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
   },
   ctaSecondaryText: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  trustRow: { alignItems: "center", justifyContent: "center", paddingTop: 2 },
+  trustText: { fontSize: 11, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.55)" },
 });
