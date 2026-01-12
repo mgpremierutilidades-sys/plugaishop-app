@@ -1,6 +1,6 @@
 // app/(tabs)/cart.tsx
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
   Pressable,
@@ -34,7 +34,7 @@ const CTA_GREEN = "#3F5A3A";
 const SHIPPING_BASE = 19.9;
 const FREE_SHIPPING_THRESHOLD = 149.9;
 
-// Cupons (mock simples)
+// Cupons (mock)
 type Coupon = { code: string; percent: number };
 const COUPONS: Coupon[] = [
   { code: "PLUGA10", percent: 10 },
@@ -135,13 +135,12 @@ export default function CartTab() {
       return mapped;
     }
 
-    // Sem contexto -> vazio (não inventa carrinho cheio)
     return [];
   }, [cartCtx]);
 
   const hasCart = cartRows.length > 0;
 
-  // Checkbox: tudo marcado por padrão (igual estava)
+  // Seleção
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -149,70 +148,70 @@ export default function CartTab() {
     setSelected(next);
   }, [cartRows]);
 
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
+  }, []);
 
-  function safeAdd(productId: string) {
-    const p = findProductById(productId);
-    if (!p) return;
+  // Ações seguras (estáveis para o lint)
+  const safeAdd = useCallback(
+    (productId: string) => {
+      const p = findProductById(productId);
+      if (!p) return;
 
-    const any = cartCtx as any;
-    const fn =
-      any?.addItem?.bind(any) ||
-      any?.add?.bind(any) ||
-      any?.addToCart?.bind(any) ||
-      any?.increase?.bind(any) ||
-      any?.increment?.bind(any);
+      const any = cartCtx as any;
+      const fn =
+        any?.addItem?.bind(any) ||
+        any?.add?.bind(any) ||
+        any?.addToCart?.bind(any) ||
+        any?.increase?.bind(any) ||
+        any?.increment?.bind(any);
 
-    if (fn) {
-      fn(p, 1);
-      return;
-    }
-  }
+      if (fn) fn(p, 1);
+    },
+    [cartCtx]
+  );
 
-  function safeDec(productId: string) {
-    const p = findProductById(productId);
-    if (!p) return;
+  const safeDec = useCallback(
+    (productId: string) => {
+      const p = findProductById(productId);
+      if (!p) return;
 
-    const any = cartCtx as any;
-    const fn =
-      any?.decItem?.bind(any) ||
-      any?.decrease?.bind(any) ||
-      any?.dec?.bind(any) ||
-      any?.decrement?.bind(any) ||
-      any?.removeOne?.bind(any);
+      const any = cartCtx as any;
+      const fn =
+        any?.decItem?.bind(any) ||
+        any?.decrease?.bind(any) ||
+        any?.dec?.bind(any) ||
+        any?.decrement?.bind(any) ||
+        any?.removeOne?.bind(any);
 
-    if (fn) {
-      fn(p, 1);
-      return;
-    }
-  }
+      if (fn) fn(p, 1);
+    },
+    [cartCtx]
+  );
 
-  function safeRemove(productId: string) {
-    const any = cartCtx as any;
-    const fn =
-      any?.removeItem?.bind(any) ||
-      any?.remove?.bind(any) ||
-      any?.removeFromCart?.bind(any) ||
-      any?.deleteItem?.bind(any) ||
-      any?.clearItem?.bind(any);
+  const safeRemove = useCallback(
+    (productId: string) => {
+      const any = cartCtx as any;
+      const fn =
+        any?.removeItem?.bind(any) ||
+        any?.remove?.bind(any) ||
+        any?.removeFromCart?.bind(any) ||
+        any?.deleteItem?.bind(any) ||
+        any?.clearItem?.bind(any);
 
-    if (fn) {
-      fn(productId);
-      return;
-    }
-  }
+      if (fn) fn(productId);
+    },
+    [cartCtx]
+  );
 
-  function removeSelected() {
+  const removeSelected = useCallback(() => {
     const ids = cartRows.map((r) => r.id).filter((id) => !!selected[id]);
     if (ids.length === 0) return;
     for (const id of ids) safeRemove(id);
-  }
+  }, [cartRows, selected, safeRemove]);
 
   // ---- Produtos imperdíveis (sempre aparecem; garantem scroll) ----
   const dealRows: DealRow[] = useMemo(() => {
-    // pega um bloco maior para garantir rolagem quando carrinho vazio
     const list = (products as Product[]).slice(0, 14);
     return list.map((p) => ({
       type: "deal",
@@ -227,7 +226,14 @@ export default function CartTab() {
     return cartRows.reduce((acc, r) => acc + (selected[r.id] ? 1 : 0), 0);
   }, [cartRows, selected]);
 
-  // ---- Descontos por item (discountPercent do catálogo) apenas selecionados ----
+  // ---- Totais / descontos (apenas selecionados) ----
+  const subtotal = useMemo(() => {
+    return cartRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.price * r.qty;
+    }, 0);
+  }, [cartRows, selected]);
+
   const itemDiscountTotal = useMemo(() => {
     return cartRows.reduce((acc, r) => {
       if (!selected[r.id]) return acc;
@@ -239,20 +245,12 @@ export default function CartTab() {
     }, 0);
   }, [cartRows, selected]);
 
-  // ---- Subtotal bruto (antes de descontos) apenas selecionados ----
-  const subtotal = useMemo(() => {
-    return cartRows.reduce((acc, r) => {
-      if (!selected[r.id]) return acc;
-      return acc + r.price * r.qty;
-    }, 0);
-  }, [cartRows, selected]);
-
   // ---- Cupom (mock) ----
   const [couponInput, setCouponInput] = useState<string>("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
-  function applyCoupon() {
+  const applyCoupon = useCallback(() => {
     const code = String(couponInput ?? "").trim().toUpperCase();
     if (!code) {
       setAppliedCoupon(null);
@@ -269,15 +267,15 @@ export default function CartTab() {
 
     setCouponError(null);
     setAppliedCoupon(found);
-  }
+  }, [couponInput]);
 
   const couponDiscount = useMemo(() => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.code === "FRETE") return 0;
+
     const pct = Number(appliedCoupon.percent ?? 0);
     if (!Number.isFinite(pct) || pct <= 0) return 0;
 
-    // cupom aplicado sobre o valor após desconto de item (prática comum)
     const base = Math.max(0, subtotal - itemDiscountTotal);
     return (base * pct) / 100;
   }, [appliedCoupon, subtotal, itemDiscountTotal]);
@@ -290,13 +288,11 @@ export default function CartTab() {
   const cepDigits = useMemo(() => normalizeCepDigits(cepInput), [cepInput]);
   const cepOk = cepDigits.length === 8;
 
-  // valor após descontos (sem frete)
   const afterDiscounts = useMemo(() => {
     const v = subtotal - itemDiscountTotal - couponDiscount;
     return v < 0 ? 0 : v;
   }, [subtotal, itemDiscountTotal, couponDiscount]);
 
-  // regra de frete grátis pelo valor após descontos (conservador)
   const qualifiesFreeShipping = afterDiscounts >= FREE_SHIPPING_THRESHOLD;
 
   const shipping = useMemo(() => {
@@ -304,7 +300,7 @@ export default function CartTab() {
     if (deliveryMode === "pickup") return 0;
     if (appliedCoupon?.code === "FRETE") return 0;
     if (qualifiesFreeShipping) return 0;
-    if (!cepOk) return 0; // ainda não estimado
+    if (!cepOk) return 0;
     return SHIPPING_BASE;
   }, [hasCart, deliveryMode, appliedCoupon, qualifiesFreeShipping, cepOk]);
 
@@ -313,18 +309,14 @@ export default function CartTab() {
     return t < 0 ? 0 : t;
   }, [afterDiscounts, shipping]);
 
-  // progresso para frete grátis
   const freeShippingMissing = Math.max(0, FREE_SHIPPING_THRESHOLD - afterDiscounts);
   const freeShippingProgress =
     FREE_SHIPPING_THRESHOLD <= 0 ? 0 : Math.max(0, Math.min(1, afterDiscounts / FREE_SHIPPING_THRESHOLD));
 
-  // Recomendações (carrossel) — simples e consistente: exclui itens já no carrinho
+  // Recomendações (carrossel)
   const recommended = useMemo(() => {
     const inCart = new Set(cartRows.map((r) => String(r.id)));
-    const list = (products as Product[])
-      .filter((p) => !inCart.has(String(p.id)))
-      .slice(0, 10);
-    return list;
+    return (products as Product[]).filter((p) => !inCart.has(String(p.id))).slice(0, 10);
   }, [cartRows]);
 
   const sections: CartSection[] = useMemo(() => {
@@ -334,129 +326,130 @@ export default function CartTab() {
     ];
   }, [cartRows, dealRows]);
 
-  function renderRow({ item }: { item: Row }) {
-    if (item.type === "deal") {
-      return (
-        <Pressable
-          onPress={() => router.push(`/product/${item.id}` as any)}
-          style={styles.dealCard}
-          accessibilityRole="button"
-          accessibilityLabel={`Abrir produto ${item.title}`}
-        >
-          <View style={styles.dealImageWrap}>
-            {item.image ? (
-              <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.dealImagePlaceholder} />
-            )}
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <ThemedText numberOfLines={2} style={styles.dealTitle}>
-              {item.title}
-            </ThemedText>
-
-            <ThemedText style={styles.dealPrice}>{formatCurrency(item.price)}</ThemedText>
-          </View>
-        </Pressable>
-      );
-    }
-
-    const isChecked = !!selected[item.id];
-    const p = findProductById(item.id);
-    const pct = Number((p as any)?.discountPercent ?? 0);
-    const hasPromo = Number.isFinite(pct) && pct > 0;
-    const discountedUnit = hasPromo ? item.price - (item.price * pct) / 100 : item.price;
-    const discountedUnitSafe = Number.isFinite(discountedUnit) ? Math.max(0, discountedUnit) : item.price;
-
-    return (
-      <View style={styles.itemCard}>
-        <View style={styles.itemTop}>
+  const renderRow = useCallback(
+    ({ item }: { item: Row }) => {
+      if (item.type === "deal") {
+        return (
           <Pressable
-            onPress={() => toggleSelect(item.id)}
-            hitSlop={10}
-            style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
+            onPress={() => router.push(`/product/${item.id}` as any)}
+            style={styles.dealCard}
             accessibilityRole="button"
-            accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
+            accessibilityLabel={`Abrir produto ${item.title}`}
           >
-            {isChecked ? <View style={styles.checkboxDot} /> : null}
-          </Pressable>
-
-          <View style={styles.itemImageWrap}>
-            {item.image ? (
-              <Image source={item.image} style={styles.itemImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.itemImagePlaceholder} />
-            )}
-          </View>
-
-          <View style={styles.itemInfo}>
-            <ThemedText numberOfLines={2} style={styles.itemTitle}>
-              {item.title}
-            </ThemedText>
-
-            <View style={styles.priceRow}>
-              {hasPromo ? (
-                <>
-                  <ThemedText style={styles.price}>{formatCurrency(discountedUnitSafe)}</ThemedText>
-                  <ThemedText style={styles.oldPrice}>{formatCurrency(item.price)}</ThemedText>
-                </>
+            <View style={styles.dealImageWrap}>
+              {item.image ? (
+                <Image source={item.image} style={styles.dealImage} resizeMode="cover" />
               ) : (
-                <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+                <View style={styles.dealImagePlaceholder} />
               )}
-              <ThemedText style={styles.unit}> / un</ThemedText>
             </View>
 
-            <View style={styles.qtyRow}>
-              <Pressable
-                onPress={() => safeDec(item.id)}
-                style={styles.qtyBtn}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Diminuir quantidade"
-              >
-                <ThemedText style={styles.qtyBtnText}>-</ThemedText>
-              </Pressable>
+            <View style={{ flex: 1 }}>
+              <ThemedText numberOfLines={2} style={styles.dealTitle}>
+                {item.title}
+              </ThemedText>
 
-              <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+              <ThemedText style={styles.dealPrice}>{formatCurrency(item.price)}</ThemedText>
+            </View>
+          </Pressable>
+        );
+      }
 
-              <Pressable
-                onPress={() => safeAdd(item.id)}
-                style={styles.qtyBtn}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Aumentar quantidade"
-              >
-                <ThemedText style={styles.qtyBtnText}>+</ThemedText>
-              </Pressable>
+      const isChecked = !!selected[item.id];
+      const p = findProductById(item.id);
+      const pct = Number((p as any)?.discountPercent ?? 0);
+      const hasPromo = Number.isFinite(pct) && pct > 0;
+      const discountedUnit = hasPromo ? item.price - (item.price * pct) / 100 : item.price;
+      const discountedUnitSafe = Number.isFinite(discountedUnit) ? Math.max(0, discountedUnit) : item.price;
 
-              <View style={{ marginLeft: "auto", alignItems: "flex-end" }}>
+      return (
+        <View style={styles.itemCard}>
+          <View style={styles.itemTop}>
+            <Pressable
+              onPress={() => toggleSelect(item.id)}
+              hitSlop={10}
+              style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
+              accessibilityRole="button"
+              accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
+            >
+              {isChecked ? <View style={styles.checkboxDot} /> : null}
+            </Pressable>
+
+            <View style={styles.itemImageWrap}>
+              {item.image ? (
+                <Image source={item.image} style={styles.itemImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.itemImagePlaceholder} />
+              )}
+            </View>
+
+            <View style={styles.itemInfo}>
+              <ThemedText numberOfLines={2} style={styles.itemTitle}>
+                {item.title}
+              </ThemedText>
+
+              <View style={styles.priceRow}>
+                {hasPromo ? (
+                  <>
+                    <ThemedText style={styles.price}>{formatCurrency(discountedUnitSafe)}</ThemedText>
+                    <ThemedText style={styles.oldPrice}>{formatCurrency(item.price)}</ThemedText>
+                  </>
+                ) : (
+                  <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+                )}
+                <ThemedText style={styles.unit}> / un</ThemedText>
+              </View>
+
+              <View style={styles.qtyRow}>
                 <Pressable
-                  onPress={() => safeRemove(item.id)}
+                  onPress={() => safeDec(item.id)}
+                  style={styles.qtyBtn}
                   hitSlop={10}
                   accessibilityRole="button"
-                  accessibilityLabel="Remover item"
+                  accessibilityLabel="Diminuir quantidade"
                 >
-                  <ThemedText style={styles.remove}>✕</ThemedText>
+                  <ThemedText style={styles.qtyBtnText}>-</ThemedText>
                 </Pressable>
 
-                <ThemedText style={styles.lineTotal}>
-                  {formatCurrency(discountedUnitSafe * item.qty)}
-                </ThemedText>
+                <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+
+                <Pressable
+                  onPress={() => safeAdd(item.id)}
+                  style={styles.qtyBtn}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Aumentar quantidade"
+                >
+                  <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+                </Pressable>
+
+                <View style={{ marginLeft: "auto", alignItems: "flex-end" }}>
+                  <Pressable
+                    onPress={() => safeRemove(item.id)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remover item"
+                  >
+                    <ThemedText style={styles.remove}>✕</ThemedText>
+                  </Pressable>
+
+                  <ThemedText style={styles.lineTotal}>{formatCurrency(discountedUnitSafe * item.qty)}</ThemedText>
+                </View>
               </View>
             </View>
           </View>
         </View>
-      </View>
-    );
-  }
+      );
+    },
+    [selected, toggleSelect, safeDec, safeAdd, safeRemove]
+  );
 
-  // Footer abaixo da lista de itens (somente quando tem carrinho)
+  // Footer da lista (sem useMemo para não gerar warning de deps)
   const listFooter = !hasCart ? (
     <View style={{ height: 10 }} />
   ) : (
     <View style={{ paddingTop: 6, paddingBottom: 10 }}>
-      {/* Cupom + Remover selecionados */}
+      {/* Cupom + remover selecionados */}
       <View style={styles.panelCard}>
         <View style={styles.panelHeaderRow}>
           <ThemedText style={styles.panelTitle}>Cupom</ThemedText>
@@ -500,7 +493,7 @@ export default function CartTab() {
         ) : null}
       </View>
 
-      {/* Frete grátis + entrega */}
+      {/* Frete + opção entrega/retirada */}
       <View style={styles.panelCard}>
         <ThemedText style={styles.panelTitle}>Frete</ThemedText>
 
@@ -619,7 +612,6 @@ export default function CartTab() {
         </ScrollView>
       </View>
 
-      {/* Espaço extra para não colar no rodapé fixo */}
       <View style={{ height: 14 }} />
     </View>
   );
@@ -654,12 +646,7 @@ export default function CartTab() {
               <View style={styles.emptyWrap}>
                 <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
                 <ThemedText style={styles.emptyText}>Confira os produtos imperdíveis abaixo e adicione ao carrinho.</ThemedText>
-                <Pressable
-                  onPress={() => router.push("/(tabs)/explore" as any)}
-                  style={styles.emptyBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Explorar ofertas"
-                >
+                <Pressable onPress={() => router.push("/(tabs)/explore" as any)} style={styles.emptyBtn} accessibilityRole="button">
                   <ThemedText style={styles.emptyBtnText}>EXPLORAR OFERTAS</ThemedText>
                 </Pressable>
               </View>
@@ -671,7 +658,7 @@ export default function CartTab() {
         {/* Rodapé fixo (somente quando tem carrinho) */}
         {hasCart ? (
           <View style={styles.footerBar}>
-            {/* Resumo de custos (antes do box laranja) */}
+            {/* Resumo de custos */}
             <View style={styles.summaryCard} accessibilityLabel="Resumo de custos">
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Subtotal</ThemedText>
@@ -680,16 +667,12 @@ export default function CartTab() {
 
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Descontos</ThemedText>
-                <ThemedText style={styles.summaryValue}>
-                  - {formatCurrency(Math.max(0, itemDiscountTotal + couponDiscount))}
-                </ThemedText>
+                <ThemedText style={styles.summaryValue}>- {formatCurrency(Math.max(0, itemDiscountTotal + couponDiscount))}</ThemedText>
               </View>
 
               <View style={styles.summaryRow}>
                 <ThemedText style={styles.summaryLabel}>Frete</ThemedText>
-                <ThemedText style={styles.summaryValue}>
-                  {shipping <= 0 ? "—" : formatCurrency(shipping)}
-                </ThemedText>
+                <ThemedText style={styles.summaryValue}>{shipping <= 0 ? "—" : formatCurrency(shipping)}</ThemedText>
               </View>
 
               <View style={styles.summaryDivider} />
@@ -709,22 +692,12 @@ export default function CartTab() {
             </View>
 
             {/* CTA principal (regra congelada) */}
-            <Pressable
-              onPress={() => router.push("/(tabs)/checkout" as any)}
-              style={styles.ctaPrimary}
-              accessibilityRole="button"
-              accessibilityLabel="Continuar a compra"
-            >
+            <Pressable onPress={() => router.push("/(tabs)/checkout" as any)} style={styles.ctaPrimary} accessibilityRole="button">
               <ThemedText style={styles.ctaPrimaryText}>Continuar a compra</ThemedText>
             </Pressable>
 
-            {/* CTA secundário (outline) */}
-            <Pressable
-              onPress={() => router.push("/(tabs)/explore" as any)}
-              style={styles.ctaSecondary}
-              accessibilityRole="button"
-              accessibilityLabel="Continuar comprando"
-            >
+            {/* CTA secundário */}
+            <Pressable onPress={() => router.push("/(tabs)/explore" as any)} style={styles.ctaSecondary} accessibilityRole="button">
               <ThemedText style={styles.ctaSecondaryText}>Continuar comprando</ThemedText>
             </Pressable>
           </View>
@@ -832,7 +805,7 @@ const styles = StyleSheet.create({
   emptyBtn: { height: 42, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
   emptyBtnText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  // Imperdíveis (card simples, padrão marketplace)
+  // Imperdíveis
   dealCard: {
     flexDirection: "row",
     gap: 12,
@@ -858,7 +831,7 @@ const styles = StyleSheet.create({
   dealTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
   dealPrice: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
 
-  // Panels (cupom / frete / recomendações)
+  // Panels
   panelCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
@@ -893,7 +866,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     backgroundColor: theme.colors.surface,
   },
-  couponOk: { height: 42, paddingHorizontal: 14, borderRadius: 12, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
+  couponOk: {
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   couponOkText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
   helperText: { marginTop: 10, fontSize: 12, fontFamily: FONT_BODY, color: "rgba(0,0,0,0.65)" },
@@ -909,11 +889,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.08)",
     overflow: "hidden",
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: theme.colors.primary,
-    borderRadius: 999,
-  },
+  progressFill: { height: "100%", backgroundColor: theme.colors.primary, borderRadius: 999 },
 
   deliveryToggleRow: { marginTop: 12, flexDirection: "row", gap: 10 },
   togglePill: { flex: 1, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1 },
@@ -973,7 +949,7 @@ const styles = StyleSheet.create({
   recoAdd: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: theme.colors.primary },
   recoAddText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#fff" },
 
-  // Rodapé fixo (sem TabBar no carrinho)
+  // Rodapé fixo
   footerBar: { position: "absolute", left: 14, right: 14, bottom: 10, gap: 8 },
 
   summaryCard: {
@@ -1003,10 +979,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.08)",
   },
-  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" }, // “Total” em negrito (regra)
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
-  // Banner verde musgo (mais fino), texto 16 bold (regra)
   ctaPrimary: {
     height: 44,
     borderRadius: 14,
@@ -1016,7 +991,6 @@ const styles = StyleSheet.create({
   },
   ctaPrimaryText: { fontSize: 16, fontFamily: FONT_BODY_BOLD, color: "#FFFFFF" },
 
-  // CTA secundário (outline neutro)
   ctaSecondary: {
     height: 44,
     borderRadius: 14,
