@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+// app/orders/[id]/review.tsx
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
@@ -29,11 +30,11 @@ export default function OrderReviewScreen() {
       return;
     }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
 
     if (found?.review) {
       setStars(found.review.stars);
-      setComment(found.review.comment);
+      setComment(String(found.review.comment ?? ""));
     } else {
       setStars(5);
       setComment("");
@@ -46,9 +47,7 @@ export default function OrderReviewScreen() {
     }, [load])
   );
 
-  const starsLabel = useMemo(() => {
-    return `${stars} estrela(s)`;
-  }, [stars]);
+  const starsLabel = useMemo(() => `${stars} estrela(s)`, [stars]);
 
   const save = async () => {
     if (!orderId) return;
@@ -79,7 +78,9 @@ export default function OrderReviewScreen() {
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
             <ThemedText style={styles.secondary}>
-              {order?.review ? "Você já avaliou este pedido. Pode atualizar a qualquer momento." : "Conte como foi sua experiência."}
+              {order?.review
+                ? "Você já avaliou este pedido. Pode atualizar a qualquer momento."
+                : "Conte como foi sua experiência."}
             </ThemedText>
 
             <View style={styles.divider} />

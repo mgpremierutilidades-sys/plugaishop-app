@@ -1,82 +1,148 @@
-import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
+// components/product-card.tsx
+import { Image } from "expo-image";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Product } from '@/constants/products';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import theme from "../constants/theme";
+import type { Product } from "../data/catalog";
+import { formatCurrency } from "../utils/formatCurrency";
+import { ThemedText } from "./themed-text";
+import { ThemedView } from "./themed-view";
 
 type ProductCardProps = {
   product: Product;
+  onPress?: () => void;
 };
 
-export function ProductCard({ product }: ProductCardProps) {
-  const background = useThemeColor({ light: '#F7FBFF', dark: '#0F1115' }, 'background');
-  const accent = useThemeColor({ light: '#0a7ea4', dark: '#7AC4FF' }, 'tint');
+function safeText(v: unknown) {
+  return String(v ?? "").trim();
+}
+
+export function ProductCard({ product, onPress }: ProductCardProps) {
+  const title = safeText((product as any).title) || "Produto";
+  const category = safeText((product as any).category);
+  const description = safeText((product as any).description);
+  const price = Number((product as any).price) || 0;
+
+  // image pode ser string (url) ou require(...) dependendo do seu catálogo
+  const rawImg = (product as any).image;
+  const imageSource =
+    typeof rawImg === "string" ? { uri: rawImg } : rawImg ? rawImg : undefined;
 
   return (
-    <ThemedView style={[styles.card, { backgroundColor: background }]}>
-      <View style={styles.header}>
-        <ThemedText type="defaultSemiBold">{product.category}</ThemedText>
-        {product.badge ? (
-          <ThemedText style={[styles.badge, { color: accent }]}>{product.badge}</ThemedText>
-        ) : null}
-      </View>
+    <Pressable onPress={onPress} disabled={!onPress} style={{ borderRadius: 16 }}>
+      <ThemedView style={styles.card}>
+        <View style={styles.header}>
+          <ThemedText style={styles.category} numberOfLines={1}>
+            {category || "Categoria"}
+          </ThemedText>
 
-      <Image
-        source={product.image}
-        contentFit="cover"
-        transition={150}
-        style={styles.image}
-        accessibilityLabel={product.name}
-      />
+          {/* espaço para badge futura (ex.: "OFERTA", "FRETE GRÁTIS") */}
+        </View>
 
-      <View style={styles.info}>
-        <ThemedText type="subtitle" numberOfLines={2}>
-          {product.name}
-        </ThemedText>
-        <ThemedText numberOfLines={3}>{product.description}</ThemedText>
-      </View>
+        <View style={styles.imageWrap}>
+          {imageSource ? (
+            <Image
+              source={imageSource}
+              contentFit="cover"
+              transition={150}
+              style={styles.image}
+              accessibilityLabel={title}
+            />
+          ) : (
+            <View style={[styles.image, styles.imageFallback]} />
+          )}
+        </View>
 
-      <View style={styles.footer}>
-        <ThemedText type="defaultSemiBold">R$ {product.price.toFixed(2)}</ThemedText>
-        <ThemedText type="link">Ver detalhes</ThemedText>
-      </View>
-    </ThemedView>
+        <View style={styles.info}>
+          <ThemedText style={styles.title} numberOfLines={2}>
+            {title}
+          </ThemedText>
+
+          {description ? (
+            <ThemedText style={styles.desc} numberOfLines={3}>
+              {description}
+            </ThemedText>
+          ) : null}
+        </View>
+
+        <View style={styles.footer}>
+          <ThemedText style={styles.price}>{formatCurrency(price)}</ThemedText>
+          <ThemedText style={styles.link}>{onPress ? "Ver detalhes" : ""}</ThemedText>
+        </View>
+      </ThemedView>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D5DDE5',
-    gap: 12,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
   },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-  badge: {
+
+  category: {
     fontSize: 12,
+    opacity: 0.9,
   },
+
+  imageWrap: {
+    marginTop: 10,
+  },
+
   image: {
-    width: '100%',
+    width: "100%",
     height: 160,
   },
+
+  imageFallback: {
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+
   info: {
     gap: 6,
     paddingHorizontal: 16,
+    paddingTop: 12,
   },
+
+  title: {
+    fontSize: 14,
+    fontFamily: "OpenSans_700Bold",
+  },
+
+  desc: {
+    fontSize: 12,
+    opacity: 0.8,
+    fontFamily: "OpenSans_400Regular",
+  },
+
   footer: {
     paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  price: {
+    fontSize: 12,
+    fontFamily: "OpenSans_700Bold",
+  },
+
+  link: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontFamily: "OpenSans_700Bold",
   },
 });

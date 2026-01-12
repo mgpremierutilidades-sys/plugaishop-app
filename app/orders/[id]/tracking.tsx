@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+// app/orders/[id]/tracking.tsx
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
@@ -44,9 +45,12 @@ export default function OrderTrackingScreen() {
   const [code, setCode] = useState("");
 
   const load = useCallback(async () => {
-    if (!orderId) return;
+    if (!orderId) {
+      setOrder(null);
+      return;
+    }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
     setCode(String(found?.trackingCode ?? ""));
   }, [orderId]);
 
@@ -58,7 +62,6 @@ export default function OrderTrackingScreen() {
 
   const events: LogisticsEvent[] = useMemo(() => {
     const list = Array.isArray(order?.logisticsEvents) ? order!.logisticsEvents! : [];
-    // já vem ordenado desc por inserção; garante fallback
     return list;
   }, [order]);
 
@@ -84,12 +87,14 @@ export default function OrderTrackingScreen() {
       EXCEPTION: "Ocorrência no transporte",
     };
 
-    const updated = await addLogisticsEvent(orderId, {
+    // Assinatura canônica do store: (orderId, type, title?, description?, location?)
+    const updated = await addLogisticsEvent(
+      orderId,
       type,
-      title: titleMap[type],
-      location: "Goiânia - GO",
-      description: "Evento mock para validação visual no app.",
-    });
+      titleMap[type],
+      "Evento mock para validação visual no app.",
+      "Goiânia - GO"
+    );
 
     if (!updated) {
       Alert.alert("Logística", "Não foi possível adicionar evento.");
@@ -141,11 +146,21 @@ export default function OrderTrackingScreen() {
 
             <ThemedText style={styles.sectionTitle}>Eventos (mock)</ThemedText>
             <View style={styles.rowWrap}>
-              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}><ThemedText style={styles.pillText}>Postado</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("IN_TRANSIT")} style={styles.pill}><ThemedText style={styles.pillText}>Trânsito</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("OUT_FOR_DELIVERY")} style={styles.pill}><ThemedText style={styles.pillText}>Saiu</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("DELIVERED")} style={styles.pill}><ThemedText style={styles.pillText}>Entregue</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("EXCEPTION")} style={styles.pill}><ThemedText style={styles.pillText}>Ocorrência</ThemedText></Pressable>
+              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Postado</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("IN_TRANSIT")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Trânsito</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("OUT_FOR_DELIVERY")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Saiu</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("DELIVERED")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Entregue</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => addMock("EXCEPTION")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Ocorrência</ThemedText>
+              </Pressable>
             </View>
           </ThemedView>
 
@@ -153,25 +168,30 @@ export default function OrderTrackingScreen() {
             <ThemedText style={styles.cardTitle}>Linha do tempo</ThemedText>
 
             {events.length === 0 ? (
-              <ThemedText style={styles.secondary}>Nenhum evento ainda. Use os botões mock acima para testar.</ThemedText>
+              <ThemedText style={styles.secondary}>
+                Nenhum evento ainda. Use os botões mock acima para testar.
+              </ThemedText>
             ) : (
               <View style={{ gap: 12 }}>
-                {events.map((e) => (
-                  <View key={e.id} style={styles.eventRow}>
-                    <View style={styles.dot} />
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.eventTitle}>
-                        {typeLabel(e.type)} — {e.title}
-                      </ThemedText>
-                      <ThemedText style={styles.secondary}>
-                        {dateLabel(e.at)}
-                        {timeLabel(e.at)}
-                        {e.location ? ` • ${e.location}` : ""}
-                      </ThemedText>
-                      {e.description ? <ThemedText style={styles.secondary}>{e.description}</ThemedText> : null}
+                {events.map((e) => {
+                  const at = String(e.at ?? e.createdAt ?? "");
+                  return (
+                    <View key={e.id} style={styles.eventRow}>
+                      <View style={styles.dot} />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.eventTitle}>
+                          {typeLabel(e.type)} — {e.title}
+                        </ThemedText>
+                        <ThemedText style={styles.secondary}>
+                          {dateLabel(at)}
+                          {timeLabel(at)}
+                          {e.location ? ` • ${e.location}` : ""}
+                        </ThemedText>
+                        {e.description ? <ThemedText style={styles.secondary}>{e.description}</ThemedText> : null}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
           </ThemedView>

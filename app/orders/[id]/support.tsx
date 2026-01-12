@@ -1,13 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View, Linking } from "react-native";
+// app/orders/[id]/support.tsx
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
 import type { Order } from "../../../utils/ordersStore";
-import { getOrderById } from "../../../utils/ordersStore";
+import { getOrderById, normalizeStatusLabel } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -29,21 +30,22 @@ async function copyToClipboard(text: string) {
 }
 
 function faqByStatus(status?: string) {
-  const s = (status ?? "Confirmado").toString();
-  if (s === "Confirmado") {
+  const s = (status ?? "confirmed").toString();
+
+  if (s === "confirmed") {
     return [
       { q: "Posso alterar o endereço?", a: "Sim. Enquanto não enviarmos o pedido, você pode solicitar alteração pelo suporte." },
       { q: "Quando meu pedido será pago?", a: "Pagamentos podem levar alguns minutos. Em Pix, costuma ser imediato." },
       { q: "Posso cancelar?", a: "Em fase confirmada, normalmente é possível. Fale com o suporte para validar." },
     ];
   }
-  if (s === "Pago") {
+  if (s === "paid") {
     return [
       { q: "Quando será enviado?", a: "Após separação e embalagem, o pedido é despachado. Você verá o status ‘Enviado’." },
       { q: "Posso trocar itens?", a: "Após pagamento, trocas dependem do item e do estágio logístico. Fale com o suporte." },
     ];
   }
-  if (s === "Enviado") {
+  if (s === "shipped") {
     return [
       { q: "Como rastreio?", a: "Use o botão de rastreio. Quando disponível, o código aparece no rastreamento." },
       { q: "Meu pedido atrasou", a: "Atrasos podem ocorrer por rota/transportadora. Informe o ID ao suporte para prioridade." },
@@ -67,7 +69,7 @@ export default function OrderSupportScreen() {
       return;
     }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
   }, [orderId]);
 
   useFocusEffect(
@@ -77,6 +79,7 @@ export default function OrderSupportScreen() {
   );
 
   const faq = useMemo(() => faqByStatus(order?.status), [order?.status]);
+  const statusLabel = useMemo(() => normalizeStatusLabel(order?.status ?? "pending"), [order?.status]);
 
   const onCopyId = async () => {
     if (!orderId) return;
@@ -86,7 +89,6 @@ export default function OrderSupportScreen() {
   };
 
   const onWhatsApp = async () => {
-    // Mock: substitua futuramente pelo número real + mensagem padrão
     const message = `Olá! Preciso de suporte para o pedido #${orderId}.`;
     const url = `https://wa.me/5500000000000?text=${encodeURIComponent(message)}`;
     const supported = await Linking.canOpenURL(url);
@@ -99,7 +101,7 @@ export default function OrderSupportScreen() {
 
   const onEmail = async () => {
     const subject = `Suporte - Pedido #${orderId}`;
-    const body = `Olá, preciso de ajuda com o pedido #${orderId}.\n\nStatus atual: ${order?.status ?? "Confirmado"}\n`;
+    const body = `Olá, preciso de ajuda com o pedido #${orderId}.\n\nStatus atual: ${statusLabel}\n`;
     const url = `mailto:contato@plugaishop.com.br?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
@@ -128,7 +130,7 @@ export default function OrderSupportScreen() {
               <View style={{ flex: 1 }}>
                 <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
                 <ThemedText style={styles.secondary}>
-                  Status: <ThemedText style={styles.bold}>{String(order?.status ?? "Confirmado")}</ThemedText>
+                  Status: <ThemedText style={styles.bold}>{statusLabel}</ThemedText>
                 </ThemedText>
               </View>
 

@@ -1,5 +1,5 @@
-﻿import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Image } from "expo-image";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -8,33 +8,44 @@ import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
-import { categories, products } from "../../constants/products";
+import type { Product } from "../../data/catalog";
+import { products } from "../../data/catalog";
 import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 
-export default function HomeScreen() {
-  // retoma checkout se existir draft pendente
+const ALL = "Todos" as const;
 
+export default function HomeScreen() {
   // tenta enviar fila quando abrir o app
   useOutboxAutoFlush();
 
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] =
-    useState<(typeof categories)[number]>("Todos");
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products as Product[]) {
+      if (p?.category) set.add(String(p.category));
+    }
+    return [ALL, ...Array.from(set)];
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return products.filter((product) => {
-      const matchesCategory =
-        selectedCategory === "Todos" || product.category === selectedCategory;
+    return (products as Product[]).filter((product) => {
+      const matchesCategory = selectedCategory === ALL || product.category === selectedCategory;
+
+      const title = String(product.title ?? "").toLowerCase();
+      const desc = String(product.description ?? "").toLowerCase();
+
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        product.name.toLowerCase().includes(normalizedQuery) ||
-        product.description.toLowerCase().includes(normalizedQuery);
+        title.includes(normalizedQuery) ||
+        desc.includes(normalizedQuery);
 
       return matchesCategory && matchesQuery;
     });
@@ -42,7 +53,7 @@ export default function HomeScreen() {
 
   return (
     <>
-      {/* âœ… iPhone: horas/bateria brancas sobre o banner */}
+      {/* iPhone: horas/bateria brancas sobre o banner */}
       <StatusBar style="light" />
 
       <ParallaxScrollView
@@ -56,30 +67,27 @@ export default function HomeScreen() {
         }
       >
         <ThemedView style={styles.titleContainer}>
-          {/* âœ… nome correto, sem acento */}
           <ThemedText type="title">PLUGAISHOP</ThemedText>
           <ThemedText type="defaultSemiBold">
-            SoluÃ§Ãµes curadas para acelerar a operaÃ§Ã£o e o varejo inteligente.
+            Soluções curadas para acelerar a operação e o varejo inteligente.
           </ThemedText>
         </ThemedView>
 
         <ThemedView style={styles.heroCard}>
           <View style={{ flex: 1, gap: 8 }}>
-            <ThemedText type="subtitle">Kit rÃ¡pido de vitrine</ThemedText>
+            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
             <ThemedText>
-              Combine iluminaÃ§Ã£o, organizaÃ§Ã£o e sinalizaÃ§Ã£o para deixar seu ponto de
-              venda pronto em minutos.
+              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em
+              minutos.
             </ThemedText>
 
             <Link href="/explore" asChild>
               <Pressable style={styles.cta}>
-                <ThemedText type="defaultSemiBold">Ver recomendaÃ§Ãµes</ThemedText>
+                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
               </Pressable>
             </Link>
           </View>
 
-          {/* âœ… Remove o â€œbanner miniaturaâ€ repetido:
-              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
           <Image
             source={require("../../assets/banners/banner-splash.png")}
             style={styles.heroImage}
@@ -88,7 +96,8 @@ export default function HomeScreen() {
         </ThemedView>
 
         <ThemedView style={styles.searchSection}>
-          <ThemedText type="subtitle">CatÃ¡logo PlugaiShop</ThemedText>
+          <ThemedText type="subtitle">Catálogo Plugaí Shop</ThemedText>
+
           <TextInput
             placeholder="Buscar por categoria ou produto"
             placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
@@ -102,13 +111,11 @@ export default function HomeScreen() {
                 color: colorScheme === "light" ? "#111827" : "#F9FAFB",
               },
             ]}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
 
@@ -129,31 +136,31 @@ export default function HomeScreen() {
 
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              onPress={() => router.push(`/product/${product.id}` as any)}
+            />
           ))}
 
           {filteredProducts.length === 0 ? (
-            <ThemedText>NÃ£o encontramos itens para sua busca.</ThemedText>
+            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
           ) : null}
         </View>
 
         <ThemedView style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
           <ThemedText>
-            {`Use o botÃ£o abaixo para testar aÃ§Ãµes rÃ¡pidas e visualizar a navegaÃ§Ã£o com opÃ§Ãµes contextuais.`}
+            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
           </ThemedText>
 
           <Link href="/modal">
             <Link.Trigger>
-              <ThemedText type="link">Abrir menu de aÃ§Ãµes</ThemedText>
+              <ThemedText type="link">Abrir menu de ações</ThemedText>
             </Link.Trigger>
             <Link.Preview />
             <Link.Menu>
-              <Link.MenuAction
-                title="Solicitar demo"
-                icon="cube"
-                onPress={() => alert("Demo")}
-              />
+              <Link.MenuAction title="Solicitar demo" icon="cube" onPress={() => alert("Demo")} />
               <Link.MenuAction
                 title="Compartilhar"
                 icon="square.and.arrow.up"
@@ -250,7 +257,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  // âœ… Banner do Parallax: ocupa tudo (sem â€œquadradoâ€)
   headerBanner: {
     width: "100%",
     height: "100%",

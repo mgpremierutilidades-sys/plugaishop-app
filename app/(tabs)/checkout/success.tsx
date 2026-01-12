@@ -10,28 +10,38 @@ import theme, { Radius, Spacing } from "../../../constants/theme";
 import { useCart } from "../../../context/CartContext";
 import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
+function safeNumber(v: unknown, fallback = 0) {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function normalizeCartItems(cartAny: any) {
   const raw = cartAny?.items ?? cartAny?.cartItems ?? cartAny?.cart ?? cartAny?.products ?? [];
   if (!Array.isArray(raw)) return [];
 
   return raw
-    .map((it) => {
+    .map((it: any) => {
       const product = it?.product ?? it?.item ?? it;
-      const productId = product?.id ?? it?.productId ?? it?.id;
-      const title = product?.title ?? it?.title ?? "Produto";
-      const price = product?.price ?? it?.price ?? 0;
-      const qty = it?.qty ?? it?.quantity ?? 1;
 
+      const productId = product?.id ?? it?.productId ?? it?.id;
       if (productId == null) return null;
+
+      const title = product?.title ?? it?.title ?? "Produto";
+      const price = safeNumber(product?.price ?? it?.price ?? 0, 0);
+      const qty = Math.max(1, Math.floor(safeNumber(it?.qty ?? it?.quantity ?? 1, 1)));
+
+      // imagem pode vir de product.image (catálogo) ou it.image (compat)
+      const image = product?.image ?? it?.image;
 
       return {
         productId: String(productId),
         title: String(title),
-        price: Number(price ?? 0),
-        qty: Math.max(1, Number(qty ?? 1)),
+        price,
+        qty,
+        image,
       };
     })
-    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string; image?: any }>;
 }
 
 export default function CheckoutSuccessScreen() {
@@ -52,9 +62,12 @@ export default function CheckoutSuccessScreen() {
       const items = normalizeCartItems(cartAny);
       if (!items.length) return null;
 
-      const order = createOrderFromCart({
+      // Usa desconto real do carrinho, se existir
+      const discount = safeNumber(cartAny?.discountTotal ?? 0, 0);
+
+      const order = await createOrderFromCart({
         items,
-        discount: 0,
+        discount,
         shipping: 0,
       });
 
@@ -200,5 +213,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
+  ghostBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 });

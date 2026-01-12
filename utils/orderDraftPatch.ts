@@ -1,19 +1,5 @@
-import type { Address, OrderDraft, Payment, Shipping } from "../types/order";
+// utils/orderDraftPatch.ts
+// Bridge para compatibilidade (nome antigo). Não duplicar lógica aqui.
+export type { Address, OrderDraft, Payment, Shipping } from "../types/order";
+export { patchOrderDraft } from "./patchOrderDraft";
 
-export function patchOrderDraft(
-  draft: OrderDraft,
-  patch: Partial<Pick<OrderDraft, "address" | "payment" | "shipping" | "total" | "discount">> & {
-    address?: Address;
-    payment?: Payment;
-    shipping?: Shipping;
-  }
-): OrderDraft {
-  const next: OrderDraft = { ...draft, ...patch };
-
-  const shippingPrice = next.shipping?.price ?? 0;
-  const discount = next.discount ?? 0;
-
-  next.total = next.subtotal - discount + shippingPrice;
-
-  return next;
-}

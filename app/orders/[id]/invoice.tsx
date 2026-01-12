@@ -1,13 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
+// app/orders/[id]/invoice.tsx
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
 import type { Order } from "../../../utils/ordersStore";
-import { getOrderById, setInvoiceMock, clearInvoice } from "../../../utils/ordersStore";
+import { clearInvoice, getOrderById, setInvoiceMock } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -42,9 +43,12 @@ export default function OrderInvoiceScreen() {
   const [order, setOrder] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
-    if (!orderId) return;
+    if (!orderId) {
+      setOrder(null);
+      return;
+    }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
   }, [orderId]);
 
   useFocusEffect(
@@ -127,9 +131,7 @@ export default function OrderInvoiceScreen() {
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Status</ThemedText>
-              <ThemedText style={styles.v}>
-                {invoice?.status === "EMITIDA" ? "Emitida" : "Aguardando"}
-              </ThemedText>
+              <ThemedText style={styles.v}>{invoice?.status === "EMITIDA" ? "Emitida" : "Aguardando"}</ThemedText>
             </View>
 
             <View style={styles.kv}>
@@ -166,8 +168,7 @@ export default function OrderInvoiceScreen() {
             )}
 
             <ThemedText style={styles.note}>
-              Integração real: a DANFE será fornecida pelo seu backend consultando a Bling.
-              O app não armazena token da Bling.
+              Integração real: a DANFE será fornecida pelo seu backend consultando a Bling. O app não armazena token da Bling.
             </ThemedText>
           </ThemedView>
 

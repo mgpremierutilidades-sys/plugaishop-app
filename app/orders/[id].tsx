@@ -1,27 +1,23 @@
 // app/orders/[id].tsx
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  Linking,
-  Share,
-} from "react-native";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
+import OrderTimeline, { TimelineStep } from "../../components/OrderTimeline";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
-import OrderTimeline, { TimelineStep } from "../../components/OrderTimeline";
 
-import { products } from "../../data/catalog";
-import { useCart } from "../../context/CartContext";
-import { formatCurrency } from "../../utils/formatCurrency";
+import { asNumber, formatCurrency } from "../../utils/formatCurrency";
 import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { getOrderById, advanceOrderStatus } from "../../utils/ordersStore";
+import {
+  advanceOrderStatus,
+  buildOrderSupportText,
+  getOrderById,
+  getTrackingUrl,
+  normalizeStatusLabel,
+} from "../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -29,9 +25,10 @@ function safeString(v: unknown) {
   return "";
 }
 
-function dateLabel(isoOrAny: string) {
-  if (!isoOrAny) return "";
-  const d = isoOrAny.includes("T") ? isoOrAny.split("T")[0] : isoOrAny;
+function formatDate(isoOrAny?: string) {
+  const s = String(isoOrAny ?? "").trim();
+  if (!s) return "";
+  const d = s.includes("T") ? s.split("T")[0] : s;
   if (d.includes("-")) return d.split("-").reverse().join("/");
   return d;
 }
@@ -49,11 +46,46 @@ async function copyToClipboard(text: string) {
   }
 }
 
+/**
+ * Timeline do ordersStore canônico:
+ * statusHistory: [{ status: "confirmed" | "paid" | "shipped" | "delivered" | ..., at: ISO }]
+ */
+function getHistoryDate(order: Order | null, status: OrderStatus) {
+  const hist = Array.isArray((order as any)?.statusHistory) ? (((order as any).statusHistory as any[]) ?? []) : [];
+  const hit = hist.find((h) => String(h?.status ?? "") === String(status));
+  const at = String(hit?.at ?? "");
+  return at ? formatDate(at) : "";
+}
+
+function normalizeOrderItems(order: Order | null) {
+  const raw = Array.isArray((order as any)?.items) ? (((order as any).items as any[]) ?? []) : [];
+
+  return raw
+    .map((it) => {
+      const productId =
+        it?.productId ?? it?.id ?? it?.product?.id ?? it?.product?.productId ?? it?.product?.sku ?? "";
+
+      const title = it?.title ?? it?.product?.title ?? "Produto";
+      const qty = Math.max(1, Math.floor(asNumber(it?.qty ?? it?.quantity ?? 1)));
+      const price = asNumber(it?.price ?? it?.unitPrice ?? it?.product?.price ?? 0);
+
+      if (!String(productId)) return null;
+
+      return {
+        productId: String(productId),
+        title: String(title),
+        qty,
+        price,
+        lineTotal: price * qty,
+      };
+    })
+    .filter(Boolean) as Array<{ productId: string; title: string; qty: number; price: number; lineTotal: number }>;
+}
+
 export default function OrderDetailScreen() {
   const params = useLocalSearchParams();
   const orderId = safeString(params?.id);
 
-  const cartAny = useCart() as any;
   const [order, setOrder] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
@@ -62,7 +94,7 @@ export default function OrderDetailScreen() {
       return;
     }
     const found = await getOrderById(orderId);
-    setOrder(found);
+    setOrder(found ?? null);
   }, [orderId]);
 
   useFocusEffect(
@@ -71,65 +103,77 @@ export default function OrderDetailScreen() {
     }, [load])
   );
 
-  const historyMap = useMemo(() => {
-    const map = new Map<OrderStatus, string>();
-    const hist = Array.isArray(order?.statusHistory) ? order!.statusHistory! : [];
-    for (const h of hist) {
-      if (h?.status && h?.at) map.set(h.status, h.at);
-    }
-    if (!map.has("Confirmado") && order?.createdAt) map.set("Confirmado", order.createdAt);
-    return map;
+  const items = useMemo(() => normalizeOrderItems(order), [order]);
+
+  const totals = useMemo(() => {
+    const subtotalFromItems = items.reduce((acc, it) => acc + it.lineTotal, 0);
+
+    const subtotal = Number.isFinite(asNumber((order as any)?.subtotal))
+      ? asNumber((order as any)?.subtotal)
+      : subtotalFromItems;
+
+    const discount = asNumber((order as any)?.discount ?? 0);
+    const shipping = asNumber((order as any)?.shipping ?? (order as any)?.shippingCost ?? 0);
+
+    const totalField = asNumber((order as any)?.total);
+    const totalComputed = Math.max(0, subtotal - discount + shipping);
+    const total = totalField > 0 ? totalField : totalComputed;
+
+    const count = items.reduce((a, b) => a + b.qty, 0);
+
+    return { subtotal, discount, shipping, total, count };
+  }, [order, items]);
+
+  const statusLabel = useMemo(() => {
+    const s = String((order as any)?.status ?? "pending") as any;
+    return normalizeStatusLabel(s);
   }, [order]);
 
+  const createdAtLabel = useMemo(() => formatDate((order as any)?.createdAt), [order]);
+
+  const trackingCode = useMemo(() => safeString((order as any)?.trackingCode), [order]);
+  const trackingUrl = useMemo(() => getTrackingUrl(trackingCode), [trackingCode]);
+
   const timelineSteps: TimelineStep[] = useMemo(() => {
-    const status = (order?.status ?? "").toString().toLowerCase();
+    const s = String((order as any)?.status ?? "pending").toLowerCase();
 
-    const donePago = ["pago", "enviado", "entregue"].includes(status);
-    const doneEnviado = ["enviado", "entregue"].includes(status);
-    const doneEntregue = status === "entregue";
+    const donePago = ["paid", "processing", "shipped", "delivered"].includes(s);
+    const doneEnviado = ["shipped", "delivered"].includes(s);
+    const doneEntregue = ["delivered"].includes(s);
 
-    const dConfirmado = historyMap.get("Confirmado");
-    const dPago = historyMap.get("Pago");
-    const dEnviado = historyMap.get("Enviado");
-    const dEntregue = historyMap.get("Entregue");
+    // Datas por statusHistory (canônico)
+    const dConfirmado = getHistoryDate(order, "confirmed") || createdAtLabel;
+    const dPago = getHistoryDate(order, "paid");
+    const dEnviado = getHistoryDate(order, "shipped");
+    const dEntregue = getHistoryDate(order, "delivered");
 
     return [
       {
         title: "Pedido confirmado",
-        subtitle: dConfirmado ? `Recebido em ${dateLabel(dConfirmado)}` : "Recebemos seu pedido com sucesso.",
+        subtitle: dConfirmado ? `Recebido em ${dConfirmado}` : "Recebemos seu pedido com sucesso.",
         done: true,
-        active: status === "confirmado" || !status,
+        active: ["pending", "confirmed"].includes(s),
       },
       {
         title: "Pagamento aprovado",
-        subtitle: dPago ? `Aprovado em ${dateLabel(dPago)}` : "Pagamento validado.",
+        subtitle: dPago ? `Aprovado em ${dPago}` : "Pagamento validado.",
         done: donePago,
-        active: status === "pago",
+        active: ["paid", "processing"].includes(s),
       },
       {
         title: "Pedido enviado",
-        subtitle: dEnviado ? `Enviado em ${dateLabel(dEnviado)}` : "Seu pedido saiu para entrega.",
+        subtitle: dEnviado ? `Enviado em ${dEnviado}` : "Seu pedido saiu para entrega.",
         done: doneEnviado,
-        active: status === "enviado",
+        active: s === "shipped",
       },
       {
         title: "Pedido entregue",
-        subtitle: dEntregue ? `Entregue em ${dateLabel(dEntregue)}` : "Entrega concluída.",
+        subtitle: dEntregue ? `Entregue em ${dEntregue}` : "Entrega concluída.",
         done: doneEntregue,
-        active: status === "entregue",
+        active: s === "delivered",
       },
     ];
-  }, [order, historyMap]);
-
-  const totals = useMemo(() => {
-    const items = order?.items ?? [];
-    const subtotal = items.reduce((acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0), 0);
-    const discount = Number(order?.discount ?? 0);
-    const shipping = Number(order?.shipping ?? 0);
-    const total = Math.max(0, subtotal - discount + shipping);
-    const count = items.reduce((a, b) => a + Number(b.qty ?? 0), 0);
-    return { subtotal, discount, shipping, total, count };
-  }, [order]);
+  }, [order, createdAtLabel]);
 
   const onCopyId = async () => {
     if (!orderId) return;
@@ -138,48 +182,30 @@ export default function OrderDetailScreen() {
     else Alert.alert("Copiar ID", `Copie manualmente: ${orderId}`);
   };
 
-  const onTrackExternal = async () => {
-    const url = `https://example.com/rastreio?pedido=${encodeURIComponent(orderId || "0")}`;
-    const supported = await Linking.canOpenURL(url);
+  const onSupport = async () => {
+    if (!order) return;
+    const text = buildOrderSupportText(order);
+    const ok = await copyToClipboard(text);
+    Alert.alert(
+      "Suporte",
+      ok ? "Mensagem do pedido copiada. Cole no WhatsApp/atendimento para agilizar." : "Não foi possível copiar automaticamente.",
+      ok
+        ? [{ text: "OK" }]
+        : [
+            { text: "OK" },
+            { text: "Ver mensagem", onPress: () => Alert.alert("Mensagem do pedido", text) },
+          ]
+    );
+  };
+
+  const onTrack = async () => {
+    if (!trackingUrl) return;
+    const supported = await Linking.canOpenURL(trackingUrl);
     if (!supported) {
       Alert.alert("Indisponível", "Não foi possível abrir o link de rastreio neste dispositivo.");
       return;
     }
-    Linking.openURL(url);
-  };
-
-  const onRepeatPurchase = () => {
-    const items = order?.items ?? [];
-    if (!items.length) {
-      Alert.alert("Atenção", "Este pedido não possui itens para repetir.");
-      return;
-    }
-
-    const addOne = (product: any, qty: number) => {
-      if (typeof cartAny?.addItem === "function") return cartAny.addItem(product, qty);
-      if (typeof cartAny?.addToCart === "function") return cartAny.addToCart(product, qty);
-      if (typeof cartAny?.add === "function") return cartAny.add(product, qty);
-      return null;
-    };
-
-    let added = 0;
-    for (const it of items) {
-      const prod = (products as any[])?.find((p) => String(p.id) === String(it.productId));
-      if (!prod) continue;
-      const qty = Math.max(1, Number(it.qty ?? 1));
-      addOne(prod, qty);
-      added += qty;
-    }
-
-    if (!added) {
-      Alert.alert("Não foi possível repetir", "Não encontramos os produtos deste pedido no catálogo atual.");
-      return;
-    }
-
-    Alert.alert("Repetir compra", "Itens adicionados ao carrinho.", [
-      { text: "Continuar", style: "default" },
-      { text: "Ir para o carrinho", style: "default", onPress: () => router.push("/(tabs)/cart" as any) },
-    ]);
+    Linking.openURL(trackingUrl);
   };
 
   const onAdvanceStatus = async () => {
@@ -190,26 +216,8 @@ export default function OrderDetailScreen() {
       return;
     }
     setOrder(updated);
-    Alert.alert("Status atualizado", `Novo status: ${updated.status}`);
+    Alert.alert("Status atualizado", `Novo status: ${normalizeStatusLabel((updated as any).status)}`);
   };
-
-  const onShare = async () => {
-    if (!orderId) return;
-    try {
-      await Share.share({
-        message: `Pedido Plugaí Shop #${orderId} — status: ${order?.status ?? "Confirmado"}`,
-      });
-    } catch {
-      Alert.alert("Compartilhar", "Não foi possível compartilhar no momento.");
-    }
-  };
-
-  const goSupport = () => router.push(`/orders/${orderId}/support` as any);
-  const goInvoice = () => router.push(`/orders/${orderId}/invoice` as any);
-  const goReview = () => router.push(`/orders/${orderId}/review` as any);
-  const goReturn = () => router.push(`/orders/${orderId}/return` as any);
-  const goNotifications = () => router.push(`/orders/notifications` as any);
-  const goTracking = () => router.push(`/orders/${orderId}/tracking` as any);
 
   if (!order) {
     return (
@@ -241,8 +249,12 @@ export default function OrderDetailScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
+
           <ThemedText style={styles.title}>Pedido detalhe</ThemedText>
-          <View style={{ width: 44 }} />
+
+          <Pressable onPress={onCopyId} hitSlop={10} style={styles.iconBtn} accessibilityRole="button">
+            <ThemedText style={styles.iconBtnText}>ID</ThemedText>
+          </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -250,74 +262,48 @@ export default function OrderDetailScreen() {
             <View style={styles.rowBetween}>
               <View style={{ flex: 1 }}>
                 <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
-                <ThemedText style={styles.secondary}>
-                  Status: <ThemedText style={styles.bold}>{String(order.status ?? "Confirmado")}</ThemedText>
-                </ThemedText>
+                {createdAtLabel ? <ThemedText style={styles.secondary}>Data: {createdAtLabel}</ThemedText> : null}
 
-                {order.trackingCode ? (
-                  <ThemedText style={styles.secondary}>
-                    Rastreio: <ThemedText style={styles.bold}>{order.trackingCode}</ThemedText>
+                <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <ThemedText style={styles.secondary}>Status:</ThemedText>
+                  <View style={styles.statusChip}>
+                    <ThemedText style={styles.statusChipText}>{statusLabel}</ThemedText>
+                  </View>
+                </View>
+
+                {trackingCode ? (
+                  <ThemedText style={[styles.secondary, { marginTop: 8 }]}>
+                    Rastreio: <ThemedText style={styles.boldText}>{trackingCode}</ThemedText>
                   </ThemedText>
                 ) : null}
               </View>
-
-              <Pressable onPress={onCopyId} style={styles.smallBtn}>
-                <ThemedText style={styles.smallBtnText}>Copiar ID</ThemedText>
-              </Pressable>
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.actionRow}>
-              <Pressable onPress={onTrackExternal} style={styles.actionBtn}>
-                <ThemedText style={styles.actionBtnText}>Rastrear</ThemedText>
+              <Pressable onPress={onSupport} style={styles.actionBtnOutline} accessibilityRole="button">
+                <ThemedText style={styles.actionBtnOutlineText}>FALAR NO SUPORTE</ThemedText>
               </Pressable>
 
-              <Pressable onPress={goTracking} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Rastreio (Histórico)</ThemedText>
+              <Pressable
+                onPress={onTrack}
+                disabled={!trackingUrl}
+                style={[styles.actionBtn, !trackingUrl ? styles.actionBtnDisabled : null]}
+                accessibilityRole="button"
+              >
+                <ThemedText style={styles.actionBtnText}>{trackingUrl ? "RASTREAR PEDIDO" : "SEM RASTREIO"}</ThemedText>
               </Pressable>
             </View>
 
-            <View style={styles.actionRow}>
-              <Pressable onPress={onRepeatPurchase} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Repetir</ThemedText>
+            {__DEV__ ? (
+              <Pressable onPress={onAdvanceStatus} style={styles.devBtn} accessibilityRole="button">
+                <ThemedText style={styles.devBtnText}>Avançar status (teste)</ThemedText>
               </Pressable>
-
-              <Pressable onPress={onAdvanceStatus} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Avançar status</ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={onShare} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Compartilhar</ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goInvoice} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Nota Fiscal</ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={goSupport} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Suporte</ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goReturn} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Troca/Reembolso</ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={goReview} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Avaliar</ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goNotifications} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Notificações</ThemedText>
-              </Pressable>
-            </View>
+            ) : null}
           </ThemedView>
+
+          <OrderTimeline steps={timelineSteps} />
 
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Resumo</ThemedText>
@@ -339,18 +325,41 @@ export default function OrderDetailScreen() {
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Frete</ThemedText>
-              <ThemedText style={styles.v}>{formatCurrency(totals.shipping)}</ThemedText>
+              <ThemedText style={styles.v}>{totals.shipping === 0 ? "Grátis" : formatCurrency(totals.shipping)}</ThemedText>
             </View>
 
             <View style={styles.divider} />
 
-            <View style={styles.kv}>
-              <ThemedText style={[styles.k, styles.bold]}>Total</ThemedText>
-              <ThemedText style={[styles.v, styles.bold]}>{formatCurrency(totals.total)}</ThemedText>
+            <View style={styles.totalBox}>
+              <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+              <ThemedText style={styles.totalValue}>{formatCurrency(totals.total)}</ThemedText>
             </View>
-          </ThemedView>
 
-          <OrderTimeline steps={timelineSteps} />
+            <View style={[styles.divider, { marginTop: 14 }]} />
+
+            <ThemedText style={styles.cardTitle}>Itens do pedido</ThemedText>
+
+            {items.length ? (
+              <View style={{ gap: 10 }}>
+                {items.map((it) => (
+                  <View key={it.productId} style={styles.itemRow}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText numberOfLines={2} style={styles.itemTitle}>
+                        {it.title}
+                      </ThemedText>
+                      <ThemedText style={styles.secondary}>
+                        {it.qty}x {formatCurrency(it.price)}
+                      </ThemedText>
+                    </View>
+
+                    <ThemedText style={styles.itemTotal}>{formatCurrency(it.lineTotal)}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <ThemedText style={styles.secondary}>Nenhum item encontrado neste pedido.</ThemedText>
+            )}
+          </ThemedView>
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -381,7 +390,20 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.divider,
   },
   backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+
   title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+
+  iconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  iconBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
 
   scroll: { gap: Spacing.md, paddingBottom: 20 },
 
@@ -393,22 +415,28 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
+
   cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
 
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Spacing.md },
+
   divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
 
-  smallBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: Radius.lg,
+  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  boldText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
     backgroundColor: theme.colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: theme.colors.divider,
+    borderColor: theme.colors.primary,
   },
-  smallBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  statusChipText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
 
   actionRow: { flexDirection: "row", gap: Spacing.md },
+
   actionBtn: {
     flex: 1,
     paddingVertical: 12,
@@ -417,7 +445,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
+  actionBtnDisabled: { opacity: 0.45 },
   actionBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
+
   actionBtnOutline: {
     flex: 1,
     paddingVertical: 12,
@@ -430,10 +460,36 @@ const styles = StyleSheet.create({
   },
   actionBtnOutlineText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
 
+  devBtn: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  devBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+
   kv: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   k: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
-  v: { fontFamily: "OpenSans", fontSize: 12, color: theme.colors.text },
-  bold: { fontWeight: "700", color: theme.colors.text },
+  v: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
 
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  totalBox: {
+    backgroundColor: "#F59E0B",
+    borderRadius: Radius.xl,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  totalLabel: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: "#000" },
+  totalValue: { fontFamily: "OpenSans", fontSize: 14, fontWeight: "700", color: "#000" },
+
+  itemRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  itemTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  itemTotal: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
 });

@@ -1,21 +1,15 @@
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+// app/orders/index.tsx
 import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
 import { formatCurrency } from "../../utils/formatCurrency";
 import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { listOrders, getUnreadNotificationsCount } from "../../utils/ordersStore";
+import { getUnreadNotificationsCount, listOrders, normalizeStatusLabel } from "../../utils/ordersStore";
 
 function dateLabel(isoOrAny: string) {
   if (!isoOrAny) return "";
@@ -26,10 +20,10 @@ function dateLabel(isoOrAny: string) {
 
 const FILTERS: Array<{ label: string; value: "ALL" | OrderStatus }> = [
   { label: "Todos", value: "ALL" },
-  { label: "Confirmado", value: "Confirmado" },
-  { label: "Pago", value: "Pago" },
-  { label: "Enviado", value: "Enviado" },
-  { label: "Entregue", value: "Entregue" },
+  { label: "Confirmado", value: "confirmed" },
+  { label: "Pago", value: "paid" },
+  { label: "Enviado", value: "shipped" },
+  { label: "Entregue", value: "delivered" },
 ];
 
 export default function OrdersIndexScreen() {
@@ -80,17 +74,11 @@ export default function OrdersIndexScreen() {
 
           <ThemedText style={styles.title}>Pedidos</ThemedText>
 
-          <Pressable
-            onPress={() => router.push("/orders/notifications" as any)}
-            hitSlop={10}
-            style={styles.notifBtn}
-          >
+          <Pressable onPress={() => router.push("/orders/notifications" as any)} hitSlop={10} style={styles.notifBtn}>
             <ThemedText style={styles.notifBtnText}>Notifs</ThemedText>
             {unread > 0 ? (
               <View style={styles.badge}>
-                <ThemedText style={styles.badgeText}>
-                  {unread > 99 ? "99+" : String(unread)}
-                </ThemedText>
+                <ThemedText style={styles.badgeText}>{unread > 99 ? "99+" : String(unread)}</ThemedText>
               </View>
             ) : null}
           </Pressable>
@@ -110,11 +98,7 @@ export default function OrdersIndexScreen() {
         </View>
 
         {/* Filtros */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           {FILTERS.map((f) => {
             const active = filter === f.value;
             return (
@@ -123,12 +107,7 @@ export default function OrdersIndexScreen() {
                 onPress={() => setFilter(f.value)}
                 style={[styles.pill, active ? styles.pillActive : styles.pillIdle]}
               >
-                <ThemedText
-                  style={[
-                    styles.pillText,
-                    active ? styles.pillTextActive : styles.pillTextIdle,
-                  ]}
-                >
+                <ThemedText style={[styles.pillText, active ? styles.pillTextActive : styles.pillTextIdle]}>
                   {f.label}
                 </ThemedText>
               </Pressable>
@@ -144,21 +123,13 @@ export default function OrdersIndexScreen() {
           {filtered.length === 0 ? (
             <ThemedView style={styles.card}>
               <ThemedText style={styles.cardTitle}>Nada por aqui</ThemedText>
-              <ThemedText style={styles.secondary}>
-                Tente outro filtro ou busque pelo ID do pedido.
-              </ThemedText>
+              <ThemedText style={styles.secondary}>Tente outro filtro ou busque pelo ID do pedido.</ThemedText>
             </ThemedView>
           ) : null}
 
           {filtered.map((o) => {
-            const subtotal = (o.items ?? []).reduce(
-              (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
-              0
-            );
-            const total = Math.max(
-              0,
-              subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0)
-            );
+            const subtotal = (o.items ?? []).reduce((acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0), 0);
+            const total = Math.max(0, subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0));
             const itemCount = (o.items ?? []).reduce((a, b) => a + Number(b.qty ?? 0), 0);
 
             return (
@@ -169,7 +140,7 @@ export default function OrdersIndexScreen() {
               >
                 <View style={styles.rowBetween}>
                   <ThemedText style={styles.cardTitle}>Pedido #{String(o.id)}</ThemedText>
-                  <ThemedText style={styles.status}>{String(o.status ?? "Confirmado")}</ThemedText>
+                  <ThemedText style={styles.status}>{normalizeStatusLabel(o.status)}</ThemedText>
                 </View>
 
                 <ThemedText style={styles.secondary}>Data: {dateLabel(String(o.createdAt ?? ""))}</ThemedText>
