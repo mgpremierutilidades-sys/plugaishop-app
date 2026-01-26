@@ -1,4 +1,4 @@
-﻿import { loadOrderDraft } from "./orderStorage";
+import { loadOrderDraft } from "./orderStorage";
 import { router } from "expo-router";
 
 export async function resumeCheckoutIfNeeded() {

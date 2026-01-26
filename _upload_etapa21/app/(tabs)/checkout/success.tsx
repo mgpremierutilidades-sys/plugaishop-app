@@ -1,0 +1,230 @@
+// app/(tabs)/checkout/success.tsx
+import { router } from "expo-router";
+import { useCallback, useRef } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../../components/themed-text";
+import { ThemedView } from "../../../components/themed-view";
+import theme, { Radius, Spacing } from "../../../constants/theme";
+import { useCart } from "../../../context/CartContext";
+import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
+
+function safeNumber(v: unknown, fallback = 0) {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+type NormalizedCartItem = {
+  productId: string;
+  qty: number;
+  price: number;
+  title: string;
+  image?: any;
+};
+
+function normalizeCartItems(cartAny: any): NormalizedCartItem[] {
+  const raw = cartAny?.items ?? cartAny?.cartItems ?? cartAny?.cart ?? cartAny?.products ?? [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((it: any) => {
+      const product = it?.product ?? it?.item ?? it;
+
+      const productId = product?.id ?? it?.productId ?? it?.id;
+      if (productId == null) return null;
+
+      const title = product?.title ?? it?.title ?? "Produto";
+      const price = safeNumber(product?.price ?? it?.price ?? 0, 0);
+      const qty = Math.max(1, Math.floor(safeNumber(it?.qty ?? it?.quantity ?? 1, 1)));
+
+      // imagem pode vir de product.image (catálogo) ou it.image (compat)
+      const image = product?.image ?? it?.image;
+
+      return {
+        productId: String(productId),
+        title: String(title),
+        price,
+        qty,
+        image,
+      } satisfies NormalizedCartItem;
+    })
+    .filter(Boolean) as NormalizedCartItem[];
+}
+
+export default function CheckoutSuccessScreen() {
+  const cartAny = useCart() as any;
+  const creatingRef = useRef(false);
+
+  const clearCart = useCallback(() => {
+    if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
+    else if (typeof cartAny?.clear === "function") cartAny.clear();
+    else if (typeof cartAny?.reset === "function") cartAny.reset();
+  }, [cartAny]);
+
+  const generateOrder = useCallback(async () => {
+    if (creatingRef.current) return null;
+    creatingRef.current = true;
+
+    try {
+      const items = normalizeCartItems(cartAny);
+      if (!items.length) return null;
+
+      // Usa desconto real do carrinho, se existir
+      const discount = safeNumber(cartAny?.discountTotal ?? 0, 0);
+
+      const order = await createOrderFromCart({
+        items,
+        discount,
+        shipping: 0,
+      });
+
+      await addOrder(order);
+      return order;
+    } finally {
+      creatingRef.current = false;
+    }
+  }, [cartAny]);
+
+  const goOrders = () => router.push("/orders" as any);
+  const goHome = () => router.push("/" as any);
+
+  const goToLatestOrder = async () => {
+    const order = await generateOrder();
+    clearCart();
+
+    if (order?.id) {
+      router.push(`/orders/${order.id}` as any);
+      return;
+    }
+
+    Alert.alert("Pedido", "Seu pedido foi confirmado.");
+    goOrders();
+  };
+
+  const justGoOrders = async () => {
+    await generateOrder();
+    clearCart();
+    goOrders();
+  };
+
+  return (
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
+      <ThemedView style={styles.container}>
+        <View style={styles.topbar}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <ThemedText style={styles.backArrow}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Compra concluída</ThemedText>
+
+          <View style={{ width: 44 }} />
+        </View>
+
+        <ThemedView style={styles.card}>
+          <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
+          <ThemedText style={styles.p}>
+            Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
+          </ThemedText>
+
+          <View style={{ height: 6 }} />
+
+          <Pressable onPress={goToLatestOrder} style={styles.primaryBtn}>
+            <ThemedText style={styles.primaryBtnText}>Ver pedido agora</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={justGoOrders} style={styles.secondaryBtn}>
+            <ThemedText style={styles.secondaryBtnText}>Ir para Pedidos</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              clearCart();
+              goHome();
+            }}
+            style={styles.ghostBtn}
+          >
+            <ThemedText style={styles.ghostBtnText}>Voltar ao início</ThemedText>
+          </Pressable>
+        </ThemedView>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+
+  topbar: {
+    height: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  h1: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  p: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)", lineHeight: 16 },
+
+  primaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+
+  secondaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  secondaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+
+  ghostBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  ghostBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+});

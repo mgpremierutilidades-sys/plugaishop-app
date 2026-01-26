@@ -1,4 +1,4 @@
-﻿import type { OrderDraft } from "../types/order";
+import type { OrderDraft } from "../types/order";
 
 function hasValue(v: unknown) {
   return v != null && String(v).trim().length > 0;

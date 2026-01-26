@@ -1,38 +1,23 @@
-﻿// utils/ordersStore.ts
+// utils/ordersStore.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const ORDERS_STORAGE_KEY = "plugaishop.orders.v1" as const;
-const NOTIFS_STORAGE_KEY = "plugaishop.orders.notifications.v1" as const;
+const NOTIFICATIONS_STORAGE_KEY = "plugaishop.orders.notifications.v1" as const;
 
-// -----------------------------------------------------------------------------
-// Types (retrocompatíveis com a base atual do app)
-// -----------------------------------------------------------------------------
-
+/**
+ * Status canônico do pedido (use esses literais no app).
+ * Se em algum lugar você usa "Confirmado", normalize para "confirmed".
+ */
 export type OrderStatus =
-  // Canon (EN)
   | "pending"
   | "confirmed"
   | "paid"
   | "processing"
   | "shipped"
   | "delivered"
-  | "canceled"
-  // Legacy PT-BR (para não quebrar telas antigas)
-  | "Pendente"
-  | "Confirmado"
-  | "Pago"
-  | "Processando"
-  | "Enviado"
-  | "Entregue"
-  | "Cancelado";
+  | "canceled";
 
-export type PaymentMethod =
-  | "pix"
-  | "card"
-  | "boleto"
-  | "cash"
-  | "wallet"
-  | "unknown";
+export type PaymentMethod = "pix" | "card" | "boleto" | "cash" | "wallet" | "unknown";
 
 export type Address = {
   name?: string;
@@ -51,66 +36,103 @@ export type OrderItem = {
   title: string;
   price: number; // preço unitário
   qty: number;
-  image?: any;
+  image?: any; // compatível com require(...) / ImageSource no RN
 };
 
-export type StatusHistoryEntry = {
+export type OrderStatusHistoryItem = {
   status: OrderStatus;
   at: string; // ISO
 };
 
+/**
+ * Nota fiscal (mock/local)
+ * (inclui campos que suas telas acessam)
+ */
+export type InvoiceStatus = "AGUARDANDO" | "EMITIDA" | "CANCELADA";
+
 export type Invoice = {
+  status: InvoiceStatus;
+  danfeUrl?: string;
+  accessKey?: string;
+  issuedAt?: string; // ISO
+
+  // campos adicionais usados pela UI
   number?: string;
   series?: string;
-  issuedAt?: string;
-  key?: string;
-  url?: string;
 };
 
-export type ReturnType = "refund" | "exchange";
+/**
+ * Troca / Devolução (mock/local)
+ */
+export type ReturnType = "Troca" | "Reembolso";
+export type ReturnStatus = "Solicitado" | "Em análise" | "Aprovado" | "Negado" | "Concluído";
 
-export type ReturnAttachment = {
-  id: string;
-  uri: string;
-  name?: string;
-  createdAt: string;
-};
+export type ReturnAttachment = { uri: string; name?: string };
 
 export type ReturnRequest = {
   type: ReturnType;
-  reason: string;
-  status: "requested" | "approved" | "rejected" | "received" | "refunded" | "exchanged";
+  status: ReturnStatus;
   protocol: string;
-  createdAt: string;
+  reason?: string;
+  createdAt: string; // ISO
   attachments?: ReturnAttachment[];
 };
 
+/** Avaliação (mock/local) */
 export type OrderReview = {
-  stars: 1 | 2 | 3 | 4 | 5;
+  stars: number; // 1..5
   comment?: string;
-  createdAt: string;
+  createdAt: string; // ISO
 };
 
+/**
+ * Rastreamento (mock/local)
+ * (sua UI usa at/location; mantemos compat + createdAt + title)
+ */
 export type LogisticsEventType =
-  | "label_created"
-  | "picked_up"
-  | "in_transit"
-  | "arrived_at_facility"
-  | "out_for_delivery"
-  | "delivered"
-  | "exception";
+  | "POSTED"
+  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "EXCEPTION";
 
 export type LogisticsEvent = {
   id: string;
   type: LogisticsEventType;
-  at: string; // ISO
+
+  // usado pela sua UI atual
+  title: string;
   description?: string;
   location?: string;
+
+  // compat: algumas telas usam "at"
+  at?: string; // ISO
+
+  // canônico
+  createdAt: string; // ISO
+};
+
+export type InAppNotificationType =
+  | "ORDER_STATUS"
+  | "INVOICE"
+  | "TRACKING"
+  | "RETURN"
+  | "REVIEW"
+  | "GENERIC";
+
+export type InAppNotification = {
+  id: string;
+  type: InAppNotificationType;
+  title: string;
+  body?: string;
+  createdAt: string; // ISO
+  read: boolean;
+  orderId?: string;
 };
 
 export type Order = {
   id: string;
-  createdAt: string; // ISO
+  createdAt: string; // ISO string
   status: OrderStatus;
   items: OrderItem[];
   subtotal: number;
@@ -120,100 +142,121 @@ export type Order = {
   paymentMethod?: PaymentMethod;
   address?: Address;
 
-  // Extras usados por telas do projeto
-  statusHistory?: StatusHistoryEntry[];
+  // extras
+  notes?: string;
   trackingCode?: string;
+
+  // extras que suas telas já usam
+  statusHistory?: OrderStatusHistoryItem[];
   invoice?: Invoice;
   returnRequest?: ReturnRequest;
   review?: OrderReview;
   logisticsEvents?: LogisticsEvent[];
-  notes?: string;
 };
-
-export type InAppNotification = {
-  id: string;
-  createdAt: string; // ISO
-  orderId?: string;
-  title: string;
-  body: string;
-  read: boolean;
-};
-
-// -----------------------------------------------------------------------------
-// Internal state
-// -----------------------------------------------------------------------------
 
 type OrdersState = {
   hydrated: boolean;
   orders: Order[];
+  notificationsHydrated: boolean;
+  notifications: InAppNotification[];
 };
 
-type NotifsState = {
-  hydrated: boolean;
-  list: InAppNotification[];
+const state: OrdersState = {
+  hydrated: false,
+  orders: [],
+  notificationsHydrated: false,
+  notifications: [],
 };
 
-const ordersState: OrdersState = { hydrated: false, orders: [] };
-const notifsState: NotifsState = { hydrated: false, list: [] };
-
-let ordersHydratePromise: Promise<void> | null = null;
-let notifsHydratePromise: Promise<void> | null = null;
+let hydratePromise: Promise<void> | null = null;
+let hydrateNotificationsPromise: Promise<void> | null = null;
 
 function safeNumber(n: unknown, fallback = 0) {
   return typeof n === "number" && Number.isFinite(n) ? n : fallback;
 }
 
-function genId(prefix = "id") {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function normalizeStatus(s: unknown): OrderStatus {
-  const raw = String(s ?? "pending").trim();
-
-  const lower = raw.toLowerCase();
-  // PT-BR -> Canon
-  if (lower === "confirmado") return "Confirmado";
-  if (lower === "pago") return "Pago";
-  if (lower === "enviado") return "Enviado";
-  if (lower === "entregue") return "Entregue";
-  if (lower === "cancelado") return "Cancelado";
-  if (lower === "pendente") return "Pendente";
-  if (lower === "processando") return "Processando";
-
-  // Canon EN
-  if (lower === "confirmed") return "confirmed";
-  if (lower === "paid") return "paid";
-  if (lower === "shipped") return "shipped";
-  if (lower === "delivered") return "delivered";
-  if (lower === "canceled") return "canceled";
-  if (lower === "processing") return "processing";
-  if (lower === "pending") return "pending";
-
-  // Se já veio com uma das strings do union, retorna como está
-  return raw as OrderStatus;
-}
-
 function computeTotals(items: OrderItem[], discount?: number, shipping?: number) {
-  const subtotal = items.reduce(
-    (acc, it) => acc + safeNumber(it.price) * safeNumber(it.qty, 1),
-    0
-  );
+  const subtotal = items.reduce((acc, it) => acc + safeNumber(it.price) * safeNumber(it.qty), 0);
   const d = safeNumber(discount, 0);
   const s = safeNumber(shipping, 0);
   const total = Math.max(0, subtotal - d + s);
   return { subtotal, total };
 }
 
-async function persistOrders() {
-  await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(ordersState.orders));
+function genId(prefix = "ord") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
 }
 
-async function persistNotifs() {
-  await AsyncStorage.setItem(NOTIFS_STORAGE_KEY, JSON.stringify(notifsState.list));
+async function persistOrders() {
+  await AsyncStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(state.orders));
+}
+
+async function persistNotifications() {
+  await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(state.notifications));
+}
+
+function normalizeStatus(rawStatus: any): OrderStatus {
+  const s = String(rawStatus ?? "pending").toLowerCase();
+
+  if (s === "confirmado" || s === "confirmed") return "confirmed";
+  if (s === "pago" || s === "paid") return "paid";
+  if (s === "processando" || s === "processing") return "processing";
+  if (s === "enviado" || s === "shipped") return "shipped";
+  if (s === "entregue" || s === "delivered") return "delivered";
+  if (s === "cancelado" || s === "canceled") return "canceled";
+  if (s === "pendente" || s === "pending") return "pending";
+
+  return "pending";
+}
+
+/** Export que sua UI está pedindo */
+export function normalizeStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case "pending":
+      return "Pendente";
+    case "confirmed":
+      return "Confirmado";
+    case "paid":
+      return "Pago";
+    case "processing":
+      return "Processando";
+    case "shipped":
+      return "Enviado";
+    case "delivered":
+      return "Entregue";
+    case "canceled":
+      return "Cancelado";
+    default:
+      return "Pendente";
+  }
+}
+
+/** Export que sua UI está pedindo */
+export function getTrackingUrl(trackingCode?: string): string | null {
+  const code = String(trackingCode ?? "").trim();
+  if (!code) return null;
+
+  // Correios (padrão BR). Se você usar transportadora, ajustamos depois.
+  return `https://www2.correios.com.br/sistemas/rastreamento/resultado.cfm?objetos=${encodeURIComponent(code)}`;
+}
+
+/** Export que sua UI está pedindo */
+export function buildOrderSupportText(order?: Order | null): string {
+  if (!order) return "Olá! Preciso de ajuda com um pedido, mas não encontrei os detalhes.";
+  const lines: string[] = [];
+  lines.push("Olá! Preciso de ajuda com o meu pedido.");
+  lines.push(`Pedido: ${order.id}`);
+  lines.push(`Status: ${normalizeStatusLabel(order.status)}`);
+  lines.push(`Data: ${new Date(order.createdAt).toLocaleString()}`);
+  if (order.trackingCode) lines.push(`Rastreio: ${order.trackingCode}`);
+  lines.push("");
+  lines.push("Detalhes:");
+  for (const it of order.items ?? []) {
+    lines.push(`- ${it.title} (x${it.qty})`);
+  }
+  lines.push("");
+  lines.push("Obrigado.");
+  return lines.join("\n");
 }
 
 function normalizeOrder(raw: any): Order {
@@ -222,7 +265,7 @@ function normalizeOrder(raw: any): Order {
         productId: String(it?.productId ?? ""),
         title: String(it?.title ?? ""),
         price: safeNumber(it?.price, 0),
-        qty: safeNumber(it?.qty, 1),
+        qty: Math.max(1, safeNumber(it?.qty, 1)),
         image: it?.image,
       }))
     : [];
@@ -231,104 +274,182 @@ function normalizeOrder(raw: any): Order {
   const shipping = raw?.shipping == null ? undefined : safeNumber(raw.shipping, 0);
   const totals = computeTotals(items, discount, shipping);
 
-  const status = normalizeStatus(raw?.status ?? "pending");
+  const status = normalizeStatus(raw?.status);
+
+  const statusHistory: OrderStatusHistoryItem[] | undefined = Array.isArray(raw?.statusHistory)
+    ? raw.statusHistory
+        .map((h: any) => ({
+          status: normalizeStatus(h?.status),
+          at: String(h?.at ?? h?.date ?? new Date().toISOString()),
+        }))
+        .filter((h: any) => !!h?.status && !!h?.at)
+    : undefined;
+
+  const logisticsEvents: LogisticsEvent[] | undefined = Array.isArray(raw?.logisticsEvents)
+    ? raw.logisticsEvents
+        .map((e: any) => {
+          const createdAt = String(e?.createdAt ?? e?.at ?? new Date().toISOString());
+          return {
+            id: String(e?.id ?? genId("trk")),
+            type: String(e?.type ?? "IN_TRANSIT") as LogisticsEventType,
+            title: String(e?.title ?? e?.name ?? "Atualização"),
+            description: e?.description ?? e?.details,
+            location: e?.location,
+            at: String(e?.at ?? createdAt),
+            createdAt,
+          };
+        })
+        .filter((e: any) => !!e?.id && !!e?.type)
+    : undefined;
+
+  const invoice: Invoice | undefined =
+    raw?.invoice && typeof raw.invoice === "object"
+      ? {
+          status: (raw.invoice.status ?? "AGUARDANDO") as InvoiceStatus,
+          danfeUrl: raw.invoice.danfeUrl,
+          accessKey: raw.invoice.accessKey,
+          issuedAt: raw.invoice.issuedAt,
+          number: raw.invoice.number,
+          series: raw.invoice.series,
+        }
+      : undefined;
+
+  const returnRequest: ReturnRequest | undefined =
+    raw?.returnRequest && typeof raw.returnRequest === "object"
+      ? {
+          type: (raw.returnRequest.type ?? "Troca") as ReturnType,
+          status: (raw.returnRequest.status ?? "Solicitado") as ReturnStatus,
+          protocol: String(raw.returnRequest.protocol ?? genId("RET")),
+          reason: raw.returnRequest.reason,
+          createdAt: String(raw.returnRequest.createdAt ?? new Date().toISOString()),
+          attachments: Array.isArray(raw.returnRequest.attachments)
+            ? raw.returnRequest.attachments.map((a: any) => ({
+                uri: String(a?.uri ?? ""),
+                name: a?.name,
+              }))
+            : undefined,
+        }
+      : undefined;
+
+  const review: OrderReview | undefined =
+    raw?.review && typeof raw.review === "object"
+      ? {
+          stars: Math.min(5, Math.max(1, safeNumber(raw.review.stars, 5))),
+          comment: raw.review.comment ?? "",
+          createdAt: String(raw.review.createdAt ?? new Date().toISOString()),
+        }
+      : undefined;
 
   return {
-    id: String(raw?.id ?? genId("ord")),
-    createdAt: String(raw?.createdAt ?? nowISO()),
+    id: String(raw?.id ?? genId()),
+    createdAt: String(raw?.createdAt ?? new Date().toISOString()),
     status,
     items,
     subtotal: safeNumber(raw?.subtotal, totals.subtotal),
     discount,
     shipping,
     total: safeNumber(raw?.total, totals.total),
-    paymentMethod: raw?.paymentMethod ?? "unknown",
+    paymentMethod: (raw?.paymentMethod ?? "unknown") as PaymentMethod,
     address: raw?.address,
-
-    statusHistory: Array.isArray(raw?.statusHistory) ? raw.statusHistory : undefined,
-    trackingCode: raw?.trackingCode,
-    invoice: raw?.invoice,
-    returnRequest: raw?.returnRequest,
-    review: raw?.review,
-    logisticsEvents: Array.isArray(raw?.logisticsEvents) ? raw.logisticsEvents : undefined,
     notes: raw?.notes,
+    trackingCode: raw?.trackingCode,
+    statusHistory,
+    invoice,
+    returnRequest,
+    review,
+    logisticsEvents,
   };
 }
 
-function normalizeNotif(raw: any): InAppNotification {
-  return {
-    id: String(raw?.id ?? genId("notif")),
-    createdAt: String(raw?.createdAt ?? nowISO()),
-    orderId: raw?.orderId ? String(raw.orderId) : undefined,
-    title: String(raw?.title ?? "Atualização"),
-    body: String(raw?.body ?? ""),
-    read: Boolean(raw?.read ?? false),
-  };
+function sortNewestFirst(a: Order, b: Order) {
+  return a.createdAt < b.createdAt ? 1 : -1;
 }
 
-// -----------------------------------------------------------------------------
-// Hydration
-// -----------------------------------------------------------------------------
-
+/**
+ * Carrega pedidos do AsyncStorage para a memória (uma vez).
+ */
 export async function ensureOrdersHydrated(): Promise<void> {
-  if (ordersState.hydrated) return;
-  if (ordersHydratePromise) return ordersHydratePromise;
+  if (state.hydrated) return;
+  if (hydratePromise) return hydratePromise;
 
-  ordersHydratePromise = (async () => {
+  hydratePromise = (async () => {
     try {
       const json = await AsyncStorage.getItem(ORDERS_STORAGE_KEY);
-      const parsed = json ? JSON.parse(json) : [];
-      ordersState.orders = Array.isArray(parsed)
-        ? parsed.map(normalizeOrder).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-        : [];
-      ordersState.hydrated = true;
+      const parsed = json ? JSON.parse(json) : null;
+
+      if (Array.isArray(parsed)) {
+        state.orders = parsed.map(normalizeOrder).sort(sortNewestFirst);
+      } else {
+        state.orders = [];
+      }
+
+      state.hydrated = true;
     } catch {
-      ordersState.orders = [];
-      ordersState.hydrated = true;
+      state.orders = [];
+      state.hydrated = true;
     }
   })();
 
-  return ordersHydratePromise;
+  return hydratePromise;
 }
 
-async function ensureNotifsHydrated(): Promise<void> {
-  if (notifsState.hydrated) return;
-  if (notifsHydratePromise) return notifsHydratePromise;
+/**
+ * Carrega notificações internas (uma vez).
+ * Export requerido pela UI.
+ */
+export async function ensureNotificationsHydrated(): Promise<void> {
+  if (state.notificationsHydrated) return;
+  if (hydrateNotificationsPromise) return hydrateNotificationsPromise;
 
-  notifsHydratePromise = (async () => {
+  hydrateNotificationsPromise = (async () => {
     try {
-      const json = await AsyncStorage.getItem(NOTIFS_STORAGE_KEY);
-      const parsed = json ? JSON.parse(json) : [];
-      notifsState.list = Array.isArray(parsed)
-        ? parsed.map(normalizeNotif).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-        : [];
-      notifsState.hydrated = true;
+      const json = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      const parsed = json ? JSON.parse(json) : null;
+
+      if (Array.isArray(parsed)) {
+        state.notifications = parsed
+          .map((n: any) => ({
+            id: String(n?.id ?? genId("NOTIF")),
+            type: (n?.type ?? "GENERIC") as InAppNotificationType,
+            title: String(n?.title ?? "Atualização"),
+            body: n?.body,
+            createdAt: String(n?.createdAt ?? new Date().toISOString()),
+            read: !!n?.read,
+            orderId: n?.orderId ? String(n.orderId) : undefined,
+          }))
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      } else {
+        state.notifications = [];
+      }
+
+      state.notificationsHydrated = true;
     } catch {
-      notifsState.list = [];
-      notifsState.hydrated = true;
+      state.notifications = [];
+      state.notificationsHydrated = true;
     }
   })();
 
-  return notifsHydratePromise;
+  return hydrateNotificationsPromise;
 }
-
-// -----------------------------------------------------------------------------
-// Core API (nova)
-// -----------------------------------------------------------------------------
 
 export async function getOrders(): Promise<Order[]> {
   await ensureOrdersHydrated();
-  return [...ordersState.orders];
+  return [...state.orders];
 }
 
+/** Alias esperado por arquivos: listOrders() */
 export async function listOrders(): Promise<Order[]> {
   return getOrders();
 }
 
-// IMPORTANT: devolve null (não undefined) para bater com setState(Order | null)
-export async function getOrderById(id: string): Promise<Order | null> {
+/** Alias esperado por hooks: saveOrders() */
+export async function saveOrders(orders: Order[]): Promise<void> {
+  await setOrders(orders);
+}
+
+export async function getOrderById(id: string): Promise<Order | undefined> {
   await ensureOrdersHydrated();
-  return ordersState.orders.find((o) => o.id === id) ?? null;
+  return state.orders.find((o) => o.id === id);
 }
 
 export type CreateOrderInput = {
@@ -337,7 +458,7 @@ export type CreateOrderInput = {
   shipping?: number;
   paymentMethod?: PaymentMethod;
   address?: Address;
-  status?: OrderStatus;
+  status?: OrderStatus; // default: confirmed (pós-success)
   notes?: string;
 };
 
@@ -349,12 +470,12 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   const shipping = input.shipping == null ? undefined : safeNumber(input.shipping, 0);
   const totals = computeTotals(items, discount, shipping);
 
-  const status = normalizeStatus(input.status ?? "Confirmado");
-  const createdAt = nowISO();
+  const now = new Date().toISOString();
+  const status = input.status ?? "confirmed";
 
   const order: Order = {
-    id: genId("ord"),
-    createdAt,
+    id: genId(),
+    createdAt: now,
     status,
     items,
     subtotal: totals.subtotal,
@@ -364,275 +485,221 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     paymentMethod: input.paymentMethod ?? "unknown",
     address: input.address,
     notes: input.notes,
-    statusHistory: [{ status, at: createdAt }],
-    logisticsEvents: [],
+    statusHistory: [{ status, at: now }],
   };
 
-  ordersState.orders = [order, ...ordersState.orders];
+  state.orders = [order, ...state.orders].sort(sortNewestFirst);
   await persistOrders();
 
-  // notificação inicial
-  await addNotification({
-    orderId: order.id,
+  await pushNotification({
+    type: "ORDER_STATUS",
     title: "Pedido confirmado",
     body: "Seu pedido foi registrado com sucesso.",
+    orderId: order.id,
   });
 
   return order;
 }
 
-export async function setOrders(orders: Order[]): Promise<void> {
-  ordersState.orders = Array.isArray(orders) ? orders.map(normalizeOrder) : [];
-  ordersState.hydrated = true;
-  ordersHydratePromise = null;
-  await persistOrders();
-}
-
-export async function saveOrders(orders?: Order[]): Promise<void> {
-  await ensureOrdersHydrated();
-  if (orders) {
-    await setOrders(orders);
-    return;
-  }
-  await persistOrders();
-}
-
-export async function clearOrders(): Promise<void> {
-  ordersState.orders = [];
-  ordersState.hydrated = true;
-  ordersHydratePromise = null;
-  await AsyncStorage.removeItem(ORDERS_STORAGE_KEY);
-}
-
-export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order | null> {
-  await ensureOrdersHydrated();
-
-  const idx = ordersState.orders.findIndex((o) => o.id === id);
-  if (idx === -1) return null;
-
-  const normalized = normalizeStatus(status);
-  const at = nowISO();
-
-  const current = ordersState.orders[idx];
-  const history = Array.isArray(current.statusHistory) ? [...current.statusHistory] : [];
-  history.push({ status: normalized, at });
-
-  const updated: Order = { ...current, status: normalized, statusHistory: history };
-
-  ordersState.orders = [
-    updated,
-    ...ordersState.orders.slice(0, idx),
-    ...ordersState.orders.slice(idx + 1),
-  ].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-
-  await persistOrders();
-
-  await addNotification({
-    orderId: updated.id,
-    title: "Status do pedido atualizado",
-    body: `Novo status: ${String(updated.status)}`,
-  });
-
-  return updated;
-}
-
-export async function advanceOrderStatus(id: string): Promise<Order | null> {
-  const order = await getOrderById(id);
-  if (!order) return null;
-
-  const flow: OrderStatus[] = ["Confirmado", "Pago", "Enviado", "Entregue"];
-  const cur = normalizeStatus(order.status);
-  const i = flow.findIndex((s) => s === cur);
-  const next = i >= 0 && i < flow.length - 1 ? flow[i + 1] : cur;
-
-  return updateOrderStatus(id, next);
-}
-
-// -----------------------------------------------------------------------------
-// Legacy API (para telas antigas: success.tsx etc.)
-// -----------------------------------------------------------------------------
-
-export async function addOrder(order: Order): Promise<Order> {
-  await ensureOrdersHydrated();
-  const normalized = normalizeOrder(order);
-  ordersState.orders = [normalized, ...ordersState.orders];
-  await persistOrders();
-  return normalized;
-}
-
-export type CartLikeItem = {
-  productId?: string;
-  id?: string;
-  title: string;
-  price: number;
-  qty: number;
-  image?: any;
-};
-
-export type CartLike = {
-  items: CartLikeItem[];
+export type CreateOrderFromCartInput = {
+  items: { productId: string; title: string; price: number; qty: number; image?: any }[];
   discount?: number;
-  shippingPrice?: number;
   shipping?: number;
   paymentMethod?: PaymentMethod;
   address?: Address;
   notes?: string;
+  status?: OrderStatus;
 };
 
-export async function createOrderFromCart(cart: CartLike): Promise<Order> {
-  const items: OrderItem[] = (cart?.items ?? []).map((it) => ({
-    productId: String(it.productId ?? it.id ?? ""),
-    title: String(it.title ?? ""),
-    price: safeNumber(it.price, 0),
-    qty: safeNumber(it.qty, 1),
-    image: it.image,
-  }));
+export async function createOrderFromCart(input: CreateOrderFromCartInput): Promise<Order> {
+  await ensureOrdersHydrated();
 
-  const discount = cart?.discount;
-  const shipping = cart?.shipping ?? cart?.shippingPrice;
+  const items: OrderItem[] = Array.isArray(input.items)
+    ? input.items.map((it) => ({
+        productId: String(it.productId),
+        title: String(it.title),
+        price: safeNumber(it.price, 0),
+        qty: Math.max(1, safeNumber(it.qty, 1)),
+        image: it.image,
+      }))
+    : [];
 
-  return createOrder({
+  const discount = input.discount == null ? undefined : safeNumber(input.discount, 0);
+  const shipping = input.shipping == null ? undefined : safeNumber(input.shipping, 0);
+  const totals = computeTotals(items, discount, shipping);
+
+  const now = new Date().toISOString();
+  const status = input.status ?? "confirmed";
+
+  return {
+    id: genId(),
+    createdAt: now,
+    status,
     items,
+    subtotal: totals.subtotal,
     discount,
     shipping,
-    paymentMethod: cart?.paymentMethod ?? "unknown",
-    address: cart?.address,
-    status: "Confirmado",
-    notes: cart?.notes,
-  });
-}
-
-// -----------------------------------------------------------------------------
-// Notifications API (telas app/orders/notifications.tsx)
-// -----------------------------------------------------------------------------
-
-async function addNotification(input: { orderId?: string; title: string; body: string }) {
-  await ensureNotifsHydrated();
-  const notif: InAppNotification = {
-    id: genId("notif"),
-    createdAt: nowISO(),
-    orderId: input.orderId,
-    title: input.title,
-    body: input.body,
-    read: false,
+    total: totals.total,
+    paymentMethod: input.paymentMethod ?? "unknown",
+    address: input.address,
+    notes: input.notes,
+    statusHistory: [{ status, at: now }],
   };
-  notifsState.list = [notif, ...notifsState.list];
-  await persistNotifs();
-  return notif;
 }
 
-export async function listNotifications(): Promise<InAppNotification[]> {
-  await ensureNotifsHydrated();
-  return [...notifsState.list];
+export async function addOrder(order: Order): Promise<void> {
+  await ensureOrdersHydrated();
+
+  const normalized = normalizeOrder(order);
+  if (!normalized.statusHistory?.length) {
+    normalized.statusHistory = [{ status: normalized.status, at: normalized.createdAt }];
+  }
+
+  state.orders = [normalized, ...state.orders.filter((o) => o.id !== normalized.id)].sort(sortNewestFirst);
+  await persistOrders();
+
+  await pushNotification({
+    type: "ORDER_STATUS",
+    title: normalized.status === "confirmed" ? "Pedido confirmado" : "Pedido atualizado",
+    body: "Você pode acompanhar em “Pedidos”.",
+    orderId: normalized.id,
+  });
 }
 
-export async function markNotificationRead(id: string): Promise<void> {
-  await ensureNotifsHydrated();
-  notifsState.list = notifsState.list.map((n) => (n.id === id ? { ...n, read: true } : n));
-  await persistNotifs();
-}
+export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order | undefined> {
+  await ensureOrdersHydrated();
 
-export async function markAllNotificationsRead(): Promise<void> {
-  await ensureNotifsHydrated();
-  notifsState.list = notifsState.list.map((n) => ({ ...n, read: true }));
-  await persistNotifs();
-}
+  const idx = state.orders.findIndex((o) => o.id === id);
+  if (idx === -1) return undefined;
 
-export async function getUnreadNotificationsCount(): Promise<number> {
-  await ensureNotifsHydrated();
-  return notifsState.list.reduce((acc, n) => acc + (n.read ? 0 : 1), 0);
-}
+  const now = new Date().toISOString();
+  const prev = state.orders[idx];
 
-// -----------------------------------------------------------------------------
-// Tracking / Logistics (telas tracking.tsx)
-// -----------------------------------------------------------------------------
+  const history = Array.isArray(prev.statusHistory) ? [...prev.statusHistory] : [];
+  if (!history.some((h) => h.status === status)) history.push({ status, at: now });
 
-export async function setTrackingCode(orderId: string, code: string): Promise<Order | null> {
-  const order = await getOrderById(orderId);
-  if (!order) return null;
+  const updated: Order = { ...prev, status, statusHistory: history };
 
-  const updated: Order = { ...order, trackingCode: String(code ?? "") };
-  await replaceOrder(updated);
+  state.orders = [updated, ...state.orders.slice(0, idx), ...state.orders.slice(idx + 1)].sort(sortNewestFirst);
+  await persistOrders();
 
-  await addNotification({
-    orderId,
-    title: "Código de rastreio atualizado",
-    body: `Rastreio: ${updated.trackingCode}`,
+  await pushNotification({
+    type: "ORDER_STATUS",
+    title: "Status do pedido atualizado",
+    body: `Novo status: ${normalizeStatusLabel(status)}`,
+    orderId: updated.id,
   });
 
   return updated;
 }
 
-export async function addLogisticsEvent(orderId: string, event: Omit<LogisticsEvent, "id">): Promise<Order | null> {
-  const order = await getOrderById(orderId);
-  if (!order) return null;
+export async function advanceOrderStatus(id: string): Promise<Order | undefined> {
+  const order = await getOrderById(id);
+  if (!order) return undefined;
 
-  const list = Array.isArray(order.logisticsEvents) ? [...order.logisticsEvents] : [];
-  list.unshift({ ...event, id: genId("lge") });
+  const next: Record<OrderStatus, OrderStatus> = {
+    pending: "confirmed",
+    confirmed: "paid",
+    paid: "processing",
+    processing: "shipped",
+    shipped: "delivered",
+    delivered: "delivered",
+    canceled: "canceled",
+  };
 
-  const updated: Order = { ...order, logisticsEvents: list };
-  await replaceOrder(updated);
-  return updated;
+  return updateOrderStatus(id, next[order.status] ?? order.status);
 }
 
-export async function clearLogisticsEvents(orderId: string): Promise<Order | null> {
-  const order = await getOrderById(orderId);
-  if (!order) return null;
-
-  const updated: Order = { ...order, logisticsEvents: [] };
-  await replaceOrder(updated);
-  return updated;
+export async function clearOrders(): Promise<void> {
+  state.orders = [];
+  state.hydrated = true;
+  hydratePromise = null;
+  await AsyncStorage.removeItem(ORDERS_STORAGE_KEY);
 }
 
-// -----------------------------------------------------------------------------
-// Invoice (telas invoice.tsx)
-// -----------------------------------------------------------------------------
+export async function setOrders(orders: Order[]): Promise<void> {
+  state.orders = Array.isArray(orders) ? orders.map(normalizeOrder).sort(sortNewestFirst) : [];
+  state.hydrated = true;
+  hydratePromise = null;
+  await persistOrders();
+}
 
-export async function setInvoiceMock(orderId: string, invoice: Invoice): Promise<Order | null> {
+/* -----------------------------
+ * Nota fiscal (mock)
+ * ----------------------------- */
+
+export async function setInvoiceMock(orderId: string, invoice?: Invoice): Promise<Order | null> {
+  await ensureOrdersHydrated();
   const order = await getOrderById(orderId);
   if (!order) return null;
 
-  const updated: Order = { ...order, invoice: { ...(order.invoice ?? {}), ...(invoice ?? {}) } };
-  await replaceOrder(updated);
+  const inv: Invoice =
+    invoice ??
+    ({
+      status: "AGUARDANDO",
+      danfeUrl: "https://example.com/danfe.pdf",
+      accessKey: `${Math.random().toString().slice(2, 14)}${Math.random().toString().slice(2, 14)}`.slice(0, 44),
+      issuedAt: new Date().toISOString(),
+      number: "000000123",
+      series: "1",
+    } as Invoice);
+
+  const updated: Order = { ...order, invoice: inv };
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+
+  await pushNotification({
+    type: "INVOICE",
+    title: inv.status === "EMITIDA" ? "Nota fiscal emitida" : "Nota fiscal em processamento",
+    body: "Acompanhe os detalhes no seu pedido.",
+    orderId,
+  });
+
   return updated;
 }
 
 export async function clearInvoice(orderId: string): Promise<Order | null> {
+  await ensureOrdersHydrated();
   const order = await getOrderById(orderId);
   if (!order) return null;
 
-  const updated: Order = { ...order, invoice: undefined };
-  await replaceOrder(updated);
+  const updated: Order = { ...order };
+  delete updated.invoice;
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
   return updated;
 }
 
-// -----------------------------------------------------------------------------
-// Return flow (telas return.tsx)
-// -----------------------------------------------------------------------------
+/* -----------------------------
+ * Troca / Devolução (mock)
+ * ----------------------------- */
 
-export async function createReturnRequest(
-  orderId: string,
-  input: { type: ReturnType; reason: string }
-): Promise<Order | null> {
+export async function createReturnRequest(orderId: string, type: ReturnType, reason?: string): Promise<Order | null> {
+  await ensureOrdersHydrated();
   const order = await getOrderById(orderId);
   if (!order) return null;
 
   const req: ReturnRequest = {
-    type: input.type,
-    reason: String(input.reason ?? ""),
-    status: "requested",
-    protocol: `RR-${Date.now().toString(36).toUpperCase()}`,
-    createdAt: nowISO(),
+    type,
+    status: "Solicitado",
+    protocol: genId("RET"),
+    reason,
+    createdAt: new Date().toISOString(),
     attachments: [],
   };
 
   const updated: Order = { ...order, returnRequest: req };
-  await replaceOrder(updated);
 
-  await addNotification({
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+
+  await pushNotification({
+    type: "RETURN",
+    title: "Solicitação registrada",
+    body: `Sua solicitação de ${type.toLowerCase()} foi aberta.`,
     orderId,
-    title: "Solicitação de devolução criada",
-    body: `Protocolo: ${req.protocol}`,
   });
 
   return updated;
@@ -640,74 +707,172 @@ export async function createReturnRequest(
 
 export async function addReturnAttachment(
   orderId: string,
-  attachment: { uri: string; name?: string }
+  file: string | { uri: string; name?: string }
 ): Promise<Order | null> {
+  await ensureOrdersHydrated();
   const order = await getOrderById(orderId);
-  if (!order) return null;
+  if (!order?.returnRequest) return null;
 
-  const rr = order.returnRequest;
-  if (!rr) return order;
+  const att: ReturnAttachment =
+    typeof file === "string" ? { uri: file, name: "anexo.jpg" } : { uri: file.uri, name: file.name };
 
-  const list = Array.isArray(rr.attachments) ? [...rr.attachments] : [];
-  list.push({
-    id: genId("att"),
-    uri: String(attachment.uri),
-    name: attachment.name,
-    createdAt: nowISO(),
-  });
-
-  const updated: Order = { ...order, returnRequest: { ...rr, attachments: list } };
-  await replaceOrder(updated);
-  return updated;
-}
-
-// -----------------------------------------------------------------------------
-// Review (telas review.tsx)
-// -----------------------------------------------------------------------------
-
-export async function setOrderReview(
-  orderId: string,
-  review: { stars: 1 | 2 | 3 | 4 | 5; comment?: string }
-): Promise<Order | null> {
-  const order = await getOrderById(orderId);
-  if (!order) return null;
+  const prev = order.returnRequest;
+  const attachments = Array.isArray(prev.attachments) ? [...prev.attachments] : [];
+  attachments.push(att);
 
   const updated: Order = {
     ...order,
-    review: {
-      stars: review.stars,
-      comment: review.comment,
-      createdAt: nowISO(),
-    },
+    returnRequest: { ...prev, attachments },
   };
 
-  await replaceOrder(updated);
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+  return updated;
+}
 
-  await addNotification({
-    orderId,
+/* -----------------------------
+ * Avaliação (mock)
+ * ----------------------------- */
+
+export async function setOrderReview(orderId: string, stars: number, comment?: string): Promise<Order | null> {
+  await ensureOrdersHydrated();
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const review: OrderReview = {
+    stars: Math.min(5, Math.max(1, safeNumber(stars, 5))),
+    comment: comment ?? "",
+    createdAt: new Date().toISOString(),
+  };
+
+  const updated: Order = { ...order, review };
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+
+  await pushNotification({
+    type: "REVIEW",
     title: "Avaliação recebida",
-    body: `Nota: ${updated.review?.stars} estrelas`,
+    body: "Obrigado por avaliar sua compra.",
+    orderId,
   });
 
   return updated;
 }
 
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
+/* -----------------------------
+ * Rastreamento (mock)
+ * ----------------------------- */
 
-async function replaceOrder(order: Order): Promise<void> {
+export async function setTrackingCode(orderId: string, code: string): Promise<Order | null> {
   await ensureOrdersHydrated();
-  const idx = ordersState.orders.findIndex((o) => o.id === order.id);
-  if (idx === -1) {
-    ordersState.orders = [normalizeOrder(order), ...ordersState.orders];
-  } else {
-    const normalized = normalizeOrder(order);
-    ordersState.orders = [
-      normalized,
-      ...ordersState.orders.slice(0, idx),
-      ...ordersState.orders.slice(idx + 1),
-    ].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  }
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const updated: Order = { ...order, trackingCode: String(code ?? "") };
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
   await persistOrders();
+
+  await pushNotification({
+    type: "TRACKING",
+    title: "Código de rastreio atualizado",
+    body: "Acompanhe o envio na aba Rastreamento.",
+    orderId,
+  });
+
+  return updated;
+}
+
+export async function addLogisticsEvent(
+  orderId: string,
+  type: LogisticsEventType,
+  title?: string,
+  description?: string,
+  location?: string
+): Promise<Order | null> {
+  await ensureOrdersHydrated();
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const createdAt = new Date().toISOString();
+
+  const list = Array.isArray(order.logisticsEvents) ? [...order.logisticsEvents] : [];
+  list.unshift({
+    id: genId("TRK"),
+    type,
+    title: title ?? "Atualização de rastreio",
+    description,
+    location,
+    at: createdAt,
+    createdAt,
+  });
+
+  const updated: Order = { ...order, logisticsEvents: list };
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+  return updated;
+}
+
+export async function clearLogisticsEvents(orderId: string): Promise<Order | null> {
+  await ensureOrdersHydrated();
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const updated: Order = { ...order, logisticsEvents: [] };
+
+  state.orders = [updated, ...state.orders.filter((o) => o.id !== orderId)].sort(sortNewestFirst);
+  await persistOrders();
+  return updated;
+}
+
+/* -----------------------------
+ * Notificações internas
+ * ----------------------------- */
+
+async function pushNotification(input: Omit<InAppNotification, "id" | "createdAt" | "read">) {
+  await ensureNotificationsHydrated();
+
+  const n: InAppNotification = {
+    id: genId("NOTIF"),
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    orderId: input.orderId,
+    createdAt: new Date().toISOString(),
+    read: false,
+  };
+
+  state.notifications = [n, ...state.notifications].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  await persistNotifications();
+}
+
+export async function listNotifications(): Promise<InAppNotification[]> {
+  await ensureNotificationsHydrated();
+  return [...state.notifications];
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await ensureNotificationsHydrated();
+  const idx = state.notifications.findIndex((n) => n.id === id);
+  if (idx === -1) return;
+
+  const updated = { ...state.notifications[idx], read: true };
+  state.notifications = [updated, ...state.notifications.slice(0, idx), ...state.notifications.slice(idx + 1)].sort(
+    (a, b) => (a.createdAt < b.createdAt ? 1 : -1)
+  );
+
+  await persistNotifications();
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await ensureNotificationsHydrated();
+  state.notifications = state.notifications.map((n) => ({ ...n, read: true }));
+  await persistNotifications();
+}
+
+export async function getUnreadNotificationsCount(): Promise<number> {
+  await ensureNotificationsHydrated();
+  return state.notifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0);
 }

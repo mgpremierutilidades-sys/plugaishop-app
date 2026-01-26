@@ -1,144 +1,105 @@
 // types/order.ts
-import type { CartItem } from "../context/CartContext";
-import type { OrderStatus, OrderTimelineEvent } from "./orderStatus";
+
+/**
+ * Compatibilidade com utils/orderDraftBuilder.ts e fluxo antigo
+ * - Exporta Address, Payment, Shipping
+ * - OrderDraft inclui campos legados: subtotal/discount/total/note (opcionais)
+ * - Mantém Etapa 21: coupon + pricing snapshot + selectedItemIds + protectionById
+ */
 
 export type Address = {
-  id: string;
-  label?: string;
+  fullName?: string;
+  phone?: string;
+
+  cep?: string;
+  cep8?: string;
+
   street?: string;
   number?: string;
+  complement?: string;
+  neighborhood?: string;
+
   city?: string;
   state?: string;
-  zip?: string;
-};
 
-export type Shipping = {
-  method: string;
-  price: number;
-  deadline: string;
+  reference?: string;
 };
 
 export type Payment = {
-  method?: "pix" | "card" | "boleto" | "cash" | "unknown";
-  status?: "paid" | "pending" | "failed";
+  method: "pix" | "card" | "boleto" | "cash" | "other";
+  brand?: string; // ex: visa/master
+  last4?: string;
+  installments?: number;
+};
+
+export type Shipping = {
+  method: "delivery" | "pickup";
+  cep8: string;
+  price: number;
+  carrier?: string;
+  etaDays?: number;
+};
+
+export type OrderItem = {
+  id: string;
+  title: string;
+  price: number;
+  qty: number;
+  discountPercent?: number;
+};
+
+export type OrderCoupon =
+  | { code: string; type: "percent"; value: number }
+  | { code: string; type: "fixed"; value: number }
+  | { code: string; type: "free_shipping"; value: 0 };
+
+export type OrderPricingSnapshot = {
+  subtotalRaw: number;
+  productDiscountTotal: number;
+  couponDiscount: number;
+  protectionTotal: number;
+  shippingEstimated: number;
+  discountTotal: number;
+  total: number;
 };
 
 export type OrderDraft = {
+  /** Compat: alguns fluxos criam um draft com id */
+  id?: string;
+
+  /** versionamento do draft */
+  v: 2;
+  createdAt: string;
+
+  items: OrderItem[];
+  selectedItemIds: string[];
+
+  coupon?: OrderCoupon | null;
+
+  /** Compat: seu projeto pode estar usando Shipping/Address/Payment diretamente no draft */
+  shipping?: Shipping | null;
+  address?: Address | null;
+  payment?: Payment | null;
+
+  protectionById?: Record<string, number>;
+
   /**
-   * Draft pode existir sem id nas etapas iniciais do checkout.
-   * O Order final SEMPRE terá id (ver type Order abaixo).
+   * Etapa 21 (novo): snapshot completo e determinístico.
+   * Deve ser a source of truth do checkout quando existir.
    */
-  id?: string;
+  pricing?: OrderPricingSnapshot;
 
-  items: CartItem[];
-  subtotal: number;
+  /** opcional: hash simples para debug/observabilidade */
+  pricingHash?: string;
 
-  /** desconto total aplicado ao pedido (default: 0) */
+  /**
+   * Campos legados (compat com orderDraftBuilder.ts)
+   * Mantidos como opcionais para não quebrar código antigo.
+   */
+  subtotal?: number;
   discount?: number;
-
-  shipping?: Shipping;
-  total: number;
-  address?: Address;
-  payment?: Payment;
-  note?: string;
-};
-
-export type Order = Omit<OrderDraft, "id"> & {
-  id: string;
-  status: OrderStatus;
-  timeline: OrderTimelineEvent[];
-  createdAt: string; // ISO
-};
-
-/**
- * Tipos adicionais usados pelo ordersStore (stubs tipados e compatíveis com mocks).
- */
-export type InAppNotification = {
-  id: string;
-  title: string;
-  body: string;
-  createdAt: string; // ISO
-  read?: boolean;
-  data?: Record<string, any>;
-  orderId?: string;
-};
-
-export type Invoice = {
-  id?: string;
-  number?: string;
-  url?: string;
-  issuedAt?: string; // ISO
   total?: number;
 
-  status?: string;
-  series?: string;
-  accessKey?: string;
-  danfeUrl?: string;
-};
-
-export type LogisticsEventType =
-  | "created"
-  | "payment_pending"
-  | "processing"
-  | "paid"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "canceled"
-  | "custom";
-
-export type LogisticsEvent = {
-  id: string;
-  type: LogisticsEventType;
-
-  date?: string; // ISO
-  at?: string; // ISO
-
+  /** Observação/nota do pedido (campo legado) */
   note?: string;
-  location?: string;
-
-  title?: string;
-  description?: string;
-};
-
-export type OrderReview = {
-  id?: string;
-  rating: 1 | 2 | 3 | 4 | 5;
-  comment?: string;
-  createdAt: string; // ISO
-};
-
-export type ReturnType = "refund" | "exchange" | "repair" | "other";
-
-export type ReturnAttachment = {
-  id: string;
-  uri?: string;
-  url?: string;
-  mimeType?: string;
-  name?: string;
-  createdAt?: string; // ISO
-};
-
-export type ReturnRequestStatus =
-  | "requested"
-  | "approved"
-  | "rejected"
-  | "shipped_back"
-  | "completed"
-  | "ABERTA"
-  | "APROVADA"
-  | "REJEITADA"
-  | "CONCLUIDA";
-
-export type ReturnRequest = {
-  id?: string;
-  orderId?: string;
-
-  type: ReturnType;
-  reason?: string;
-  status?: ReturnRequestStatus;
-  createdAt: string; // ISO
-  protocol?: string;
-
-  attachments?: ReturnAttachment[];
 };
