@@ -1,6 +1,8 @@
 import { Stack, router, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 
+import { CartProvider } from "../context/CartContext";
+
 export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
@@ -29,11 +31,13 @@ export default function RootLayout() {
   }, [segments]);
 
   return (
-    <Stack
-      initialRouteName="(tabs)"
-      screenOptions={{
-        headerShown: false,
-      }}
-    />
+    <CartProvider>
+      <Stack
+        initialRouteName="(tabs)"
+        screenOptions={{
+          headerShown: false,
+        }}
+      />
+    </CartProvider>
   );
 }

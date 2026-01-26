@@ -20,13 +20,13 @@ export type NuvemshopOrderPayload = {
     complement?: string;
   };
 
-  items: Array<{
+  items: {
     sku?: string;
     title: string;
     quantity: number;
     price: number;
     discount?: number;
-  }>;
+  }[];
 
   totals: {
     subtotal: number;
@@ -95,9 +95,7 @@ export function toNuvemshopPayload(p: OrderPayload): NuvemshopOrderPayload {
       deadline: p.shipping.deadline,
     },
 
-    payment: p.payment
-      ? { method: p.payment.method, status: p.payment.status }
-      : undefined,
+    payment: p.payment ? { method: p.payment.method, status: p.payment.status } : undefined,
 
     note: `Pedido gerado pelo app Plugaí Shop (${p.orderId}).`,
   };

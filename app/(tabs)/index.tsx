@@ -67,7 +67,7 @@ export default function HomeScreen() {
         }
       >
         <ThemedView style={styles.titleContainer}>
-          <ThemedText type="title">PLUGAISHOP</ThemedText>
+          <ThemedText type="title">Economize Mais</ThemedText>
           <ThemedText type="defaultSemiBold">
             Soluções curadas para acelerar a operação e o varejo inteligente.
           </ThemedText>
@@ -96,7 +96,7 @@ export default function HomeScreen() {
         </ThemedView>
 
         <ThemedView style={styles.searchSection}>
-          <ThemedText type="subtitle">Catálogo Plugaí Shop</ThemedText>
+          <ThemedText type="subtitle">Catálogo Plugaishop</ThemedText>
 
           <TextInput
             placeholder="Buscar por categoria ou produto"

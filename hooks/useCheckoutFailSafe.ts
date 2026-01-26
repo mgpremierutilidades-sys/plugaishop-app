@@ -1,4 +1,4 @@
-﻿import { router, useSegments } from "expo-router";
+import { router, useSegments } from "expo-router";
 import { useEffect, useRef } from "react";
 
 import { loadOrderDraft } from "../utils/orderStorage";

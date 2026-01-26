@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx
+﻿// app/(tabs)/_layout.tsx
 import { Tabs, router, useSegments } from "expo-router";
 import { useEffect, useMemo } from "react";
 import Icon from "../../components/ui/icon-symbol";
@@ -12,9 +12,6 @@ export default function TabsLayout() {
 
   // Ex.: ["(tabs)", "checkout", "address"]
   const inCheckoutFlow = segments.includes("checkout");
-
-  // Ex.: ["(tabs)", "cart"]
-  const inCartRoot = segments.length === 2 && segments[0] === "(tabs)" && segments[1] === "cart";
 
   useEffect(() => {
     if (!segments || segments.length === 0) return;
@@ -41,7 +38,8 @@ export default function TabsLayout() {
     []
   );
 
-  const shouldHideTabBar = inCheckoutFlow || inCartRoot;
+  // Mantém a regra de esconder no checkout (se for requisito)
+  const shouldHideTabBar = inCheckoutFlow;
 
   return (
     <Tabs
@@ -50,14 +48,8 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.tabIconActive,
         tabBarInactiveTintColor: theme.colors.tabIconInactive,
         tabBarHideOnKeyboard: false,
-
-        // Esconde a TabBar no checkout e na aba raiz do carrinho (regra do projeto)
         tabBarStyle: shouldHideTabBar ? { display: "none" } : (baseTabBarStyle as any),
-
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "700",
-        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
       }}
     >
       <Tabs.Screen
@@ -99,6 +91,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <Icon name="person-circle-outline" color={color} size={22} />,
         }}
       />
+
+      {/* ✅ Esconde rotas indevidas de virarem tabs */}
+      <Tabs.Screen name="orders" options={{ href: null }} />
+      <Tabs.Screen name="checkout" options={{ href: null }} />
     </Tabs>
   );
 }
