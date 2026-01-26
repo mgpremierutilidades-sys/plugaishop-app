@@ -284,8 +284,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
 export function useCart(): CartApi {
   const ctx = useContext(CartCtx);
+
   if (!ctx) {
-    // Fail-safe: evita crash em runtime; ajuda a detectar provider ausente.
+    // Em DEV, falha alto para não mascarar UI "inerte".
+    if (__DEV__) {
+      throw new Error("CartProvider ausente: monte <CartProvider> em app/_layout.tsx.");
+    }
+
+    // Em PROD, fail-safe para evitar crash por configuração incorreta.
     return {
       items: [],
       hydrated: false,
@@ -301,5 +307,6 @@ export function useCart(): CartApi {
       reset: () => {},
     };
   }
+
   return ctx;
 }

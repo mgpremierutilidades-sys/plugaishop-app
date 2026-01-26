@@ -1,15 +1,15 @@
-// app/(tabs)/checkout/address.tsx
+// app/checkout/address.tsx
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../../components/themed-text";
-import { ThemedView } from "../../../components/themed-view";
-import theme from "../../../constants/theme";
-import { useCart } from "../../../context/CartContext";
-import type { OrderDraft } from "../../../types/order";
-import { loadOrderDraft, saveOrderDraft } from "../../../utils/orderStorage";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import theme from "../../constants/theme";
+import { useCart } from "../../context/CartContext";
+import type { OrderDraft } from "../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
@@ -90,7 +90,7 @@ export default function CheckoutAddress() {
       address,
     } as any);
 
-    push("/(tabs)/checkout/shipping");
+    push("/checkout/shipping");
   }
 
   return (
