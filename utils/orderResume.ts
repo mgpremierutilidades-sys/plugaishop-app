@@ -1,10 +1,14 @@
-import { loadOrderDraft } from "./orderStorage";
 import { router } from "expo-router";
+
+import { getCheckoutResumeHref } from "./checkoutFlow";
+import { loadOrderDraft } from "./orderStorage";
 
 export async function resumeCheckoutIfNeeded() {
   const draft = await loadOrderDraft();
   if (!draft) return;
 
-  // Se existe draft, retoma no review (padrÃ£o marketplace)
-  router.replace("/(tabs)/checkout/review");
+  const href = getCheckoutResumeHref(draft as any);
+  if (href) {
+    router.replace(href as any);
+  }
 }

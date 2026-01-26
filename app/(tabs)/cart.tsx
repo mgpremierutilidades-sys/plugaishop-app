@@ -1,4 +1,5 @@
 // app/(tabs)/cart.tsx
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -266,6 +267,15 @@ export default function CartScreen() {
     setModalFor(null);
   }, []);
 
+  // Fecha qualquer modal do carrinho ao perder foco (evita overlay/opacidade em telas do checkout)
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        closeProtectionModal();
+      };
+    }, [closeProtectionModal])
+  );
+
   const removeProtection = useCallback((id: string) => {
     softHaptic();
     setProtectionById((prev) => ({ ...prev, [id]: undefined }));
@@ -343,8 +353,9 @@ export default function CartScreen() {
       return;
     }
 
-    router.push("/checkout/review" as any);
-  }, [hasCart, selectedCount]);
+    closeProtectionModal();
+    router.push("/checkout" as any);
+  }, [hasCart, selectedCount, closeProtectionModal]);
 
   const onClearCart = useCallback(() => {
     if (!hasCart) return;
@@ -510,16 +521,7 @@ export default function CartScreen() {
         </ThemedView>
       );
     },
-    [
-      onAddReco,
-      onDec,
-      onInc,
-      onRemove,
-      openProtectionModalFor,
-      protectionById,
-      selected,
-      toggleSelect,
-    ]
+    [onAddReco, onDec, onInc, onRemove, openProtectionModalFor, protectionById, selected, toggleSelect]
   );
 
   const renderSectionHeader = useCallback(({ section }: { section: Section }) => {
@@ -534,7 +536,11 @@ export default function CartScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <ThemedText style={styles.title}>Carrinho</ThemedText>
+          {/* ✅ Ícone + Título */}
+          <View style={styles.titleRow}>
+            <Icon name="cart-outline" color={theme.colors.text} size={20} />
+            <ThemedText style={styles.title}>Carrinho</ThemedText>
+          </View>
 
           <Pressable onPress={onClearCart} hitSlop={10} style={styles.clearBtn}>
             <ThemedText style={styles.clearBtnText}>Limpar</ThemedText>
@@ -556,7 +562,9 @@ export default function CartScreen() {
                   <View style={[styles.checkboxBox, allSelected && styles.checkboxOn]}>
                     {allSelected ? <ThemedText style={styles.checkboxTick}>✓</ThemedText> : null}
                   </View>
-                  <ThemedText style={styles.selectAllText}>{allSelected ? "Desmarcar todos" : "Selecionar todos"}</ThemedText>
+                  <ThemedText style={styles.selectAllText}>
+                    {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+                  </ThemedText>
                 </Pressable>
 
                 <ThemedText style={styles.selectAllHint}>
@@ -785,8 +793,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
+
+    // ✅ Garante que o header fica acima do bottom bar (frete grátis).
+    position: "relative",
+    zIndex: 50,
+    elevation: 50,
+    backgroundColor: theme.colors.background,
   },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontFamily: FONT_TITLE, fontSize: 22, fontWeight: "700", color: theme.colors.text },
+
   clearBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -945,6 +961,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.divider,
     gap: 10,
+
+    // ✅ Mantém abaixo do header
+    zIndex: 10,
+    elevation: 10,
   },
 
   freeShipCard: {

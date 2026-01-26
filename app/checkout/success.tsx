@@ -1,13 +1,13 @@
-// app/(tabs)/checkout/success.tsx
+// app/checkout/success.tsx
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../../components/themed-text";
-import { ThemedView } from "../../../components/themed-view";
-import theme from "../../../constants/theme";
-import { clearOrderDraft } from "../../../utils/orderStorage";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import theme from "../../constants/theme";
+import { clearOrderDraft } from "../../utils/orderStorage";
 
 const FONT_TITLE = "Arimo_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";

@@ -1,32 +1,10 @@
-﻿// app/(tabs)/_layout.tsx
-import { Tabs, router, useSegments } from "expo-router";
-import { useEffect, useMemo } from "react";
+// app/(tabs)/_layout.tsx
+import { Tabs } from "expo-router";
+import { useMemo } from "react";
 import Icon from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 
-// GARANTE: no primeiro boot do app, se ele abrir “preso” no checkout, volta pro Home uma vez.
-let bootRedirectHandled = false;
-
 export default function TabsLayout() {
-  const segments = useSegments() as string[];
-
-  // Ex.: ["(tabs)", "checkout", "address"]
-  const inCheckoutFlow = segments.includes("checkout");
-
-  useEffect(() => {
-    if (!segments || segments.length === 0) return;
-
-    if (!bootRedirectHandled && inCheckoutFlow) {
-      bootRedirectHandled = true;
-      router.replace("/(tabs)" as any);
-      return;
-    }
-
-    if (!bootRedirectHandled && !inCheckoutFlow) {
-      bootRedirectHandled = true;
-    }
-  }, [inCheckoutFlow, segments]);
-
   const baseTabBarStyle = useMemo(
     () => ({
       borderTopColor: theme.colors.divider,
@@ -38,9 +16,6 @@ export default function TabsLayout() {
     []
   );
 
-  // Mantém a regra de esconder no checkout (se for requisito)
-  const shouldHideTabBar = inCheckoutFlow;
-
   return (
     <Tabs
       screenOptions={{
@@ -48,7 +23,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.tabIconActive,
         tabBarInactiveTintColor: theme.colors.tabIconInactive,
         tabBarHideOnKeyboard: false,
-        tabBarStyle: shouldHideTabBar ? { display: "none" } : (baseTabBarStyle as any),
+        tabBarStyle: baseTabBarStyle as any,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "700" },
       }}
     >
@@ -92,9 +67,8 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ✅ Esconde rotas indevidas de virarem tabs */}
+      {/* Rotas que não podem aparecer como Tab */}
       <Tabs.Screen name="orders" options={{ href: null }} />
-      <Tabs.Screen name="checkout" options={{ href: null }} />
     </Tabs>
   );
 }

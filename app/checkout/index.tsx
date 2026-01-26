@@ -1,16 +1,16 @@
-// app/(tabs)/checkout/index.tsx
+// app/checkout/index.tsx
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../../components/themed-text";
-import { ThemedView } from "../../../components/themed-view";
-import theme from "../../../constants/theme";
-import type { OrderDraft } from "../../../types/order";
-import { formatCurrency } from "../../../utils/formatCurrency";
-import { loadOrderDraft } from "../../../utils/orderStorage";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import theme from "../../constants/theme";
+import type { OrderDraft } from "../../types/order";
+import { formatCurrency } from "../../utils/formatCurrency";
+import { loadOrderDraft } from "../../utils/orderStorage";
 
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
@@ -105,7 +105,7 @@ export default function CheckoutIndex() {
             <ThemedText style={styles.value}>{reviewValue}</ThemedText>
           </View>
 
-          <Pressable onPress={() => push("/(tabs)/checkout/address")} style={styles.primaryBtn} accessibilityRole="button">
+          <Pressable onPress={() => push("/checkout/address")} style={styles.primaryBtn} accessibilityRole="button">
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
           </Pressable>
         </View>

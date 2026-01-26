@@ -29,9 +29,9 @@ export function getCheckoutResumeHref(draft: OrderDraft | null | undefined): str
   const hasPayment =
     !!payment && hasValue(payment.method);
 
-  if (!hasAddress) return "/(tabs)/checkout/address";
-  if (!hasShipping) return "/(tabs)/checkout/shipping";
-  if (!hasPayment) return "/(tabs)/checkout/payment";
+  if (!hasAddress) return "/checkout/address";
+  if (!hasShipping) return "/checkout/shipping";
+  if (!hasPayment) return "/checkout/payment";
 
-  return "/(tabs)/checkout/review";
+  return "/checkout/review";
 }
