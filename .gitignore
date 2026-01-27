@@ -43,3 +43,12 @@ app-example
 /android
 
 *.zip
+# Plugaishop context artifacts
+_plugaishop_context_*/
+_plugaishop_support_bundle_*/
+_plugaishop_context_*.zip
+_plugaishop_support_bundle_*.zip
+
+# Node
+node_modules/
+npm-debug.log*
