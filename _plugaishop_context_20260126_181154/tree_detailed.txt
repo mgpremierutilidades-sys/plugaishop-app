@@ -1,0 +1,160 @@
+﻿# DIRECTORY TREE
+Root: C:\plugaishop-app
+Depth: 6
+
+[D] utils
+  [F] utils\shippingService.ts
+  [F] utils\shippingProviders.ts
+  [F] utils\shippingMock.ts
+  [F] utils\pix.ts
+  [F] utils\paymentMock.ts
+  [F] utils\paymentBridge.ts
+  [F] utils\patchOrderDraft.ts
+  [F] utils\outboxStorage.ts
+  [F] utils\outboxProcessor.ts
+  [F] utils\orderTimelineAuto.ts
+  [F] utils\orderStorage.ts
+  [F] utils\orderStatus.ts
+  [F] utils\ordersStore.ts
+  [F] utils\ordersStorage.ts
+  [F] utils\orderResume.ts
+  [F] utils\orderNotifier.ts
+  [F] utils\orderNotificationStorage.ts
+  [F] utils\orderExport.ts
+  [F] utils\orderDraftPatch.ts
+  [F] utils\orderDraft.ts
+  [F] utils\nuvemshopPayload.ts
+  [F] utils\notifications.ts
+  [F] utils\money.ts
+  [F] utils\httpClient.ts
+  [F] utils\formatCurrency.ts
+  [F] utils\checkoutFlow.ts
+  [F] utils\cep.ts
+  [F] utils\cartPricing.ts
+  [F] utils\blingPayload.ts
+[D] types
+  [F] types\shippingProviders.ts
+  [F] types\orderStatus.ts
+  [F] types\orderPayload.ts
+  [F] types\order.ts
+[D] src
+  [D] src\cart
+    [F] src\cart\useCartTotals.ts
+    [F] src\cart\useCartSelection.ts
+    [F] src\cart\useCartRows.ts
+    [F] src\cart\types.ts
+    [F] src\cart\cartPricing.ts
+    [F] src\cart\cartOutbox.ts
+[D] scripts
+  [F] scripts\reset-project.js
+  [F] scripts\context-collector.ps1
+[D] hooks
+  [F] hooks\use-theme-color.ts
+  [F] hooks\useOutboxAutoFlush.ts
+  [F] hooks\useOrdersAutoProgress.ts
+  [F] hooks\useOrderFailSafe.ts
+  [F] hooks\use-color-scheme.web.ts
+  [F] hooks\use-color-scheme.ts
+  [F] hooks\useCheckoutFailSafe.ts
+[D] data
+  [F] data\catalog.ts
+[D] context
+  [F] context\CartContext.tsx
+[D] constants
+  [F] constants\theme.ts
+  [F] constants\products.ts
+  [F] constants\orders.ts
+  [F] constants\layout.ts
+[D] components
+  [D] components\ui
+    [F] components\ui\icon-symbol.tsx
+    [F] components\ui\icon-symbol.ios.tsx
+    [F] components\ui\collapsible.tsx
+  [F] components\themed-view.tsx
+  [F] components\themed-text.tsx
+  [F] components\product-card.tsx
+  [F] components\parallax-scroll-view.tsx
+  [F] components\OrderTimeline.tsx
+  [F] components\hello-wave.tsx
+  [F] components\haptic-tab.tsx
+  [F] components\global-chrome.tsx
+  [F] components\external-link.tsx
+  [F] components\ButtonPrimary.tsx
+[D] assets
+  [D] assets\images
+    [F] assets\images\splash-icon.png
+    [F] assets\images\react-logo@3x.png
+    [F] assets\images\react-logo@2x.png
+    [F] assets\images\react-logo.png
+    [F] assets\images\partial-react-logo.png
+    [F] assets\images\icon.png
+    [F] assets\images\favicon.png
+    [F] assets\images\android-icon-monochrome.png
+    [F] assets\images\android-icon-foreground.png
+    [F] assets\images\android-icon-background.png
+  [D] assets\banners
+    [F] assets\banners\banner-splash.png
+    [F] assets\banners\banner-home.png
+[D] app
+  [D] app\product
+    [F] app\product\[id].tsx
+  [D] app\orders
+    [D] app\orders\[id]
+      [F] app\orders\[id]\tracking.tsx
+      [F] app\orders\[id]\support.tsx
+      [F] app\orders\[id]\review.tsx
+      [F] app\orders\[id]\return.tsx
+      [F] app\orders\[id]\invoice.tsx
+    [F] app\orders\notifications.tsx
+    [F] app\orders\index.tsx
+    [F] app\orders\_layout.tsx
+    [F] app\orders\[id].tsx
+  [D] app\debug
+    [F] app\debug\outbox.tsx
+    [F] app\debug\_layout.tsx
+  [D] app\checkout
+    [F] app\checkout\success.tsx
+    [F] app\checkout\shipping.tsx
+    [F] app\checkout\review.tsx
+    [F] app\checkout\payment.tsx
+    [F] app\checkout\index.tsx
+    [F] app\checkout\address.tsx
+    [F] app\checkout\_layout.tsx
+  [D] app\(tabs)
+    [F] app\(tabs)\profile.tsx
+    [F] app\(tabs)\orders.tsx
+    [F] app\(tabs)\index.tsx
+    [F] app\(tabs)\explore.tsx
+    [F] app\(tabs)\cart.tsx
+    [F] app\(tabs)\account.tsx
+    [F] app\(tabs)\_layout.tsx
+  [F] app\modal.tsx
+  [F] app\index.tsx
+  [F] app\_layout.tsx
+[D] _upload_etapa21
+  [D] _upload_etapa21\utils
+    [F] _upload_etapa21\utils\orderStorage.ts
+  [D] _upload_etapa21\types
+    [F] _upload_etapa21\types\order.ts
+  [D] _upload_etapa21\app
+    [D] _upload_etapa21\app\(tabs)
+      [D] _upload_etapa21\app\(tabs)\checkout
+        [F] _upload_etapa21\app\(tabs)\checkout\success.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\shipping.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\review.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\payment.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\index.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\address.tsx
+        [F] _upload_etapa21\app\(tabs)\checkout\_layout.tsx
+[D] .vscode
+  [F] .vscode\settings.json
+  [F] .vscode\extensions.json
+[F] tsconfig.json
+[F] README.md
+[F] package-lock.json
+[F] package.json
+[F] expo-env.d.ts
+[F] eslint.config.js
+[F] bom.mjs
+[F] app.json
+[F] APLICAR_PATCH.md
