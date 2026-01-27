@@ -1,4 +1,0 @@
-﻿timestamp: 20260127_103514
-pwd: C:\plugaishop-app
-node: v20.18.1
-npm: 10.8.2
