@@ -1,0 +1,17 @@
+﻿{
+    "timestamp":  "20260126_181154",
+    "projectRoot":  "C:\\plugaishop-app",
+    "system":  {
+                   "powershell":  "5.1.19041.6807",
+                   "os":  "Microsoft Windows NT 10.0.19045.0"
+               },
+    "parameters":  {
+                       "IncludeNodeModules":  {
+                                                  "IsPresent":  false
+                                              },
+                       "SkipZip":  {
+                                       "IsPresent":  false
+                                   },
+                       "TreeDepth":  6
+                   }
+}

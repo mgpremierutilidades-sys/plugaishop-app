@@ -1,0 +1,2 @@
+﻿C:\nvm4w\nodejs\npm
+C:\nvm4w\nodejs\npm.cmd
