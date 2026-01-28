@@ -1,7 +1,7 @@
 // app/(tabs)/cart.tsx
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -25,6 +25,8 @@ import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { computeCartPricing } from "../../utils/cartPricing";
 import { formatCurrency } from "../../utils/formatCurrency";
+import flags from "../../constants/flags";
+import { track } from "../../utils/telemetry";
 
 const FONT_TITLE = "Arimo_400Regular";
 const FONT_BODY = "OpenSans_400Regular";
@@ -138,9 +140,165 @@ function n(value: unknown) {
   return Number.isFinite(v) ? v : 0;
 }
 
+type RecoRowViewProps = {
+  id: string;
+  title: string;
+  price: number;
+  image?: string;
+};
+
+const RecoRowView = memo(function RecoRowView(props: RecoRowViewProps) {
+  const { id, title, price, image } = props;
+
+  const onPress = useCallback(() => {
+    softHaptic();
+    router.push(`/product/${id}`);
+  }, [id]);
+
+  return (
+    <Pressable onPress={onPress} style={styles.recoRow}>
+      <View style={styles.recoLeft}>
+        <View style={styles.recoImageWrap}>
+          {!!image ? <Image source={{ uri: image } as ImageSourcePropType} style={styles.recoImage} /> : null}
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <ThemedText style={styles.recoTitle}>{title}</ThemedText>
+          <ThemedText style={styles.recoPrice}>{formatCurrency(price)}</ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.recoRight}>
+        <Icon name="chevron.right" size={18} color={theme.colors.muted} />
+      </View>
+    </Pressable>
+  );
+});
+
+type CartRowViewProps = {
+  id: string;
+  title: string;
+  category?: string;
+  unitLabel?: string;
+  image?: string;
+  qty: number;
+  selected: boolean;
+  unitFinal: number;
+  totalRow: number;
+  protectionMonths?: number;
+
+  onToggleSelect: (id: string) => void;
+  onRemoveItem: (id: string) => void;
+  onDecQty: (id: string) => void;
+  onIncQty: (id: string) => void;
+
+  onRemoveProtection: (id: string) => void;
+  onOpenProtection: (payload: { id: string; unitFinal: number }) => void;
+};
+
+const CartRowView = memo(function CartRowView(props: CartRowViewProps) {
+  const {
+    id,
+    title,
+    category,
+    unitLabel,
+    image,
+    qty,
+    selected,
+    unitFinal,
+    totalRow,
+    protectionMonths,
+    onToggleSelect,
+    onRemoveItem,
+    onDecQty,
+    onIncQty,
+    onRemoveProtection,
+    onOpenProtection,
+  } = props;
+
+  const onPressSelect = useCallback(() => onToggleSelect(id), [id, onToggleSelect]);
+  const onPressRemove = useCallback(() => onRemoveItem(id), [id, onRemoveItem]);
+  const onPressDec = useCallback(() => onDecQty(id), [id, onDecQty]);
+  const onPressInc = useCallback(() => onIncQty(id), [id, onIncQty]);
+  const onPressRemoveProtection = useCallback(() => onRemoveProtection(id), [id, onRemoveProtection]);
+  const onPressOpenProtection = useCallback(() => onOpenProtection({ id, unitFinal }), [id, onOpenProtection, unitFinal]);
+
+  return (
+    <ThemedView style={styles.itemCard}>
+      <View style={styles.itemTop}>
+        <Pressable onPress={onPressSelect} style={styles.checkWrap}>
+          <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+            {selected ? <Icon name="check" size={14} color="#fff" /> : null}
+          </View>
+        </Pressable>
+
+        <View style={styles.itemImageWrap}>{!!image ? <Image source={{ uri: image } as ImageSourcePropType} style={styles.itemImage} /> : null}</View>
+
+        <View style={{ flex: 1 }}>
+          <ThemedText style={styles.itemTitle}>{title}</ThemedText>
+          {!!category ? <ThemedText style={styles.itemMeta}>{category}</ThemedText> : null}
+          {!!unitLabel ? <ThemedText style={styles.itemMeta}>{unitLabel}</ThemedText> : null}
+        </View>
+
+        <Pressable onPress={onPressRemove} style={styles.trashBtn}>
+          <Icon name="trash" size={18} color={theme.colors.muted} />
+        </Pressable>
+      </View>
+
+      <View style={styles.itemBottom}>
+        <View style={styles.qtyRow}>
+          <Pressable onPress={onPressDec} style={styles.qtyBtn}>
+            <ThemedText style={styles.qtyBtnText}>−</ThemedText>
+          </Pressable>
+
+          <View style={styles.qtyVal}>
+            <ThemedText style={styles.qtyValText}>{qty}</ThemedText>
+          </View>
+
+          <Pressable onPress={onPressInc} style={styles.qtyBtn}>
+            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+          </Pressable>
+        </View>
+
+        <View style={styles.priceCol}>
+          <ThemedText style={styles.unitPrice}>{formatCurrency(unitFinal)}</ThemedText>
+          <ThemedText style={styles.rowTotal}>{formatCurrency(totalRow)}</ThemedText>
+        </View>
+      </View>
+
+      <View style={styles.protectionRow}>
+        <View style={{ flex: 1 }}>
+          <ThemedText style={styles.protectionTitle}>Proteção estendida</ThemedText>
+          <ThemedText style={styles.protectionMeta}>{protectionMonths ? `${protectionMonths} meses selecionado` : "Opcional"}</ThemedText>
+        </View>
+
+        {protectionMonths ? (
+          <Pressable onPress={onPressRemoveProtection} style={styles.protectionBtn}>
+            <ThemedText style={styles.protectionBtnText}>Remover</ThemedText>
+          </Pressable>
+        ) : (
+          <Pressable onPress={onPressOpenProtection} style={styles.protectionBtn}>
+            <ThemedText style={styles.protectionBtnText}>Escolher</ThemedText>
+          </Pressable>
+        )}
+      </View>
+    </ThemedView>
+  );
+});
+
 export default function CartScreen() {
   const cart = useCart();
   const isFocused = useIsFocused();
+
+  const ffCartPerfV21 = !!flags.ff_cart_perf_v21;
+  const ffCartTrackingV21 = !!flags.ff_cart_tracking_v21;
+
+  const cartRef = useRef<any>(cart);
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
+
+  const prevFocusedRef = useRef<boolean>(false);
 
   const cartItems = useMemo(() => {
     const items = (cart as any)?.items ?? [];
@@ -177,6 +335,17 @@ export default function CartScreen() {
   }, [cartItems]);
 
   const hasCart = cartRows.length > 0;
+
+  useEffect(() => {
+    // view_cart: apenas na transição de foco (evita duplicar por re-render)
+    if (ffCartTrackingV21 && isFocused && !prevFocusedRef.current) {
+      track("view_cart", {
+        items_count: cartRows.length,
+        has_cart: cartRows.length > 0,
+      });
+    }
+    prevFocusedRef.current = isFocused;
+  }, [ffCartTrackingV21, isFocused, cartRows.length]);
 
   // Seleção (checkbox)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -339,36 +508,40 @@ export default function CartScreen() {
     });
   }, [appliedCoupon, cartRows, cep8, protectionById, selected, shippingMethod]);
 
-  const removeItem = useCallback(
-    (id: string) => {
-      softHaptic();
-      Alert.alert("Remover item", "Deseja remover este item do carrinho?", [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Remover", style: "destructive", onPress: () => (cart as any)?.remove?.(id) },
-      ]);
-    },
-    [cart]
-  );
+  const removeItem = useCallback((id: string) => {
+    softHaptic();
+    Alert.alert("Remover item", "Deseja remover este item do carrinho?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Remover",
+        style: "destructive",
+        onPress: () => {
+          if (ffCartTrackingV21) track("remove_from_cart", { id });
+          cartRef.current?.remove?.(id);
+        },
+      },
+    ]);
+  }, [ffCartTrackingV21]);
 
-  const incQty = useCallback(
-    (id: string) => {
-      softHaptic();
-      (cart as any)?.increment?.(id);
-    },
-    [cart]
-  );
+  const incQty = useCallback((id: string) => {
+    softHaptic();
+    if (ffCartTrackingV21) track("update_qty", { id, delta: +1 });
+    cartRef.current?.increment?.(id);
+  }, [ffCartTrackingV21]);
 
-  const decQty = useCallback(
-    (id: string) => {
-      softHaptic();
-      (cart as any)?.decrement?.(id);
-    },
-    [cart]
-  );
+  const decQty = useCallback((id: string) => {
+    softHaptic();
+    if (ffCartTrackingV21) track("update_qty", { id, delta: -1 });
+    cartRef.current?.decrement?.(id);
+  }, [ffCartTrackingV21]);
 
   const onContinue = useCallback(() => {
+    if (ffCartTrackingV21) {
+      track("click_checkout", { from: "cart" });
+      track("checkout_start", { from: "cart" });
+    }
     router.push("/checkout");
-  }, []);
+  }, [ffCartTrackingV21]);
 
   const sections = useMemo<Section[]>(() => {
     const s: Section[] = [];
@@ -388,7 +561,7 @@ export default function CartScreen() {
     return <ThemedText style={styles.sectionTitle}>{section.title}</ThemedText>;
   }, []);
 
-  const renderItem = useCallback(
+  const renderItemLegacy = useCallback(
     ({ item }: { item: Row }) => {
       if (item.type === "reco") {
         return (
@@ -490,14 +663,52 @@ export default function CartScreen() {
         </ThemedView>
       );
     },
-    [decQty, incQty, openProtectionModalFor, protectionById, removeItem, selected, toggleSelect, unitFinalById]
+    [decQty, incQty, openProtectionModalFor, protectionById, removeItem, selected, toggleSelect, unitFinalById, removeProtection]
   );
+
+  const renderItemOptimized = useCallback(
+    ({ item }: { item: Row }) => {
+      if (item.type === "reco") {
+        return <RecoRowView id={item.id} title={item.title} price={item.price} image={item.image} />;
+      }
+
+      const unitFinal = unitFinalById[item.id] ?? item.price;
+      const totalRow = roundToCents(unitFinal * item.qty);
+
+      return (
+        <CartRowView
+          id={item.id}
+          title={item.title}
+          category={item.category}
+          unitLabel={item.unitLabel}
+          image={item.image}
+          qty={item.qty}
+          selected={!!selected[item.id]}
+          unitFinal={unitFinal}
+          totalRow={totalRow}
+          protectionMonths={protectionById[item.id]}
+          onToggleSelect={toggleSelect}
+          onRemoveItem={removeItem}
+          onDecQty={decQty}
+          onIncQty={incQty}
+          onRemoveProtection={removeProtection}
+          onOpenProtection={openProtectionModalFor}
+        />
+      );
+    },
+    [decQty, incQty, openProtectionModalFor, protectionById, removeItem, selected, toggleSelect, unitFinalById, removeProtection]
+  );
+
+  const renderItem = ffCartPerfV21 ? renderItemOptimized : renderItemLegacy;
 
   return (
     <SafeAreaView style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <ThemedText style={styles.headerTitle}>Carrinho</ThemedText>
+          <View style={styles.headerTitleRow}>
+            <Icon name="cart" size={20} color={theme.colors.text} style={styles.headerTitleIcon} />
+            <ThemedText style={styles.headerTitle}>Carrinho</ThemedText>
+          </View>
 
           <Pressable onPress={toggleSelectAll} style={styles.selectAllBtn}>
             <ThemedText style={styles.selectAllText}>{allSelected ? "Desmarcar" : "Selecionar"}</ThemedText>
@@ -513,21 +724,63 @@ export default function CartScreen() {
           stickySectionHeadersEnabled={false}
         />
 
-        <ThemedView style={styles.bottomBar}>
-          <ThemedView style={styles.shipBox}>
-            <ThemedText style={styles.shipTitle}>Entrega</ThemedText>
+        <ThemedView style={styles.footer}>
+          {/* Total box laranja */}
+          <ThemedView style={styles.totalBox}>
+            <View style={styles.totalRow}>
+              <ThemedText style={styles.totalLabel}>Subtotal</ThemedText>
+              <ThemedText style={styles.totalValue}>{formatCurrency(pricing.subtotalAfterProductDiscount)}</ThemedText>
+            </View>
 
-            <View style={styles.shipTabs}>
+            {!!pricing.discountTotal ? (
+              <View style={styles.totalRow}>
+                <ThemedText style={styles.totalLabel}>Descontos</ThemedText>
+                <ThemedText style={styles.totalValue}>− {formatCurrency(pricing.discountTotal)}</ThemedText>
+              </View>
+            ) : null}
+
+            {!!pricing.protectionTotal ? (
+              <View style={styles.totalRow}>
+                <ThemedText style={styles.totalLabel}>Proteção</ThemedText>
+                <ThemedText style={styles.totalValue}>{formatCurrency(pricing.protectionTotal)}</ThemedText>
+              </View>
+            ) : null}
+
+            <View style={styles.totalRow}>
+              <ThemedText style={styles.totalLabel}>Frete</ThemedText>
+              <ThemedText style={styles.totalValue}>{pricing.shippingEstimated ? formatCurrency(pricing.shippingEstimated) : "—"}</ThemedText>
+            </View>
+
+            <View style={[styles.totalRow, { marginTop: 8 }]}>
+              <ThemedText style={styles.totalLabelBig}>Total</ThemedText>
+              <ThemedText style={styles.totalValueBig}>{formatCurrency(pricing.total)}</ThemedText>
+            </View>
+
+            <View style={styles.freeShipBarWrap}>
+              <View style={styles.freeShipBarTrack}>
+                <View style={[styles.freeShipBarFill, { width: `${Math.round(pricing.freeShippingProgress.ratio * 100)}%` }]} />
+              </View>
+              <ThemedText style={styles.freeShipText}>
+                {pricing.freeShippingProgress.reached
+                  ? "Frete grátis desbloqueado!"
+                  : `Faltam ${formatCurrency(pricing.freeShippingProgress.missing)} para frete grátis`}
+              </ThemedText>
+            </View>
+          </ThemedView>
+
+          {/* Frete / CEP */}
+          <ThemedView style={styles.shippingBox}>
+            <ThemedText style={styles.shippingTitle}>Entrega</ThemedText>
+
+            <View style={styles.shipMethodRow}>
               <Pressable
                 onPress={() => {
                   softHaptic();
                   setShippingMethod("delivery");
                 }}
-                style={[styles.shipTab, shippingMethod === "delivery" && styles.shipTabOn]}
+                style={[styles.shipMethodBtn, shippingMethod === "delivery" && styles.shipMethodBtnOn]}
               >
-                <ThemedText style={[styles.shipTabText, shippingMethod === "delivery" && styles.shipTabTextOn]}>
-                  Receber
-                </ThemedText>
+                <ThemedText style={[styles.shipMethodText, shippingMethod === "delivery" && styles.shipMethodTextOn]}>Receber</ThemedText>
               </Pressable>
 
               <Pressable
@@ -535,11 +788,9 @@ export default function CartScreen() {
                   softHaptic();
                   setShippingMethod("pickup");
                 }}
-                style={[styles.shipTab, shippingMethod === "pickup" && styles.shipTabOn]}
+                style={[styles.shipMethodBtn, shippingMethod === "pickup" && styles.shipMethodBtnOn]}
               >
-                <ThemedText style={[styles.shipTabText, shippingMethod === "pickup" && styles.shipTabTextOn]}>
-                  Retirar
-                </ThemedText>
+                <ThemedText style={[styles.shipMethodText, shippingMethod === "pickup" && styles.shipMethodTextOn]}>Retirar</ThemedText>
               </Pressable>
             </View>
 
@@ -550,102 +801,105 @@ export default function CartScreen() {
                   onChangeText={setCep}
                   placeholder="Digite seu CEP"
                   placeholderTextColor={theme.colors.muted}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                   style={styles.cepInput}
                   maxLength={9}
                 />
-                <ThemedText style={styles.shipValue}>
-                  {pricing.shippingEstimated === 0 ? "Grátis" : formatCurrency(pricing.shippingEstimated)}
-                </ThemedText>
+                <Pressable
+                  onPress={() => {
+                    softHaptic();
+                    if (cep8.length !== 8) {
+                      Alert.alert("CEP inválido", "Digite um CEP com 8 dígitos.");
+                      return;
+                    }
+                    setCep(cep8);
+                  }}
+                  style={styles.cepBtn}
+                >
+                  <ThemedText style={styles.cepBtnText}>OK</ThemedText>
+                </Pressable>
               </View>
             ) : (
-              <ThemedText style={styles.pickupHint}>Retire em uma loja parceira.</ThemedText>
+              <ThemedText style={styles.pickupText}>Retire em uma loja parceira próxima.</ThemedText>
             )}
-
-            {!!hasCart && pricing.freeShippingProgress?.reached ? (
-              <ThemedText style={styles.freeShip}>
-                Frete grátis acima de {formatCurrency(FREE_SHIPPING_THRESHOLD)}
-              </ThemedText>
-            ) : null}
           </ThemedView>
 
+          {/* Cupom */}
           <ThemedView style={styles.couponBox}>
-            <ThemedText style={styles.couponTitle}>Cupom</ThemedText>
+            <View style={styles.couponTop}>
+              <ThemedText style={styles.couponTitle}>Cupom</ThemedText>
+              {appliedCoupon ? (
+                <Pressable onPress={clearCoupon} style={styles.couponClearBtn}>
+                  <ThemedText style={styles.couponClearText}>Limpar</ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
 
             <View style={styles.couponRow}>
               <TextInput
                 value={couponInput}
                 onChangeText={setCouponInput}
-                placeholder="Digite o cupom"
+                placeholder="Ex: PLUGA10"
                 placeholderTextColor={theme.colors.muted}
-                style={styles.couponInput}
                 autoCapitalize="characters"
+                style={styles.couponInput}
               />
-
               <Pressable onPress={applyCoupon} style={styles.couponBtn}>
                 <ThemedText style={styles.couponBtnText}>Aplicar</ThemedText>
-              </Pressable>
-
-              <Pressable onPress={clearCoupon} style={styles.couponClearBtn}>
-                <ThemedText style={styles.couponClearText}>X</ThemedText>
               </Pressable>
             </View>
 
             {!!couponMsg ? <ThemedText style={styles.couponMsg}>{couponMsg}</ThemedText> : null}
           </ThemedView>
 
-          <ThemedView style={styles.totalBox}>
-            <ThemedText style={styles.totalLabel}>Total</ThemedText>
-            <ThemedText style={styles.totalValue}>{formatCurrency(pricing.total)}</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={styles.ctaWrap}>
-            <Pressable onPress={onContinue} style={styles.ctaBtn}>
-              <ThemedText style={styles.ctaText}>Continuar a compra</ThemedText>
-            </Pressable>
-          </ThemedView>
+          {/* CTA */}
+          <Pressable onPress={onContinue} style={[styles.cta, !hasCart && styles.ctaDisabled]} disabled={!hasCart}>
+            <ThemedText style={styles.ctaText}>Continuar a compra</ThemedText>
+          </Pressable>
         </ThemedView>
 
-        {/* ✅ FIX: não renderizar Modal fora de foco (evita vazamento de overlay/opacidade entre abas) */}
-        {isFocused && (
-          <Modal visible={isFocused && !!modalFor} transparent animationType="fade" onRequestClose={closeProtectionModal}>
-            <Pressable style={styles.modalOverlay} onPress={closeProtectionModal}>
-              <Pressable style={styles.modalCard} onPress={() => {}}>
+        {/* Modal Proteção */}
+        <Modal visible={!!modalFor} transparent animationType="fade" onRequestClose={closeProtectionModal}>
+          <Pressable style={styles.modalOverlay} onPress={closeProtectionModal}>
+            <Pressable style={styles.modalCard} onPress={() => null}>
+              <View style={styles.modalHeader}>
                 <ThemedText style={styles.modalTitle}>Proteção estendida</ThemedText>
+                <Pressable onPress={closeProtectionModal} style={styles.modalClose}>
+                  <Icon name="x" size={18} color={theme.colors.muted} />
+                </Pressable>
+              </View>
 
-                {modalFor ? (
-                  <>
-                    {buildProtectionPlans(modalFor.unitFinal).map((p) => {
-                      const selectedMonths = protectionById[modalFor.id];
-                      const isOn = selectedMonths === p.months;
+              <ThemedText style={styles.modalSub}>Escolha um plano para este item.</ThemedText>
 
-                      return (
-                        <Pressable
-                          key={p.months}
-                          onPress={() => chooseProtection(modalFor.id, p.months)}
-                          style={[styles.planRow, isOn && styles.planRowOn]}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <ThemedText style={styles.planTitle}>
-                              {p.months} meses {p.recommended ? "• Recomendado" : ""}
-                            </ThemedText>
-                            <ThemedText style={styles.planMeta}>{p.installments}x sem juros</ThemedText>
-                          </View>
+              <View style={styles.plansWrap}>
+                {(modalFor ? buildProtectionPlans(modalFor.unitFinal) : []).map((p) => {
+                  const months = p.months;
+                  const isOn = !!modalFor && protectionById[modalFor.id] === months;
 
-                          <ThemedText style={styles.planPrice}>{formatCurrency(p.price)}</ThemedText>
-                        </Pressable>
-                      );
-                    })}
+                  return (
+                    <Pressable
+                      key={months}
+                      onPress={() => {
+                        if (!modalFor) return;
+                        chooseProtection(modalFor.id, months);
+                      }}
+                      style={[styles.planCard, isOn && styles.planCardOn, (p as any)?.recommended && styles.planCardRec]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={[styles.planTitle, isOn && styles.planTitleOn]}>{months} meses</ThemedText>
+                        <ThemedText style={[styles.planMeta, isOn && styles.planMetaOn]}>
+                          {formatCurrency(p.price)} • em até {(p as any).installments ?? 10}x
+                        </ThemedText>
+                      </View>
 
-                    <Pressable onPress={closeProtectionModal} style={styles.modalCloseBtn}>
-                      <ThemedText style={styles.modalCloseText}>Fechar</ThemedText>
+                      {isOn ? <Icon name="check" size={18} color="#fff" /> : <Icon name="chevron.right" size={18} color={theme.colors.muted} />}
                     </Pressable>
-                  </>
-                ) : null}
-              </Pressable>
+                  );
+                })}
+              </View>
             </Pressable>
-          </Modal>
-        )}
+          </Pressable>
+        </Modal>
       </ThemedView>
     </SafeAreaView>
   );
@@ -653,168 +907,246 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  container: { flex: 1, backgroundColor: theme.colors.background },
 
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  headerTitle: { fontFamily: FONT_TITLE, fontSize: 22, color: theme.colors.text },
-  selectAllBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: theme.colors.surface },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerTitleIcon: { marginTop: 2 },
+  headerTitle: { fontFamily: FONT_TITLE, fontSize: 18, color: theme.colors.text },
+  selectAllBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: theme.colors.card },
   selectAllText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.text },
 
-  listContent: { paddingBottom: 12 },
-  sectionTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.muted, marginVertical: 8 },
+  listContent: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 260 },
 
-  itemCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 20,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    marginBottom: 10,
+  sectionTitle: {
+    fontFamily: FONT_BODY_BOLD,
+    fontSize: 13,
+    color: theme.colors.text,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  itemTop: { flexDirection: "row", alignItems: "center", gap: 10 },
-  checkWrap: { padding: 4 },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+
+  // Reco
+  recoRow: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: theme.colors.divider,
+    borderColor: theme.colors.border,
+  },
+  recoLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  recoImageWrap: { width: 42, height: 42, borderRadius: 12, backgroundColor: theme.colors.surface, overflow: "hidden" },
+  recoImage: { width: 42, height: 42, resizeMode: "cover" },
+  recoTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  recoPrice: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
+  recoRight: { marginLeft: 12 },
+
+  // Item
+  itemCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  itemTop: { flexDirection: "row", alignItems: "flex-start" },
+  checkWrap: { paddingRight: 10, paddingTop: 4 },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.background,
+    backgroundColor: "transparent",
   },
   checkboxOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-
-  itemImageWrap: { width: 58, height: 58, borderRadius: 16, backgroundColor: theme.colors.background, overflow: "hidden" },
-  itemImage: { width: "100%", height: "100%" },
-
-  itemTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  itemImageWrap: { width: 54, height: 54, borderRadius: 16, backgroundColor: theme.colors.surface, overflow: "hidden", marginRight: 10 },
+  itemImage: { width: 54, height: 54, resizeMode: "cover" },
+  itemTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: theme.colors.text },
   itemMeta: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
+  trashBtn: { paddingLeft: 10, paddingTop: 2 },
 
-  trashBtn: { padding: 8 },
-
-  itemBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
-
-  qtyRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: theme.colors.divider },
-  qtyBtn: { width: 38, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background },
+  itemBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+  qtyRow: { flexDirection: "row", alignItems: "center" },
+  qtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   qtyBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 16, color: theme.colors.text },
-  qtyVal: { width: 44, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface },
-  qtyValText: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  qtyVal: { width: 36, alignItems: "center", justifyContent: "center" },
+  qtyValText: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: theme.colors.text },
 
   priceCol: { alignItems: "flex-end" },
   unitPrice: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted },
   rowTotal: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: theme.colors.text, marginTop: 2 },
 
-  protectionRow: { flexDirection: "row", alignItems: "center", marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.divider },
-  protectionTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
-  protectionMeta: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
-  protectionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.divider },
-  protectionBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.primary },
-
-  recoRow: {
+  protectionRow: {
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: theme.colors.surface,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  protectionTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  protectionMeta: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
+  protectionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  protectionBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.text },
+
+  // Footer
+  footer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+
+  totalBox: {
+    backgroundColor: "#F6A03A",
     borderRadius: 18,
     padding: 12,
     borderWidth: 1,
-    borderColor: theme.colors.divider,
-    marginBottom: 10,
+    borderColor: "rgba(0,0,0,0.06)",
   },
-  recoLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  recoImageWrap: { width: 54, height: 54, borderRadius: 16, backgroundColor: theme.colors.background, overflow: "hidden" },
-  recoImage: { width: "100%", height: "100%" },
-  recoTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
-  recoPrice: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 4 },
-  recoRight: { paddingLeft: 8 },
+  totalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  totalLabel: { fontFamily: FONT_BODY, fontSize: 12, color: "#111" },
+  totalValue: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: "#111" },
+  totalLabelBig: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: "#111" },
+  totalValueBig: { fontFamily: FONT_BODY_BOLD, fontSize: 16, color: "#111" },
 
-  bottomBar: { paddingTop: 8, paddingBottom: 10 },
+  freeShipBarWrap: { marginTop: 10 },
+  freeShipBarTrack: { height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.14)", overflow: "hidden" },
+  freeShipBarFill: { height: 8, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.28)" },
+  freeShipText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: "#111", marginTop: 6 },
 
-  shipBox: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 12, borderWidth: 1, borderColor: theme.colors.divider, marginBottom: 10 },
-  shipTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text, marginBottom: 8 },
+  shippingBox: {
+    marginTop: 10,
+    backgroundColor: theme.colors.card,
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  shippingTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text, marginBottom: 10 },
 
-  shipTabs: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  shipTab: { flex: 1, paddingVertical: 10, borderRadius: 16, alignItems: "center", backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.divider },
-  shipTabOn: { borderColor: theme.colors.primary },
-  shipTabText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.muted },
-  shipTabTextOn: { color: theme.colors.text },
+  shipMethodRow: { flexDirection: "row", gap: 10 },
+  shipMethodBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  shipMethodBtnOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  shipMethodText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.text },
+  shipMethodTextOn: { color: "#fff" },
 
-  cepRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  cepRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 },
   cepInput: {
     flex: 1,
-    height: 42,
-    borderRadius: 16,
+    height: 44,
+    borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.background,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     color: theme.colors.text,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY_BOLD,
   },
-  shipValue: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
-  pickupHint: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted },
+  cepBtn: {
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cepBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: "#fff" },
+  pickupText: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 10 },
 
-  freeShip: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.primary, marginTop: 8 },
+  couponBox: {
+    marginTop: 10,
+    backgroundColor: theme.colors.card,
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  couponTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  couponTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  couponClearBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  couponClearText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.text },
 
-  couponBox: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 12, borderWidth: 1, borderColor: theme.colors.divider, marginBottom: 10 },
-  couponTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text, marginBottom: 8 },
-  couponRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  couponRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
   couponInput: {
     flex: 1,
-    height: 42,
-    borderRadius: 16,
+    height: 44,
+    borderRadius: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.background,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     color: theme.colors.text,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY_BOLD,
   },
-  couponBtn: { height: 42, paddingHorizontal: 12, borderRadius: 16, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
+  couponBtn: { height: 44, paddingHorizontal: 14, borderRadius: 14, backgroundColor: theme.colors.primary, alignItems: "center", justifyContent: "center" },
   couponBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: "#fff" },
-  couponClearBtn: { height: 42, width: 42, borderRadius: 16, backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.divider, alignItems: "center", justifyContent: "center" },
-  couponClearText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.muted },
   couponMsg: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 8 },
 
-  totalBox: {
-    backgroundColor: "#F59B2B",
-    borderRadius: 20,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    marginBottom: 10,
-    flexDirection: "row",
+  cta: {
+    marginTop: 10,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: CTA_GREEN,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
   },
-  totalLabel: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: "#111" },
-  totalValue: { fontFamily: FONT_BODY_BOLD, fontSize: 16, color: "#111" },
-
-  ctaWrap: { marginBottom: 2 },
-  ctaBtn: { height: 48, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: CTA_GREEN },
+  ctaDisabled: { opacity: 0.5 },
   ctaText: { fontFamily: FONT_BODY_BOLD, fontSize: 16, color: "#fff" },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center", padding: 16 },
-  modalCard: { width: "100%", borderRadius: 20, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.divider },
-  modalTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 15, color: theme.colors.text, marginBottom: 10 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", padding: 16, justifyContent: "center" },
+  modalCard: { backgroundColor: theme.colors.card, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: theme.colors.border },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  modalTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: theme.colors.text },
+  modalClose: { padding: 6 },
+  modalSub: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 6 },
 
-  planRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    backgroundColor: theme.colors.background,
-    marginBottom: 8,
-  },
-  planRowOn: { borderColor: theme.colors.primary },
+  plansWrap: { marginTop: 12, gap: 10 },
+  planCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12, borderRadius: 16, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  planCardOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  planCardRec: { borderColor: theme.colors.primary },
   planTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
+  planTitleOn: { color: "#fff" },
   planMeta: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
-  planPrice: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: theme.colors.text },
-
-  modalCloseBtn: { marginTop: 8, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.primary },
-  modalCloseText: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: "#fff" },
+  planMetaOn: { color: "rgba(255,255,255,0.92)" },
 });
