@@ -55,3 +55,17 @@ _plugaishop_support_bundle_*.zip
 # Node (redundant, but ok)
 node_modules/
 npm-debug.log*
+
+# === Plugaishop extra safe (added) ===
+_share/
+*.bak
+
+# env (general)
+.env
+.env.*
+*.env
+*.env.*
+
+# common mobile secrets
+google-services.json
+GoogleService-Info.plist
