@@ -392,6 +392,8 @@ export default function CartScreen() {
   const [couponInput, setCouponInput] = useState<string>("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponMsg, setCouponMsg] = useState<string>("");
+  const [footerHeight, setFooterHeight] = useState<number>(0);
+  const [footerHeight, setFooterHeight] = useState<number>(0);
 
   const applyCouponCode = useCallback((codeRaw: string) => {
     softHaptic();
@@ -720,11 +722,11 @@ export default function CartScreen() {
           keyExtractor={keyExtractor}
           renderSectionHeader={renderSectionHeader}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: footerHeight + 16 }]}
           stickySectionHeadersEnabled={false}
         />
 
-        <ThemedView style={styles.footer}>
+        <ThemedView style={styles.footer} onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}>
           {/* Total box laranja */}
           <ThemedView style={styles.totalBox}>
             <View style={styles.totalRow}>
