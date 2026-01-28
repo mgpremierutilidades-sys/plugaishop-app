@@ -42,8 +42,19 @@ const theme = {
   colors: {
     background: "#F7F8FA",
     backgroundSoft: "#EEF1F5",
+
+    // superfícies
     surface: "#FFFFFF",
     surfaceAlt: "#F1F3F6",
+
+    /**
+     * Aliases de compatibilidade:
+     * Alguns arquivos usam theme.colors.card.*
+     * Mantemos o visual idêntico apontando para surface/surfaceAlt.
+     */
+    card: "#FFFFFF",
+    cardAlt: "#F1F3F6",
+
     divider: "#E6E8EC",
     border: "#E6E8EC",
 
@@ -90,15 +101,12 @@ const theme = {
     h2: { fontSize: 22, lineHeight: 28, fontWeight: "800" as const },
     h3: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
 
-    // Alias que o Profile está pedindo:
-    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "800" as const },
-
-    title: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
-    subtitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
-    body: { fontSize: 16, lineHeight: 22, fontWeight: "400" as const },
-    bodySmall: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    // Alias que o Profile está pedindo
+    title: { fontSize: 18, lineHeight: 22, fontWeight: "700" as const },
+    body: { fontSize: 14, lineHeight: 18, fontWeight: "400" as const },
+    bodyBold: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
     caption: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
-    button: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
+    captionBold: { fontSize: 12, lineHeight: 16, fontWeight: "700" as const },
   },
 } as const;
 
