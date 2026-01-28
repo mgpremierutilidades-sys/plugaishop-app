@@ -393,8 +393,6 @@ export default function CartScreen() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponMsg, setCouponMsg] = useState<string>("");
   const [footerHeight, setFooterHeight] = useState<number>(0);
-  const [footerHeight, setFooterHeight] = useState<number>(0);
-
   const applyCouponCode = useCallback((codeRaw: string) => {
     softHaptic();
     const code = String(codeRaw ?? "")
