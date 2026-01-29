@@ -1,4 +1,4 @@
-// app/(tabs)/cart.tsx
+﻿// app/(tabs)/cart.tsx
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,10 +34,10 @@ const FONT_BODY_BOLD = "OpenSans_700Bold";
 
 // ==== Regras congeladas do Carrinho (teste/UX) ====
 // - Total em box laranja com letra preta
-// - CTA verde musgo “Continuar a compra” (mais fino), texto 16 bold
+// - CTA verde musgo â€œContinuar a compraâ€ (mais fino), texto 16 bold
 const CTA_GREEN = "#2F5D3A";
 
-// Frete grátis (mock/UX nudge)
+// Frete grÃ¡tis (mock/UX nudge)
 const FREE_SHIPPING_THRESHOLD = 199.9;
 
 // Cupom mock
@@ -50,7 +50,7 @@ const COUPONS: Coupon[] = [
   { code: "PLUGA10", type: "percent", value: 10, label: "10% OFF" },
   { code: "PLUGA20", type: "percent", value: 20, label: "20% OFF" },
   { code: "MENOS15", type: "fixed", value: 15, label: "R$ 15 OFF" },
-  { code: "FRETE", type: "free_shipping", value: 0, label: "FRETE GRÁTIS" },
+  { code: "FRETE", type: "free_shipping", value: 0, label: "FRETE GRÃTIS" },
 ];
 
 type ShippingMethod = "delivery" | "pickup";
@@ -110,7 +110,7 @@ function roundToCents(v: number) {
   return Math.round(v * 100) / 100;
 }
 
-// Preço final unitário considerando desconto do produto (não do cupom)
+// PreÃ§o final unitÃ¡rio considerando desconto do produto (nÃ£o do cupom)
 function calcUnitWithProductDiscount(unit: number, discountPercent?: number) {
   const u = clampMoney(unit);
   const pct = Number(discountPercent ?? 0);
@@ -248,7 +248,7 @@ const CartRowView = memo(function CartRowView(props: CartRowViewProps) {
       <View style={styles.itemBottom}>
         <View style={styles.qtyRow}>
           <Pressable onPress={onPressDec} style={styles.qtyBtn}>
-            <ThemedText style={styles.qtyBtnText}>−</ThemedText>
+            <ThemedText style={styles.qtyBtnText}>âˆ’</ThemedText>
           </Pressable>
 
           <View style={styles.qtyVal}>
@@ -268,7 +268,7 @@ const CartRowView = memo(function CartRowView(props: CartRowViewProps) {
 
       <View style={styles.protectionRow}>
         <View style={{ flex: 1 }}>
-          <ThemedText style={styles.protectionTitle}>Proteção estendida</ThemedText>
+          <ThemedText style={styles.protectionTitle}>ProteÃ§Ã£o estendida</ThemedText>
           <ThemedText style={styles.protectionMeta}>{protectionMonths ? `${protectionMonths} meses selecionado` : "Opcional"}</ThemedText>
         </View>
 
@@ -337,7 +337,7 @@ export default function CartScreen() {
   const hasCart = cartRows.length > 0;
 
   useEffect(() => {
-    // view_cart: apenas na transição de foco (evita duplicar por re-render)
+    // view_cart: apenas na transiÃ§Ã£o de foco (evita duplicar por re-render)
     if (ffCartTrackingV21 && isFocused && !prevFocusedRef.current) {
       track("view_cart", {
         items_count: cartRows.length,
@@ -347,7 +347,7 @@ export default function CartScreen() {
     prevFocusedRef.current = isFocused;
   }, [ffCartTrackingV21, isFocused, cartRows.length]);
 
-  // Seleção (checkbox)
+  // SeleÃ§Ã£o (checkbox)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -407,7 +407,7 @@ export default function CartScreen() {
     const found = COUPONS.find((c) => c.code === code) ?? null;
     if (!found) {
       setAppliedCoupon(null);
-      setCouponMsg("Cupom inválido.");
+      setCouponMsg("Cupom invÃ¡lido.");
       return;
     }
 
@@ -424,7 +424,7 @@ export default function CartScreen() {
     setCouponInput("");
   }, []);
 
-  // Proteção (por item)
+  // ProteÃ§Ã£o (por item)
   const [protectionById, setProtectionById] = useState<Record<string, number | undefined>>({});
   const [modalFor, setModalFor] = useState<{ id: string; unitFinal: number } | null>(null);
 
@@ -437,12 +437,12 @@ export default function CartScreen() {
     setModalFor(null);
   }, []);
 
-  // ✅ FIX HARD: se perdeu foco (troca de aba / navegação), fecha Modal SEMPRE
+  // âœ… FIX HARD: se perdeu foco (troca de aba / navegaÃ§Ã£o), fecha Modal SEMPRE
   useEffect(() => {
     if (!isFocused) closeProtectionModal();
   }, [isFocused, closeProtectionModal]);
 
-  // Mantém também o cleanup por segurança
+  // MantÃ©m tambÃ©m o cleanup por seguranÃ§a
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -465,7 +465,7 @@ export default function CartScreen() {
     [closeProtectionModal]
   );
 
-  // Recomendações
+  // RecomendaÃ§Ãµes
   const recommendations = useMemo<RecommendationRow[]>(() => {
     const idsInCart = new Set(cartRows.map((r) => r.id));
     const recos = (products ?? []).filter((p: Product) => !idsInCart.has(String(p.id))).slice(0, 6);
@@ -487,7 +487,7 @@ export default function CartScreen() {
     return map;
   }, [cartRows]);
 
-  // ✅ Mantém contrato real de CartPricingInput/Output do projeto
+  // âœ… MantÃ©m contrato real de CartPricingInput/Output do projeto
   const pricing = useMemo(() => {
     return computeCartPricing({
       rows: cartRows.map((r) => ({
@@ -549,7 +549,7 @@ export default function CartScreen() {
     s.push({ title: "Produtos no carrinho", data: cartRows });
 
     if (recommendations.length) {
-      s.push({ title: "Talvez você goste", data: recommendations });
+      s.push({ title: "Talvez vocÃª goste", data: recommendations });
     }
 
     return s;
@@ -624,7 +624,7 @@ export default function CartScreen() {
           <View style={styles.itemBottom}>
             <View style={styles.qtyRow}>
               <Pressable onPress={() => decQty(item.id)} style={styles.qtyBtn}>
-                <ThemedText style={styles.qtyBtnText}>−</ThemedText>
+                <ThemedText style={styles.qtyBtnText}>âˆ’</ThemedText>
               </Pressable>
 
               <View style={styles.qtyVal}>
@@ -644,7 +644,7 @@ export default function CartScreen() {
 
           <View style={styles.protectionRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.protectionTitle}>Proteção estendida</ThemedText>
+              <ThemedText style={styles.protectionTitle}>ProteÃ§Ã£o estendida</ThemedText>
               <ThemedText style={styles.protectionMeta}>
                 {protectionById[item.id] ? `${protectionById[item.id]} meses selecionado` : "Opcional"}
               </ThemedText>
@@ -735,20 +735,20 @@ export default function CartScreen() {
             {!!pricing.discountTotal ? (
               <View style={styles.totalRow}>
                 <ThemedText style={styles.totalLabel}>Descontos</ThemedText>
-                <ThemedText style={styles.totalValue}>− {formatCurrency(pricing.discountTotal)}</ThemedText>
+                <ThemedText style={styles.totalValue}>âˆ’ {formatCurrency(pricing.discountTotal)}</ThemedText>
               </View>
             ) : null}
 
             {!!pricing.protectionTotal ? (
               <View style={styles.totalRow}>
-                <ThemedText style={styles.totalLabel}>Proteção</ThemedText>
+                <ThemedText style={styles.totalLabel}>ProteÃ§Ã£o</ThemedText>
                 <ThemedText style={styles.totalValue}>{formatCurrency(pricing.protectionTotal)}</ThemedText>
               </View>
             ) : null}
 
             <View style={styles.totalRow}>
               <ThemedText style={styles.totalLabel}>Frete</ThemedText>
-              <ThemedText style={styles.totalValue}>{pricing.shippingEstimated ? formatCurrency(pricing.shippingEstimated) : "—"}</ThemedText>
+              <ThemedText style={styles.totalValue}>{pricing.shippingEstimated ? formatCurrency(pricing.shippingEstimated) : "â€”"}</ThemedText>
             </View>
 
             <View style={[styles.totalRow, { marginTop: 8 }]}>
@@ -762,8 +762,8 @@ export default function CartScreen() {
               </View>
               <ThemedText style={styles.freeShipText}>
                 {pricing.freeShippingProgress.reached
-                  ? "Frete grátis desbloqueado!"
-                  : `Faltam ${formatCurrency(pricing.freeShippingProgress.missing)} para frete grátis`}
+                  ? "Frete grÃ¡tis desbloqueado!"
+                  : `Faltam ${formatCurrency(pricing.freeShippingProgress.missing)} para frete grÃ¡tis`}
               </ThemedText>
             </View>
           </ThemedView>
@@ -809,7 +809,7 @@ export default function CartScreen() {
                   onPress={() => {
                     softHaptic();
                     if (cep8.length !== 8) {
-                      Alert.alert("CEP inválido", "Digite um CEP com 8 dígitos.");
+                      Alert.alert("CEP invÃ¡lido", "Digite um CEP com 8 dÃ­gitos.");
                       return;
                     }
                     setCep(cep8);
@@ -820,7 +820,7 @@ export default function CartScreen() {
                 </Pressable>
               </View>
             ) : (
-              <ThemedText style={styles.pickupText}>Retire em uma loja parceira próxima.</ThemedText>
+              <ThemedText style={styles.pickupText}>Retire em uma loja parceira prÃ³xima.</ThemedText>
             )}
           </ThemedView>
 
@@ -858,12 +858,12 @@ export default function CartScreen() {
           </Pressable>
         </ThemedView>
 
-        {/* Modal Proteção */}
-        <Modal visible={!!modalFor} transparent animationType="fade" onRequestClose={closeProtectionModal}>
+        {/* Modal ProteÃ§Ã£o */}
+        <Modal visible={!!modalFor} transparent animationType="fade" onRequestClose={closeProtectionModal} onDismiss={closeProtectionModal}>
           <Pressable style={styles.modalOverlay} onPress={closeProtectionModal}>
             <Pressable style={styles.modalCard} onPress={() => null}>
               <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Proteção estendida</ThemedText>
+                <ThemedText style={styles.modalTitle}>ProteÃ§Ã£o estendida</ThemedText>
                 <Pressable onPress={closeProtectionModal} style={styles.modalClose}>
                   <Icon name="x" size={18} color={theme.colors.muted} />
                 </Pressable>
@@ -888,7 +888,7 @@ export default function CartScreen() {
                       <View style={{ flex: 1 }}>
                         <ThemedText style={[styles.planTitle, isOn && styles.planTitleOn]}>{months} meses</ThemedText>
                         <ThemedText style={[styles.planMeta, isOn && styles.planMetaOn]}>
-                          {formatCurrency(p.price)} • em até {(p as any).installments ?? 10}x
+                          {formatCurrency(p.price)} â€¢ em atÃ© {(p as any).installments ?? 10}x
                         </ThemedText>
                       </View>
 
@@ -1150,3 +1150,4 @@ const styles = StyleSheet.create({
   planMeta: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 2 },
   planMetaOn: { color: "rgba(255,255,255,0.92)" },
 });
+
