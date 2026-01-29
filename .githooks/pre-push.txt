@@ -1,0 +1,11 @@
+#!/bin/sh
+# Plugaishop: guardrails antes de enviar para remoto
+# - roda checks um pouco mais completos
+
+set -e
+
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "scripts/hooks/run-checks.ps1" -Mode "pre-push"
+else
+  powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/hooks/run-checks.ps1" -Mode "pre-push"
+fi
