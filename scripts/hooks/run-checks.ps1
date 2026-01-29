@@ -1,56 +1,38 @@
 ﻿param(
-  [ValidateSet("pre-commit","pre-push")]
-  [string]$Mode = "pre-commit"
+  [Parameter(Mandatory = $true)]
+  [ValidateSet("pre-commit", "manual")]
+  [string]$Mode
 )
 
 $ErrorActionPreference = "Stop"
 
-function Has-Command([string]$cmd) {
-  return [bool](Get-Command $cmd -ErrorAction SilentlyContinue)
+function Fail([string]$Message) {
+  Write-Error "[hooks/$Mode] $Message"
+  exit 1
 }
 
-function Read-PackageJson {
-  $p = Join-Path (Get-Location).Path "package.json"
-  if (-not (Test-Path $p)) { return $null }
-  return Get-Content $p -Raw | ConvertFrom-Json
+function Info([string]$Message) {
+  Write-Host "[hooks/$Mode] $Message"
 }
 
-function Run([string]$label, [string]$command) {
-  Write-Host "==> $label"
-  Write-Host "    $command"
-  iex $command
+try {
+  $repoRoot = git rev-parse --show-toplevel 2>$null
+  if (-not $repoRoot) { Fail "Não consegui detectar a raiz do git (rev-parse falhou)." }
+
+  Set-Location $repoRoot
+  [System.Environment]::CurrentDirectory = (Get-Location).Path
+} catch {
+  Fail "Git não disponível ou não é um repositório. Detalhe: $($_.Exception.Message)"
 }
 
-if (-not (Test-Path (Join-Path (Get-Location).Path "app"))) {
-  throw "Execute a partir da raiz do projeto (onde existe a pasta 'app')."
-}
+$node = Get-Command node -ErrorAction SilentlyContinue
+if (-not $node) { Fail "Node não encontrado no PATH. Instale Node.js (LTS) e reabra o terminal." }
 
-if (-not (Has-Command "node")) { throw "Node.js não encontrado no PATH." }
+$guardFile = "scripts/hooks/opacity-guardrails.mjs"
+if (-not (Test-Path $guardFile)) { Fail "Arquivo não encontrado: $guardFile" }
 
-$pkg = Read-PackageJson
+Info "Rodando Opacity Guardrails..."
+node $guardFile
 
-Run "Opacity Guardrails (Modal/Overlay)" "node scripts/hooks/check-opacity-guards.mjs"
-
-if ($pkg -and $pkg.scripts -and $pkg.scripts.typecheck) {
-  Run "Typecheck" "npm run -s typecheck"
-} elseif (Test-Path "tsconfig.json") {
-  Run "Typecheck (tsc --noEmit)" "npx -y tsc -p tsconfig.json --noEmit"
-} else {
-  Write-Host "==> Typecheck: tsconfig.json não encontrado (pulando)."
-}
-
-if ($pkg -and $pkg.scripts -and $pkg.scripts.lint) {
-  Run "Lint" "npm run -s lint"
-} else {
-  Write-Host "==> Lint: script 'lint' não encontrado (pulando)."
-}
-
-if ($Mode -eq "pre-push") {
-  if ($pkg -and $pkg.scripts -and $pkg.scripts.test) {
-    Run "Tests" "npm run -s test"
-  } else {
-    Write-Host "==> Tests: script 'test' não encontrado (pulando)."
-  }
-}
-
-Write-Host "OK. Checks passaram ($Mode)."
+Info "OK"
+exit 0
