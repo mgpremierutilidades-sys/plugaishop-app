@@ -69,3 +69,8 @@ _share/
 # common mobile secrets
 google-services.json
 GoogleService-Info.plist
+handoff/
+*.zip
+scripts/encoding/*.bak
+scripts/pack-*.ps1
+scripts/fix-*-encoding*.ps1
