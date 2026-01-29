@@ -1,11 +1,15 @@
-# Força texto sem BOM e normaliza EOL
-* text=auto eol=lf
+﻿# Normalize line endings across platforms
+* text=auto
 
-*.ts   text working-tree-encoding=UTF-8
-*.tsx  text working-tree-encoding=UTF-8
-*.js   text working-tree-encoding=UTF-8
-*.jsx  text working-tree-encoding=UTF-8
-*.json text working-tree-encoding=UTF-8
-*.md   text working-tree-encoding=UTF-8
-*.yml  text working-tree-encoding=UTF-8
-*.yaml text working-tree-encoding=UTF-8
+# App source
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Windows scripts
+*.ps1  text eol=crlf
