@@ -1,10 +1,16 @@
 // constants/flags.ts
 /**
- * Feature flags (Etapa 21)
- * - Defaults OFF for safety.
- * - Can be enabled via Expo public env vars:
- *   - EXPO_PUBLIC_FF_CART_PERF_V21=1
- *   - EXPO_PUBLIC_FF_CART_TRACKING_V21=1
+ * Feature flags
+ *
+ * Convenções:
+ * - Flags de experimento/risco: default OFF (habilite via EXPO_PUBLIC_*=1)
+ * - Flags de correção crítica (bugfix): default ON (desabilite via EXPO_PUBLIC_*=0)
+ *
+ * Env vars (Expo public):
+ * - EXPO_PUBLIC_FF_CART_PERF_V21=1
+ * - EXPO_PUBLIC_FF_CART_TRACKING_V21=1
+ *
+ * - EXPO_PUBLIC_FF_CART_OPACITY_FIX_V22=0   (default ON)
  */
 type Env = Record<string, string | undefined>;
 
@@ -19,8 +25,13 @@ function readEnv(): Env {
 const env = readEnv();
 
 const flags = {
+  // Etapa 21
   ff_cart_perf_v21: env.EXPO_PUBLIC_FF_CART_PERF_V21 === "1",
   ff_cart_tracking_v21: env.EXPO_PUBLIC_FF_CART_TRACKING_V21 === "1",
+
+  // Etapa 22 (bugfix crítico): opacidade/dimming após sair do carrinho (Modal/backdrop)
+  // Default ON. Para desligar: EXPO_PUBLIC_FF_CART_OPACITY_FIX_V22=0
+  ff_cart_opacity_fix_v22: env.EXPO_PUBLIC_FF_CART_OPACITY_FIX_V22 !== "0",
 } as const;
 
 export type FeatureFlags = typeof flags;
