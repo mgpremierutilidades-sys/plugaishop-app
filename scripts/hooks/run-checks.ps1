@@ -18,6 +18,7 @@ function Info([string]$Message) {
 try {
   $repoRoot = git rev-parse --show-toplevel 2>$null
   if (-not $repoRoot) { Fail "Não consegui detectar a raiz do git (rev-parse falhou)." }
+
   Set-Location $repoRoot
   [System.Environment]::CurrentDirectory = (Get-Location).Path
 } catch {
@@ -34,7 +35,12 @@ $guardFile = if (Test-Path $guardPrimary) { $guardPrimary } elseif (Test-Path $g
 if (-not $guardFile) { Fail "Arquivo do guard não encontrado ($guardPrimary / $guardFallback)." }
 
 Info "Rodando Opacity Guardrails ($guardFile)..."
-node $guardFile
+& node $guardFile
+$code = $LASTEXITCODE
+
+if ($code -ne 0) {
+  Fail "Opacity Guardrails falhou (exit code $code). Corrija antes de commitar/push."
+}
 
 Info "OK"
 exit 0
