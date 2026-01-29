@@ -18,7 +18,6 @@ function Info([string]$Message) {
 try {
   $repoRoot = git rev-parse --show-toplevel 2>$null
   if (-not $repoRoot) { Fail "Não consegui detectar a raiz do git (rev-parse falhou)." }
-
   Set-Location $repoRoot
   [System.Environment]::CurrentDirectory = (Get-Location).Path
 } catch {
@@ -26,12 +25,15 @@ try {
 }
 
 $node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) { Fail "Node não encontrado no PATH. Instale Node.js (LTS) e reabra o terminal." }
+if (-not $node) { Fail "Node não encontrado no PATH." }
 
-$guardFile = "scripts/hooks/opacity-guardrails.mjs"
-if (-not (Test-Path $guardFile)) { Fail "Arquivo não encontrado: $guardFile" }
+$guardPrimary = "scripts/hooks/check-opacity-guards.mjs"
+$guardFallback = "scripts/hooks/opacity-guardrails.mjs"
 
-Info "Rodando Opacity Guardrails..."
+$guardFile = if (Test-Path $guardPrimary) { $guardPrimary } elseif (Test-Path $guardFallback) { $guardFallback } else { $null }
+if (-not $guardFile) { Fail "Arquivo do guard não encontrado ($guardPrimary / $guardFallback)." }
+
+Info "Rodando Opacity Guardrails ($guardFile)..."
 node $guardFile
 
 Info "OK"
