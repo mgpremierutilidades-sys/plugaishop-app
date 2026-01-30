@@ -25,6 +25,7 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+npm-debug.log*
 
 # macOS
 .DS_Store
@@ -32,6 +33,13 @@ yarn-error.*
 
 # local env files
 .env*.local
+
+# env (general)
+.env
+.env.*
+*.env
+*.env.*
+*.env*.local
 
 # typescript
 *.tsbuildinfo
@@ -42,7 +50,7 @@ app-example
 /ios
 /android
 
-# archives
+# archives (geralmente não versionar)
 *.zip
 
 # Plugaishop context artifacts (snapshots/bundles)
@@ -52,25 +60,18 @@ _upload_*/
 _plugaishop_context_*.zip
 _plugaishop_support_bundle_*.zip
 
-# Node (redundant, but ok)
-node_modules/
-npm-debug.log*
-
-# === Plugaishop extra safe (added) ===
+# === Plugaishop extra safe ===
 _share/
 *.bak
-
-# env (general)
-.env
-.env.*
-*.env
-*.env.*
 
 # common mobile secrets
 google-services.json
 GoogleService-Info.plist
 handoff/
-*.zip
 scripts/encoding/*.bak
 scripts/pack-*.ps1
 scripts/fix-*-encoding*.ps1
+
+# exports temporários
+_export_cart_etapa24/
+_export_cart_etapa24.zip
