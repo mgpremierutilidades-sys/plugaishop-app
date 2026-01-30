@@ -1,10 +1,19 @@
 // app/(tabs)/_layout.tsx
-import { Tabs } from "expo-router";
-import { useMemo } from "react";
+import { Tabs, usePathname } from "expo-router";
+import { useEffect, useMemo } from "react";
 import Icon from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
+import { trackScreenView } from "../../utils/analytics";
 
 export default function TabsLayout() {
+  const pathname = usePathname();
+
+  // Rastreia view de tela baseado na rota atual (sem mexer em UI)
+  useEffect(() => {
+    if (!pathname) return;
+    trackScreenView(pathname);
+  }, [pathname]);
+
   const baseTabBarStyle = useMemo(
     () => ({
       borderTopColor: theme.colors.divider,
