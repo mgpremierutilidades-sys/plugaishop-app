@@ -1,72 +1,60 @@
-{
-  "name": "plugaishop-app",
-  "main": "expo-router/entry",
-  "version": "1.0.0",
-  "scripts": {
-    "start": "expo start",
-    "dev": "expo start -c",
-    "dev:lan": "expo start --lan -c",
-    "dev:tunnel": "expo start --tunnel -c",
-    "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "test": "jest --passWithNoTests",
-    "test:watch": "jest --watchAll",
-    "lint": "expo lint",
-    "collect:context": "powershell -ExecutionPolicy Bypass -File .\\scripts\\context-collector.ps1",
-    "context": "npm run collect:context",
+# scripts/support-bundle.ps1
+# Gera export estático do Expo Router + compacta em ZIP na raiz do repo.
+# Uso:
+#   npm run support:bundle
+#   npm run support:bundle:web
 
-    "support:bundle": "npx expo export --platform all --output-dir dist-support",
-    "support:bundle:web": "npx expo export --platform web --output-dir dist-web --dump-sourcemap",
+param(
+  [switch]$WebOnly
+)
 
-    "support:artifact": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1",
-    "support:artifact:web": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1 -WebOnly"
-  },
-  "jest": {
-    "preset": "jest-expo"
-  },
-  "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-community/netinfo": "^11.4.1",
-    "@react-navigation/bottom-tabs": "^7.4.0",
-    "@react-navigation/native": "^7.1.8",
-    "eslint": "^9.39.2",
-    "eslint-config-expo": "~10.0.0",
-    "expo": "^54.0.32",
-    "expo-clipboard": "~8.0.8",
-    "expo-constants": "~18.0.13",
-    "expo-haptics": "~15.0.8",
-    "expo-image": "~3.0.11",
-    "expo-linking": "~8.0.11",
-    "expo-router": "~6.0.22",
-    "expo-splash-screen": "~31.0.13",
-    "expo-status-bar": "~3.0.9",
-    "expo-web-browser": "~15.0.10",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-reanimated": "~4.1.0",
-    "react-native-safe-area-context": "5.6.1",
-    "react-native-screens": "~4.16.0",
-    "react-native-web": "~0.21.0",
-    "react-native-webview": "13.15.0",
-    "react-native-worklets": "0.5.1"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.28.3",
-    "@types/jest": "^29.5.14",
-    "@types/react": "~19.1.10",
-    "@types/react-dom": "~19.1.7",
-    "@types/react-test-renderer": "^19.1.0",
-    "jest": "~29.7.0",
-    "jest-expo": "~54.0.4",
-    "react-test-renderer": "19.0.0",
-    "typescript": "^5.9.2"
-  },
-  "private": true,
-  "engines": {
-    "node": "20.x"
-  }
+$ErrorActionPreference = "Stop"
+
+# Repo root = pasta acima de /scripts
+$ROOT = Split-Path -Parent $PSScriptRoot
+
+$stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$outDir = if ($WebOnly) { Join-Path $ROOT "dist-web" } else { Join-Path $ROOT "dist-support" }
+$zipName = if ($WebOnly) { "_plugaishop_support_bundle_web_$stamp.zip" } else { "_plugaishop_support_bundle_$stamp.zip" }
+$zipPath = Join-Path $ROOT $zipName
+
+Write-Host "=== Plugaishop Support Bundle ===" -ForegroundColor Cyan
+Write-Host "ROOT:   $ROOT"
+Write-Host "OUTDIR: $outDir"
+Write-Host "ZIP:    $zipPath"
+$modeLabel = if ($WebOnly) { "web-only" } else { "all-platforms" }
+Write-Host "MODE:   $modeLabel"
+Write-Host ""
+
+# Limpa saída anterior para evitar artefatos antigos
+if (Test-Path $outDir) {
+  Write-Host "Cleaning output dir..." -ForegroundColor Yellow
+  Remove-Item -Recurse -Force $outDir
 }
+
+# Export
+if ($WebOnly) {
+  Write-Host "Running: npx expo export --platform web --output-dir dist-web --dump-sourcemap" -ForegroundColor Green
+  & npx expo export --platform web --output-dir dist-web --dump-sourcemap
+} else {
+  Write-Host "Running: npx expo export --platform all --output-dir dist-support" -ForegroundColor Green
+  & npx expo export --platform all --output-dir dist-support
+}
+
+if ($LASTEXITCODE -ne 0) {
+  throw "Expo export failed with exit code $LASTEXITCODE"
+}
+
+# Zip
+Write-Host ""
+Write-Host "Compressing..." -ForegroundColor Green
+Compress-Archive -Path (Join-Path $outDir "*") -DestinationPath $zipPath -Force
+
+if (!(Test-Path $zipPath)) {
+  throw "ZIP not created: $zipPath"
+}
+
+Write-Host ""
+Write-Host "=== Done ===" -ForegroundColor Cyan
+Write-Host "OUTDIR: $outDir"
+Write-Host "ZIP: $zipPath"
