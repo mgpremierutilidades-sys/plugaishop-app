@@ -17,8 +17,8 @@
     "collect:context": "powershell -ExecutionPolicy Bypass -File .\\scripts\\context-collector.ps1",
     "context": "npm run collect:context",
 
-    "support:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-bundle.ps1",
-    "support:bundle:web": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-bundle.ps1 -WebOnly",
+    "support:bundle": "npx expo export --platform all --output-dir dist-support",
+    "support:bundle:web": "npx expo export --platform web --output-dir dist-web --dump-sourcemap",
 
     "support:artifact": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1",
     "support:artifact:web": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1 -WebOnly"
