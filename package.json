@@ -14,7 +14,10 @@
     "test": "jest --watchAll",
     "lint": "expo lint",
     "collect:context": "powershell -ExecutionPolicy Bypass -File .\\scripts\\context-collector.ps1",
-    "context": "npm run collect:context"
+    "context": "npm run collect:context",
+
+    "support:bundle": "npx expo export --platform all --output-dir dist-support",
+    "support:bundle:web": "npx expo export --platform web --output-dir dist-web --dump-sourcemap"
   },
   "jest": {
     "preset": "jest-expo"
