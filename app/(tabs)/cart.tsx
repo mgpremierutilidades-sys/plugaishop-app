@@ -1,4 +1,4 @@
-﻿// app/(tabs)/cart.tsx
+// app/(tabs)/cart.tsx
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,10 +34,10 @@ const FONT_BODY_BOLD = "OpenSans_700Bold";
 
 // ==== Regras congeladas do Carrinho (teste/UX) ====
 // - Total em box laranja com letra preta
-// - CTA verde musgo â€œContinuar a compraâ€ (mais fino), texto 16 bold
+// - CTA verde musgo Ã¢â‚¬Å“Continuar a compraÃ¢â‚¬Â (mais fino), texto 16 bold
 const CTA_GREEN = "#2F5D3A";
 
-// Frete grÃ¡tis (mock/UX nudge)
+// Frete grÃƒÂ¡tis (mock/UX nudge)
 const FREE_SHIPPING_THRESHOLD = 199.9;
 
 // Cupom mock
@@ -50,7 +50,7 @@ const COUPONS: Coupon[] = [
   { code: "PLUGA10", type: "percent", value: 10, label: "10% OFF" },
   { code: "PLUGA20", type: "percent", value: 20, label: "20% OFF" },
   { code: "MENOS15", type: "fixed", value: 15, label: "R$ 15 OFF" },
-  { code: "FRETE", type: "free_shipping", value: 0, label: "FRETE GRÃTIS" },
+  { code: "FRETE", type: "free_shipping", value: 0, label: "FRETE GRÃƒÂTIS" },
 ];
 
 type ShippingMethod = "delivery" | "pickup";
@@ -110,7 +110,7 @@ function roundToCents(v: number) {
   return Math.round(v * 100) / 100;
 }
 
-// PreÃ§o final unitÃ¡rio considerando desconto do produto (nÃ£o do cupom)
+// PreÃƒÂ§o final unitÃƒÂ¡rio considerando desconto do produto (nÃƒÂ£o do cupom)
 function calcUnitWithProductDiscount(unit: number, discountPercent?: number) {
   const u = clampMoney(unit);
   const pct = Number(discountPercent ?? 0);
@@ -268,7 +268,7 @@ const CartRowView = memo(function CartRowView(props: CartRowViewProps) {
 
       <View style={styles.protectionRow}>
         <View style={{ flex: 1 }}>
-          <ThemedText style={styles.protectionTitle}>ProteÃ§Ã£o estendida</ThemedText>
+          <ThemedText style={styles.protectionTitle}>ProteÃƒÂ§ÃƒÂ£o estendida</ThemedText>
           <ThemedText style={styles.protectionMeta}>{protectionMonths ? `${protectionMonths} meses selecionado` : "Opcional"}</ThemedText>
         </View>
 
@@ -338,7 +338,7 @@ const cartItems = useMemo(() => {
   const hasCart = cartRows.length > 0;
 
   useEffect(() => {
-    // view_cart: apenas na transiÃ§Ã£o de foco (evita duplicar por re-render)
+    // view_cart: apenas na transiÃƒÂ§ÃƒÂ£o de foco (evita duplicar por re-render)
     if (ffCartTrackingV21 && isFocused && !prevFocusedRef.current) {
       track("view_cart", {
         items_count: cartRows.length,
@@ -348,7 +348,7 @@ const cartItems = useMemo(() => {
     prevFocusedRef.current = isFocused;
   }, [ffCartTrackingV21, isFocused, cartRows.length]);
 
-  // SeleÃ§Ã£o (checkbox)
+  // SeleÃƒÂ§ÃƒÂ£o (checkbox)
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -408,7 +408,7 @@ const cartItems = useMemo(() => {
     const found = COUPONS.find((c) => c.code === code) ?? null;
     if (!found) {
       setAppliedCoupon(null);
-      setCouponMsg("Cupom invÃ¡lido.");
+      setCouponMsg("Cupom invÃƒÂ¡lido.");
       return;
     }
 
@@ -425,7 +425,7 @@ const cartItems = useMemo(() => {
     setCouponInput("");
   }, []);
 
-  // ProteÃ§Ã£o (por item)
+  // ProteÃƒÂ§ÃƒÂ£o (por item)
   const [protectionById, setProtectionById] = useState<Record<string, number | undefined>>({});
   const [modalFor, setModalFor] = useState<{ id: string; unitFinal: number } | null>(null);
 
@@ -438,12 +438,12 @@ const cartItems = useMemo(() => {
     setModalFor(null);
   }, []);
 
-  // âœ… FIX HARD: se perdeu foco (troca de aba / navegaÃ§Ã£o), fecha Modal SEMPRE
+  // Ã¢Å“â€¦ FIX HARD: se perdeu foco (troca de aba / navegaÃƒÂ§ÃƒÂ£o), fecha Modal SEMPRE
   useEffect(() => {
     if (!isFocused) closeProtectionModal();
   }, [isFocused, closeProtectionModal]);
 
-  // MantÃ©m tambÃ©m o cleanup por seguranÃ§a
+  // MantÃƒÂ©m tambÃƒÂ©m o cleanup por seguranÃƒÂ§a
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -466,7 +466,7 @@ const cartItems = useMemo(() => {
     [closeProtectionModal]
   );
 
-  // RecomendaÃ§Ãµes
+  // RecomendaÃƒÂ§ÃƒÂµes
   const recommendations = useMemo<RecommendationRow[]>(() => {
     const idsInCart = new Set(cartRows.map((r) => r.id));
     const recos = (products ?? []).filter((p: Product) => !idsInCart.has(String(p.id))).slice(0, 6);
@@ -488,7 +488,7 @@ const cartItems = useMemo(() => {
     return map;
   }, [cartRows]);
 
-  // âœ… MantÃ©m contrato real de CartPricingInput/Output do projeto
+  // Ã¢Å“â€¦ MantÃƒÂ©m contrato real de CartPricingInput/Output do projeto
   const pricing = useMemo(() => {
     return computeCartPricing({
       rows: cartRows.map((r) => ({
@@ -550,7 +550,7 @@ const cartItems = useMemo(() => {
     s.push({ title: "Produtos no carrinho", data: cartRows });
 
     if (recommendations.length) {
-      s.push({ title: "Talvez VocÃª goste", data: recommendations });
+      s.push({ title: "Talvez VocÃƒÂª goste", data: recommendations });
     }
 
     return s;
@@ -645,7 +645,7 @@ const cartItems = useMemo(() => {
 
           <View style={styles.protectionRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.protectionTitle}>ProteÃ§Ã£o estendida</ThemedText>
+              <ThemedText style={styles.protectionTitle}>ProteÃƒÂ§ÃƒÂ£o estendida</ThemedText>
               <ThemedText style={styles.protectionMeta}>
                 {protectionById[item.id] ? `${protectionById[item.id]} meses selecionado` : "Opcional"}
               </ThemedText>
@@ -742,14 +742,14 @@ const cartItems = useMemo(() => {
 
             {!!pricing.protectionTotal ? (
               <View style={styles.totalRow}>
-                <ThemedText style={styles.totalLabel}>ProteÃ§Ã£o</ThemedText>
+                <ThemedText style={styles.totalLabel}>ProteÃƒÂ§ÃƒÂ£o</ThemedText>
                 <ThemedText style={styles.totalValue}>{formatCurrency(pricing.protectionTotal)}</ThemedText>
               </View>
             ) : null}
 
             <View style={styles.totalRow}>
               <ThemedText style={styles.totalLabel}>Frete</ThemedText>
-              <ThemedText style={styles.totalValue}>{pricing.shippingEstimated ? formatCurrency(pricing.shippingEstimated) : "â€”"}</ThemedText>
+              <ThemedText style={styles.totalValue}>{pricing.shippingEstimated ? formatCurrency(pricing.shippingEstimated) : "Ã¢â‚¬â€"}</ThemedText>
             </View>
 
             <View style={[styles.totalRow, { marginTop: 8 }]}>
@@ -763,8 +763,8 @@ const cartItems = useMemo(() => {
               </View>
               <ThemedText style={styles.freeShipText}>
                 {pricing.freeShippingProgress.reached
-                  ? "Frete grÃ¡tis desbloqueado!"
-                  : `Faltam ${formatCurrency(pricing.freeShippingProgress.missing)} para frete grÃ¡tis`}
+                  ? "Frete grÃƒÂ¡tis desbloqueado!"
+                  : `Faltam ${formatCurrency(pricing.freeShippingProgress.missing)} para frete grÃƒÂ¡tis`}
               </ThemedText>
             </View>
           </ThemedView>
@@ -810,7 +810,7 @@ const cartItems = useMemo(() => {
                   onPress={() => {
                     softHaptic();
                     if (cep8.length !== 8) {
-                      Alert.alert("CEP invÃ¡lido", "Digite um CEP com 8 dÃƒÂ­gitos.");
+                      Alert.alert("CEP invÃƒÂ¡lido", "Digite um CEP com 8 dÃƒÆ’Ã‚Â­gitos.");
                       return;
                     }
                     setCep(cep8);
@@ -821,7 +821,7 @@ const cartItems = useMemo(() => {
                 </Pressable>
               </View>
             ) : (
-              <ThemedText style={styles.pickupText}>Retire em uma loja parceira prÃ³xima.</ThemedText>
+              <ThemedText style={styles.pickupText}>Retire em uma loja parceira prÃƒÂ³xima.</ThemedText>
             )}
           </ThemedView>
 
@@ -859,12 +859,12 @@ const cartItems = useMemo(() => {
           </Pressable>
         </ThemedView>
 
-        {/* Modal ProteÃ§Ã£o */}
+        {/* Modal ProteÃƒÂ§ÃƒÂ£o */}
         <Modal visible={!!modalFor} transparent animationType="fade" onRequestClose={closeProtectionModal} onDismiss={closeProtectionModal}>
           <Pressable style={styles.modalOverlay} onPress={closeProtectionModal}>
             <Pressable style={styles.modalCard} onPress={() => null}>
               <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>ProteÃ§Ã£o estendida</ThemedText>
+                <ThemedText style={styles.modalTitle}>ProteÃƒÂ§ÃƒÂ£o estendida</ThemedText>
                 <Pressable onPress={closeProtectionModal} style={styles.modalClose}>
                   <Icon name="x" size={18} color={theme.colors.muted} />
                 </Pressable>
@@ -889,7 +889,7 @@ const cartItems = useMemo(() => {
                       <View style={{ flex: 1 }}>
                         <ThemedText style={[styles.planTitle, isOn && styles.planTitleOn]}>{months} meses</ThemedText>
                         <ThemedText style={[styles.planMeta, isOn && styles.planMetaOn]}>
-                          {formatCurrency(p.price)} â€¢ em atÃ© {(p as any).installments ?? 10}x
+                          {formatCurrency(p.price)} Ã¢â‚¬Â¢ em atÃƒÂ© {(p as any).installments ?? 10}x
                         </ThemedText>
                       </View>
 
