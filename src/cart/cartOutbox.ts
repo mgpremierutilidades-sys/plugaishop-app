@@ -1,6 +1,6 @@
 // src/cart/cartOutbox.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import NetInfo from "@react-native-community/netinfo";
+import { fetch as netInfoFetch } from "@react-native-community/netinfo";
 import { httpJson } from "../../utils/httpClient";
 
 export type CartOutboxJob = {
@@ -61,7 +61,9 @@ export async function enqueueCartJob(payload: any) {
   let next = list;
 
   if (op === "SET_QTY" && id) {
-    next = list.filter((j) => !(String(j?.payload?.op) === "SET_QTY" && String(j?.payload?.id) === id));
+    next = list.filter(
+      (j) => !(String(j?.payload?.op) === "SET_QTY" && String(j?.payload?.id) === id)
+    );
   }
 
   const job: CartOutboxJob = {
@@ -81,7 +83,7 @@ export async function enqueueCartJob(payload: any) {
  * - Retry com backoff e limite de tentativas
  */
 export async function processCartOutboxOnce(): Promise<{ sent: number; remaining: number }> {
-  const state = await NetInfo.fetch();
+  const state = await netInfoFetch();
   if (!state.isConnected) return { sent: 0, remaining: (await getCartOutbox()).length };
 
   const outbox = await getCartOutbox();
