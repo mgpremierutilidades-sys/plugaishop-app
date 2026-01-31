@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-31T18:40:25.924Z","ia":"nexus_core","impact":"perf","decision":"Otimizar performance do carrinho sem alterar UI, com rollback e métrica","score":88,"precisaCEO":false}

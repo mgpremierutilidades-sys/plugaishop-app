@@ -75,3 +75,9 @@ scripts/fix-*-encoding*.ps1
 # exports temporários
 _export_cart_etapa24/
 _export_cart_etapa24.zip
+
+# AI governance runtime logs
+ai/governance/decisions.log.ndjson
+
+# AI governance runtime logs
+ai/governance/decisions.log.ndjson
