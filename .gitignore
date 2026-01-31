@@ -60,6 +60,10 @@ _upload_*/
 _plugaishop_context_*.zip
 _plugaishop_support_bundle_*.zip
 
+# Bundle manifests / patch inputs (NÃO versionar)
+_bundle_files*.txt
+PATCH_INPUT*.txt
+
 # === Plugaishop extra safe ===
 _share/
 *.bak
