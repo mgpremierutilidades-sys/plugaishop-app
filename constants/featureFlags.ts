@@ -8,6 +8,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const FeatureFlags = {
   ANALYTICS_EVENTS: "FF_ANALYTICS_EVENTS",
+  HOME_EVENTS_V1: "FF_HOME_EVENTS_V1",
+  TTI_V1: "FF_TTI_V1",
 } as const;
 
 export type FeatureFlagKey = (typeof FeatureFlags)[keyof typeof FeatureFlags];
@@ -15,6 +17,8 @@ export type FeatureFlagKey = (typeof FeatureFlags)[keyof typeof FeatureFlags];
 const STORAGE_PREFIX = "ff:";
 const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   [FeatureFlags.ANALYTICS_EVENTS]: false,
+  [FeatureFlags.HOME_EVENTS_V1]: false,
+  [FeatureFlags.TTI_V1]: false,
 };
 
 const cache: Partial<Record<FeatureFlagKey, boolean>> = {};

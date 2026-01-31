@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { Link, router } from "expo-router";
+import { Link, router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
@@ -14,6 +14,7 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
+import { trackHomeFail, trackHomeProductClick, trackHomeView } from "../../utils/homeAnalytics";
 
 const ALL = "Todos" as const;
 
@@ -21,34 +22,91 @@ export default function HomeScreen() {
   // tenta enviar fila quando abrir o app
   useOutboxAutoFlush();
 
+  // anti-duplicação (React Strict Mode / foco rápido)
+  const lastViewTsRef = useRef(0);
+  const lastClickByProductRef = useRef<Record<string, number>>({});
+
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products as Product[]) {
-      if (p?.category) set.add(String(p.category));
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      if (now - lastViewTsRef.current < 800) return;
+      lastViewTsRef.current = now;
+
+      void trackHomeView().catch(() => {
+        // no-op: tracking não pode quebrar a UX
+      });
+    }, [])
+  );
+
+  const onSelectCategory = useCallback((category: string) => {
+    setSelectedCategory(category);
+  }, []);
+
+  const onOpenProduct = useCallback((productId: string, position?: number) => {
+    // dedupe de toque rápido
+    const now = Date.now();
+    const last = lastClickByProductRef.current[productId] ?? 0;
+    if (now - last < 500) return;
+    lastClickByProductRef.current[productId] = now;
+
+    void trackHomeProductClick({ productId, position }).catch(() => {
+      // no-op
+    });
+
+    try {
+      router.push(`/product/${productId}` as any);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      void trackHomeFail({ scope: "home_action", message: msg.slice(0, 120) }).catch(() => {
+        // no-op
+      });
     }
-    return [ALL, ...Array.from(set)];
+  }, []);
+
+  const categories = useMemo(() => {
+    try {
+      const set = new Set<string>();
+      for (const p of products as Product[]) {
+        if (p?.category) set.add(String(p.category));
+      }
+      return [ALL, ...Array.from(set)];
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      void trackHomeFail({ scope: "home_render", message: msg.slice(0, 120) }).catch(() => {
+        // no-op
+      });
+      return [ALL];
+    }
   }, []);
 
   const filteredProducts = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    try {
+      const normalizedQuery = query.trim().toLowerCase();
 
-    return (products as Product[]).filter((product) => {
-      const matchesCategory = selectedCategory === ALL || product.category === selectedCategory;
+      return (products as Product[]).filter((product) => {
+        const matchesCategory = selectedCategory === ALL || product.category === selectedCategory;
 
-      const title = String(product.title ?? "").toLowerCase();
-      const desc = String(product.description ?? "").toLowerCase();
+        const title = String(product.title ?? "").toLowerCase();
+        const desc = String(product.description ?? "").toLowerCase();
 
-      const matchesQuery =
-        normalizedQuery.length === 0 ||
-        title.includes(normalizedQuery) ||
-        desc.includes(normalizedQuery);
+        const matchesQuery =
+          normalizedQuery.length === 0 ||
+          title.includes(normalizedQuery) ||
+          desc.includes(normalizedQuery);
 
-      return matchesCategory && matchesQuery;
-    });
+        return matchesCategory && matchesQuery;
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      void trackHomeFail({ scope: "home_render", message: msg.slice(0, 120) }).catch(() => {
+        // no-op
+      });
+      return [] as Product[];
+    }
   }, [query, selectedCategory]);
 
   return (
@@ -122,7 +180,7 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={category}
-                  onPress={() => setSelectedCategory(category)}
+                  onPress={() => onSelectCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
                   <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
@@ -135,11 +193,11 @@ export default function HomeScreen() {
         </ThemedView>
 
         <View style={styles.grid}>
-          {filteredProducts.map((product) => (
+          {filteredProducts.map((product, idx) => (
             <ProductCard
               key={product.id}
               product={product}
-              onPress={() => router.push(`/product/${product.id}` as any)}
+              onPress={() => onOpenProduct(String(product.id), idx)}
             />
           ))}
 

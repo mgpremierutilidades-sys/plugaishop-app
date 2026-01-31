@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import theme from "../constants/theme";
 import { CartProvider } from "../context/CartContext";
+import { FeatureFlags, getFeatureFlag } from "../constants/featureFlags";
 import { initAnalytics, trackTimeToInteractive } from "../utils/analytics";
 
 export const unstable_settings = {
@@ -13,8 +14,10 @@ export default function RootLayout() {
   useEffect(() => {
     // Inicializa analytics (flag OFF por padrão, então é no-op de fato)
     void initAnalytics().then(() => {
-      // Sem impacto visual: apenas métrica, se flag estiver ON
-      trackTimeToInteractive("app_root");
+      // Sem impacto visual: apenas métrica, se flags estiverem ON
+      void getFeatureFlag(FeatureFlags.TTI_V1).then((ttiEnabled) => {
+        if (ttiEnabled) trackTimeToInteractive("app_root");
+      });
     });
   }, []);
 
