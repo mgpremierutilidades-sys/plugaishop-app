@@ -14,12 +14,11 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watchAll",
     "lint": "expo lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "collect:context": "powershell -ExecutionPolicy Bypass -File .\\scripts\\context-collector.ps1",
     "context": "npm run collect:context",
-
     "support:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-bundle.ps1",
     "support:bundle:web": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-bundle.ps1 -WebOnly",
-
     "support:artifact": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1",
     "support:artifact:web": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\support-artifact.ps1 -WebOnly"
   },
