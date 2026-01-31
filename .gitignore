@@ -81,3 +81,6 @@ ai/governance/decisions.log.ndjson
 
 # AI governance runtime logs
 ai/governance/decisions.log.ndjson
+
+# local tool (temp)
+tools/maxximus-orchestrator/
