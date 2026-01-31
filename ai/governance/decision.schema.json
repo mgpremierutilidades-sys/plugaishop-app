@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Plugaishop AI Decision",
+  "type": "object",
+  "required": ["ia", "decision", "timestamp"],
+  "properties": {
+    "ia": { "type": "string", "minLength": 2 },
+    "decision": { "type": "string", "minLength": 5 },
+    "impact": { "type": "string", "enum": ["ux", "conv", "perf", "bugfix", "infra", "docs"] },
+    "requiresFlag": { "type": "boolean" },
+    "metrics": { "type": "array", "items": { "type": "string" } },
+    "events": { "type": "array", "items": { "type": "string" } },
+    "rollbackPlan": { "type": "string" },
+    "precisaCEO": { "type": "boolean" },
+    "score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "notes": { "type": "string" },
+    "timestamp": { "type": "string", "minLength": 10 }
+  }
+}

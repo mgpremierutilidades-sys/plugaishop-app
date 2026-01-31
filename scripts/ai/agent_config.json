@@ -1,0 +1,9 @@
+{
+  "mode": "observe",
+  "run_lint": true,
+  "run_typecheck": true,
+  "run_tests": false,
+  "run_support_bundle": true,
+  "run_context_zip": false,
+  "command_poll_seconds": 10
+}
