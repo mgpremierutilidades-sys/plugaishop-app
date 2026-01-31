@@ -23,6 +23,11 @@ export default function FlagsDebug() {
         description: "Liga instrumentação da Home (view/click/fail).",
       },
       {
+        key: FeatureFlags.HOME_EVENTS_V2,
+        label: "FF_HOME_EVENTS_V2",
+        description: "Liga Etapa 2 da Home (scroll depth + block impressions).",
+      },
+      {
         key: FeatureFlags.TTI_V1,
         label: "FF_TTI_V1",
         description: "Liga time_to_interactive (TTI) no root.",
@@ -63,12 +68,10 @@ export default function FlagsDebug() {
       const current = Boolean(values[key]);
       const next = !current;
 
-      // Atualiza UI otimisticamente
       setValues((v) => ({ ...v, [key]: next }));
       try {
         await setFeatureFlag(key, next);
       } catch {
-        // rollback visual se persistência falhar
         setValues((v) => ({ ...v, [key]: current }));
       }
     },

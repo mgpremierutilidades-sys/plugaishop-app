@@ -9,6 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const FeatureFlags = {
   ANALYTICS_EVENTS: "FF_ANALYTICS_EVENTS",
   HOME_EVENTS_V1: "FF_HOME_EVENTS_V1",
+  HOME_EVENTS_V2: "FF_HOME_EVENTS_V2",
   TTI_V1: "FF_TTI_V1",
 } as const;
 
@@ -18,6 +19,7 @@ const STORAGE_PREFIX = "ff:";
 const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   [FeatureFlags.ANALYTICS_EVENTS]: false,
   [FeatureFlags.HOME_EVENTS_V1]: false,
+  [FeatureFlags.HOME_EVENTS_V2]: false,
   [FeatureFlags.TTI_V1]: false,
 };
 

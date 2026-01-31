@@ -2,9 +2,22 @@ import { Image } from "expo-image";
 import { Link, router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  useWindowDimensions,
+} from "react-native";
 
-import ParallaxScrollView from "../../components/parallax-scroll-view";
+import ParallaxScrollView, {
+  PARALLAX_CONTENT_PADDING,
+  PARALLAX_HEADER_HEIGHT,
+} from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
@@ -14,17 +27,34 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
-import { trackHomeFail, trackHomeProductClick, trackHomeView } from "../../utils/homeAnalytics";
+import {
+  trackHomeBlockImpression,
+  trackHomeFail,
+  trackHomeProductClick,
+  trackHomeScrollDepth,
+  trackHomeView,
+} from "../../utils/homeAnalytics";
 
 const ALL = "Todos" as const;
 
+type BlockId = "title" | "hero" | "search" | "grid" | "tip";
+
+type BlockLayout = { y: number; height: number };
+
 export default function HomeScreen() {
-  // tenta enviar fila quando abrir o app
   useOutboxAutoFlush();
+
+  const { height: viewportHeight } = useWindowDimensions();
 
   // anti-duplicação (React Strict Mode / foco rápido)
   const lastViewTsRef = useRef(0);
   const lastClickByProductRef = useRef<Record<string, number>>({});
+
+  // Etapa 2 — estado de scroll/impressões (por foco)
+  const contentHeightRef = useRef(0);
+  const firedDepthRef = useRef<Record<number, boolean>>({});
+  const firedBlocksRef = useRef<Record<string, boolean>>({});
+  const blockLayoutsRef = useRef<Partial<Record<BlockId, BlockLayout>>>({});
 
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
@@ -36,8 +66,12 @@ export default function HomeScreen() {
       if (now - lastViewTsRef.current < 800) return;
       lastViewTsRef.current = now;
 
+      // reset por foco (Etapa 2)
+      firedDepthRef.current = {};
+      firedBlocksRef.current = {};
+
       void trackHomeView().catch(() => {
-        // no-op: tracking não pode quebrar a UX
+        // no-op
       });
     }, [])
   );
@@ -47,7 +81,6 @@ export default function HomeScreen() {
   }, []);
 
   const onOpenProduct = useCallback((productId: string, position?: number) => {
-    // dedupe de toque rápido
     const now = Date.now();
     const last = lastClickByProductRef.current[productId] ?? 0;
     if (now - last < 500) return;
@@ -109,9 +142,85 @@ export default function HomeScreen() {
     }
   }, [query, selectedCategory]);
 
+  const onContentSizeChange = useCallback((_w: number, h: number) => {
+    contentHeightRef.current = h;
+  }, []);
+
+  const onBlockLayout = useCallback((id: BlockId) => {
+    return (e: LayoutChangeEvent) => {
+      const { y, height } = e.nativeEvent.layout;
+      blockLayoutsRef.current[id] = { y, height };
+    };
+  }, []);
+
+  const maybeFireDepth = useCallback(
+    (scrollY: number) => {
+      const contentH = contentHeightRef.current;
+      if (!contentH || contentH <= 0) return;
+
+      // Percentual do conteúdo já “alcançado” no viewport
+      const reached = ((scrollY + viewportHeight) / contentH) * 100;
+      const thresholds = [25, 50, 75, 100] as const;
+
+      for (const t of thresholds) {
+        if (reached >= t && !firedDepthRef.current[t]) {
+          firedDepthRef.current[t] = true;
+          void trackHomeScrollDepth(t).catch(() => {
+            // no-op
+          });
+        }
+      }
+    },
+    [viewportHeight]
+  );
+
+  const maybeFireImpressions = useCallback(
+    (scrollY: number) => {
+      // Visível no scroll
+      const visibleTop = scrollY;
+      const visibleBottom = scrollY + viewportHeight;
+
+      const MIN_VISIBLE_PX = 20;
+
+      const layouts = blockLayoutsRef.current;
+
+      (Object.keys(layouts) as BlockId[]).forEach((id) => {
+        const l = layouts[id];
+        if (!l) return;
+        if (firedBlocksRef.current[id]) return;
+
+        // Converter y relativo ao container de conteúdo para y absoluto no ScrollView:
+        // [header height] + [padding do conteúdo] + [y do bloco]
+        const blockTop = PARALLAX_HEADER_HEIGHT + PARALLAX_CONTENT_PADDING + l.y;
+        const blockBottom = blockTop + l.height;
+
+        const isVisible =
+          visibleBottom >= blockTop + MIN_VISIBLE_PX && visibleTop <= blockBottom - MIN_VISIBLE_PX;
+
+        if (isVisible) {
+          firedBlocksRef.current[id] = true;
+          void trackHomeBlockImpression(id).catch(() => {
+            // no-op
+          });
+        }
+      });
+    },
+    [viewportHeight]
+  );
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const y = e.nativeEvent.contentOffset.y ?? 0;
+
+      // Etapa 2
+      maybeFireDepth(y);
+      maybeFireImpressions(y);
+    },
+    [maybeFireDepth, maybeFireImpressions]
+  );
+
   return (
     <>
-      {/* iPhone: horas/bateria brancas sobre o banner */}
       <StatusBar style="light" />
 
       <ParallaxScrollView
@@ -123,15 +232,20 @@ export default function HomeScreen() {
             contentFit="cover"
           />
         }
+        scrollViewProps={{
+          onScroll,
+          onContentSizeChange,
+          scrollEventThrottle: 16,
+        }}
       >
-        <ThemedView style={styles.titleContainer}>
+        <ThemedView collapsable={false} onLayout={onBlockLayout("title")} style={styles.titleContainer}>
           <ThemedText type="title">Economize Mais</ThemedText>
           <ThemedText type="defaultSemiBold">
             Soluções curadas para acelerar a operação e o varejo inteligente.
           </ThemedText>
         </ThemedView>
 
-        <ThemedView style={styles.heroCard}>
+        <ThemedView collapsable={false} onLayout={onBlockLayout("hero")} style={styles.heroCard}>
           <View style={{ flex: 1, gap: 8 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
             <ThemedText>
@@ -153,7 +267,11 @@ export default function HomeScreen() {
           />
         </ThemedView>
 
-        <ThemedView style={styles.searchSection}>
+        <ThemedView
+          collapsable={false}
+          onLayout={onBlockLayout("search")}
+          style={styles.searchSection}
+        >
           <ThemedText type="subtitle">Catálogo Plugaishop</ThemedText>
 
           <TextInput
@@ -192,7 +310,7 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
-        <View style={styles.grid}>
+        <View collapsable={false} onLayout={onBlockLayout("grid")} style={styles.grid}>
           {filteredProducts.map((product, idx) => (
             <ProductCard
               key={product.id}
@@ -206,7 +324,7 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        <ThemedView style={styles.tip}>
+        <ThemedView collapsable={false} onLayout={onBlockLayout("tip")} style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
           <ThemedText>
             {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
