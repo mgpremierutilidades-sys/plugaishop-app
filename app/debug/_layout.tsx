@@ -11,6 +11,7 @@ export default function DebugLayout() {
     >
       {/* Telas de debug */}
       <Stack.Screen name="outbox" />
+      <Stack.Screen name="flags" />
     </Stack>
   );
 }
