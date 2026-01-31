@@ -1,4 +1,4 @@
-import { Image } from "expo-image";
+﻿import { Image } from "expo-image";
 import { Link, router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -7,11 +7,11 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  useWindowDimensions,
 } from "react-native";
 
 import ParallaxScrollView, {
@@ -21,6 +21,7 @@ import ParallaxScrollView, {
 import { ProductCard } from "../../components/product-card";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
+import { FeatureFlags, getFeatureFlag } from "../../constants/featureFlags";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { useColorScheme } from "../../hooks/use-color-scheme";
@@ -28,8 +29,10 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 // fail-safe + outbox flush
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 import {
+  isHomeScrollOptimizedEnabled,
   trackHomeBlockImpression,
   trackHomeFail,
+  trackHomePerf,
   trackHomeProductClick,
   trackHomeScrollDepth,
   trackHomeView,
@@ -56,6 +59,12 @@ export default function HomeScreen() {
   const firedBlocksRef = useRef<Record<string, boolean>>({});
   const blockLayoutsRef = useRef<Partial<Record<BlockId, BlockLayout>>>({});
 
+  // Etapa 3 — flags/perf (sem alterar UI)
+  const perfV3EnabledRef = useRef(false);
+  const scrollV3EnabledRef = useRef(false);
+  const lastScrollYRef = useRef(0);
+  const rafPendingRef = useRef(false);
+
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL);
@@ -69,6 +78,23 @@ export default function HomeScreen() {
       // reset por foco (Etapa 2)
       firedDepthRef.current = {};
       firedBlocksRef.current = {};
+
+      // Etapa 3 — carrega flags (ref-only, sem re-render)
+      void getFeatureFlag(FeatureFlags.HOME_PERF_V3)
+        .then((v) => {
+          perfV3EnabledRef.current = v;
+        })
+        .catch(() => {
+          perfV3EnabledRef.current = false;
+        });
+
+      void isHomeScrollOptimizedEnabled()
+        .then((v) => {
+          scrollV3EnabledRef.current = v;
+        })
+        .catch(() => {
+          scrollV3EnabledRef.current = false;
+        });
 
       void trackHomeView().catch(() => {
         // no-op
@@ -127,9 +153,7 @@ export default function HomeScreen() {
         const desc = String(product.description ?? "").toLowerCase();
 
         const matchesQuery =
-          normalizedQuery.length === 0 ||
-          title.includes(normalizedQuery) ||
-          desc.includes(normalizedQuery);
+          normalizedQuery.length === 0 || title.includes(normalizedQuery) || desc.includes(normalizedQuery);
 
         return matchesCategory && matchesQuery;
       });
@@ -152,6 +176,16 @@ export default function HomeScreen() {
       blockLayoutsRef.current[id] = { y, height };
     };
   }, []);
+
+  const blockOnLayouts = useMemo(() => {
+    return {
+      title: onBlockLayout("title"),
+      hero: onBlockLayout("hero"),
+      search: onBlockLayout("search"),
+      grid: onBlockLayout("grid"),
+      tip: onBlockLayout("tip"),
+    } as const;
+  }, [onBlockLayout]);
 
   const maybeFireDepth = useCallback(
     (scrollY: number) => {
@@ -208,15 +242,56 @@ export default function HomeScreen() {
     [viewportHeight]
   );
 
+  const flushScrollWork = useCallback(() => {
+    rafPendingRef.current = false;
+
+    const y = lastScrollYRef.current;
+
+    if (!scrollV3EnabledRef.current) {
+      // fallback seguro (caso flag mude durante execução)
+      maybeFireDepth(y);
+      maybeFireImpressions(y);
+      return;
+    }
+
+    if (perfV3EnabledRef.current) {
+      const start = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+      maybeFireDepth(y);
+      maybeFireImpressions(y);
+      const end = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+
+      void trackHomePerf({ name: "home_scroll_flush", ms: Math.max(0, Math.round(end - start)) }).catch(() => {
+        // no-op
+      });
+      return;
+    }
+
+    maybeFireDepth(y);
+    maybeFireImpressions(y);
+  }, [maybeFireDepth, maybeFireImpressions]);
+
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = e.nativeEvent.contentOffset.y ?? 0;
 
-      // Etapa 2
+      // Etapa 3 — reduzir trabalho por frame (sem mudar UI):
+      // - guarda o último Y
+      // - processa 1x por RAF quando flag estiver ON
+      if (scrollV3EnabledRef.current) {
+        lastScrollYRef.current = y;
+
+        if (!rafPendingRef.current) {
+          rafPendingRef.current = true;
+          requestAnimationFrame(flushScrollWork);
+        }
+        return;
+      }
+
+      // Etapa 2 (baseline)
       maybeFireDepth(y);
       maybeFireImpressions(y);
     },
-    [maybeFireDepth, maybeFireImpressions]
+    [flushScrollWork, maybeFireDepth, maybeFireImpressions]
   );
 
   return (
@@ -238,19 +313,18 @@ export default function HomeScreen() {
           scrollEventThrottle: 16,
         }}
       >
-        <ThemedView collapsable={false} onLayout={onBlockLayout("title")} style={styles.titleContainer}>
+        <ThemedView collapsable={false} onLayout={blockOnLayouts.title} style={styles.titleContainer}>
           <ThemedText type="title">Economize Mais</ThemedText>
           <ThemedText type="defaultSemiBold">
             Soluções curadas para acelerar a operação e o varejo inteligente.
           </ThemedText>
         </ThemedView>
 
-        <ThemedView collapsable={false} onLayout={onBlockLayout("hero")} style={styles.heroCard}>
+        <ThemedView collapsable={false} onLayout={blockOnLayouts.hero} style={styles.heroCard}>
           <View style={{ flex: 1, gap: 8 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
             <ThemedText>
-              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em
-              minutos.
+              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em minutos.
             </ThemedText>
 
             <Link href="/explore" asChild>
@@ -267,11 +341,7 @@ export default function HomeScreen() {
           />
         </ThemedView>
 
-        <ThemedView
-          collapsable={false}
-          onLayout={onBlockLayout("search")}
-          style={styles.searchSection}
-        >
+        <ThemedView collapsable={false} onLayout={blockOnLayouts.search} style={styles.searchSection}>
           <ThemedText type="subtitle">Catálogo Plugaishop</ThemedText>
 
           <TextInput
@@ -301,30 +371,22 @@ export default function HomeScreen() {
                   onPress={() => onSelectCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
-                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
-                    {category}
-                  </ThemedText>
+                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>{category}</ThemedText>
                 </Pressable>
               );
             })}
           </ScrollView>
         </ThemedView>
 
-        <View collapsable={false} onLayout={onBlockLayout("grid")} style={styles.grid}>
+        <View collapsable={false} onLayout={blockOnLayouts.grid} style={styles.grid}>
           {filteredProducts.map((product, idx) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onPress={() => onOpenProduct(String(product.id), idx)}
-            />
+            <ProductCard key={product.id} product={product} position={idx} onPressProduct={onOpenProduct} />
           ))}
 
-          {filteredProducts.length === 0 ? (
-            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
-          ) : null}
+          {filteredProducts.length === 0 ? <ThemedText>Não encontramos itens para sua busca.</ThemedText> : null}
         </View>
 
-        <ThemedView collapsable={false} onLayout={onBlockLayout("tip")} style={styles.tip}>
+        <ThemedView collapsable={false} onLayout={blockOnLayouts.tip} style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
           <ThemedText>
             {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
@@ -337,18 +399,9 @@ export default function HomeScreen() {
             <Link.Preview />
             <Link.Menu>
               <Link.MenuAction title="Solicitar demo" icon="cube" onPress={() => alert("Demo")} />
-              <Link.MenuAction
-                title="Compartilhar"
-                icon="square.and.arrow.up"
-                onPress={() => alert("Link copiado")}
-              />
+              <Link.MenuAction title="Compartilhar" icon="square.and.arrow.up" onPress={() => alert("Link copiado")} />
               <Link.Menu title="Mais" icon="ellipsis">
-                <Link.MenuAction
-                  title="Remover"
-                  icon="trash"
-                  destructive
-                  onPress={() => alert("Item removido")}
-                />
+                <Link.MenuAction title="Remover" icon="trash" destructive onPress={() => alert("Item removido")} />
               </Link.Menu>
             </Link.Menu>
           </Link>
@@ -380,61 +433,65 @@ const styles = StyleSheet.create({
     backgroundColor: "#0E1720",
   },
 
+  headerBanner: {
+    width: "100%",
+    height: PARALLAX_HEADER_HEIGHT,
+  },
+
   cta: {
-    marginTop: 8,
-    backgroundColor: "#0a7ea4",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
     borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#0E1720",
+    alignSelf: "flex-start",
   },
 
   searchSection: {
-    gap: 12,
-    marginTop: 16,
+    marginTop: 14,
+    gap: 10,
   },
 
   searchInput: {
-    width: "100%",
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
   },
 
   chipRow: {
-    flexGrow: 0,
+    marginTop: 4,
   },
 
   chip: {
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 14,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#CBD5E1",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     marginRight: 8,
   },
 
   chipSelected: {
-    backgroundColor: "#0a7ea4",
-    borderColor: "#0a7ea4",
+    backgroundColor: "#0E1720",
+    borderColor: "#0E1720",
   },
 
   chipSelectedText: {
-    color: "#fff",
+    color: "#FFFFFF",
   },
 
   grid: {
-    marginTop: 16,
-    gap: 12,
+    marginTop: 18,
+    gap: 14,
   },
 
   tip: {
-    gap: 8,
-    marginTop: 16,
-  },
-
-  headerBanner: {
-    width: "100%",
-    height: "100%",
+    marginTop: 18,
+    gap: 10,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#E5E7EB",
   },
 });
