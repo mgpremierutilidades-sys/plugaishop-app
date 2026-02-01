@@ -1,497 +1,338 @@
-﻿import { Image } from "expo-image";
-import { Link, router, useFocusEffect } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { useCallback, useMemo, useRef, useState } from "react";
+﻿import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Pressable,
-  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
-  useWindowDimensions,
+  TouchableOpacity,
   View,
-  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
 
-import ParallaxScrollView, {
-  PARALLAX_CONTENT_PADDING,
-  PARALLAX_HEADER_HEIGHT,
-} from "../../components/parallax-scroll-view";
+import HomeBannerStrip from "../../components/home/HomeBannerStrip";
+import HomeGrid from "../../components/home/HomeGrid";
+import HomeHeroCarousel from "../../components/home/HomeHeroCarousel";
+import HomeQuickChips from "../../components/home/HomeQuickChips";
+import HomeSectionHeader from "../../components/home/HomeSectionHeader";
+import HomeSkeleton from "../../components/home/HomeSkeleton";
+import HomeTrustRow from "../../components/home/HomeTrustRow";
+import ParallaxScrollView from "../../components/ParallaxScrollView";
 import { ProductCard } from "../../components/product-card";
-import { ThemedText } from "../../components/themed-text";
-import { ThemedView } from "../../components/themed-view";
 import { FeatureFlags, getFeatureFlag } from "../../constants/featureFlags";
-import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
-import { useColorScheme } from "../../hooks/use-color-scheme";
-
-// fail-safe + outbox flush
-import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 import {
-  isHomeScrollOptimizedEnabled,
   trackHomeBlockImpression,
+  trackHomeCategorySelect,
   trackHomeFail,
-  trackHomePerf,
   trackHomeProductClick,
   trackHomeScrollDepth,
+  trackHomeSearch,
+  trackHomeStateRestore,
   trackHomeView,
 } from "../../utils/homeAnalytics";
 
-const ALL = "Todos" as const;
-
-type BlockId = "title" | "hero" | "search" | "grid" | "tip";
-
-type BlockLayout = { y: number; height: number };
+const ALL_CATEGORY = "Todas";
+const HOME_FILTERS_KEY = "home:filters:v1";
 
 export default function HomeScreen() {
-  useOutboxAutoFlush();
+  const [loading, setLoading] = useState(false);
 
-  const { height: viewportHeight } = useWindowDimensions();
-
-  // anti-duplicação (React Strict Mode / foco rápido)
-  const lastViewTsRef = useRef(0);
-  const lastClickByProductRef = useRef<Record<string, number>>({});
-
-  // Etapa 2 — estado de scroll/impressões (por foco)
-  const contentHeightRef = useRef(0);
-  const firedDepthRef = useRef<Record<number, boolean>>({});
-  const firedBlocksRef = useRef<Record<string, boolean>>({});
-  const blockLayoutsRef = useRef<Partial<Record<BlockId, BlockLayout>>>({});
-
-  // Etapa 3 — flags/perf (sem alterar UI)
-  const perfV3EnabledRef = useRef(false);
-  const scrollV3EnabledRef = useRef(false);
-  const lastScrollYRef = useRef(0);
-  const rafPendingRef = useRef(false);
-
-  const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>(ALL);
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [homeFF, setHomeFF] = useState({ debounce: true, persist: true });
+
+  const restoringRef = useRef(false);
+  const lastTrackedSearchRef = useRef<string>("");
+  const lastTrackedCategoryRef = useRef<string>(ALL_CATEGORY);
+
+  const scrollYRef = useRef(0);
+  const lastDepthBucketRef = useRef(0);
+  const impressionsRef = useRef(new Set<string>());
+
+  // evita usar "query stale" quando as flags carregam depois do usuário digitar
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      if (p.category) set.add(p.category);
+    }
+    return [ALL_CATEGORY, ...Array.from(set).sort()];
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      const now = Date.now();
-      if (now - lastViewTsRef.current < 800) return;
-      lastViewTsRef.current = now;
-
-      // reset por foco (Etapa 2)
-      firedDepthRef.current = {};
-      firedBlocksRef.current = {};
-
-      // Etapa 3 — carrega flags (ref-only, sem re-render)
-      void getFeatureFlag(FeatureFlags.HOME_PERF_V3)
-        .then((v) => {
-          perfV3EnabledRef.current = v;
-        })
-        .catch(() => {
-          perfV3EnabledRef.current = false;
-        });
-
-      void isHomeScrollOptimizedEnabled()
-        .then((v) => {
-          scrollV3EnabledRef.current = v;
-        })
-        .catch(() => {
-          scrollV3EnabledRef.current = false;
-        });
-
-      void trackHomeView().catch(() => {
-        // no-op
-      });
+      void trackHomeView().catch(() => {});
+      return () => {};
     }, [])
   );
 
-  const onSelectCategory = useCallback((category: string) => {
-    setSelectedCategory(category);
-  }, []);
+  useEffect(() => {
+    let mounted = true;
 
-  const onOpenProduct = useCallback((productId: string, position?: number) => {
-    const now = Date.now();
-    const last = lastClickByProductRef.current[productId] ?? 0;
-    if (now - last < 500) return;
-    lastClickByProductRef.current[productId] = now;
+    Promise.all([
+      getFeatureFlag(FeatureFlags.HOME_SEARCH_DEBOUNCE_V1),
+      getFeatureFlag(FeatureFlags.HOME_PERSIST_FILTERS_V1),
+    ])
+      .then(([debounce, persist]) => {
+        if (!mounted) return;
+        setHomeFF({ debounce, persist });
 
-    void trackHomeProductClick({ productId, position }).catch(() => {
-      // no-op
-    });
-
-    try {
-      router.push(`/product/${productId}` as any);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      void trackHomeFail({ scope: "home_action", message: msg.slice(0, 120) }).catch(() => {
-        // no-op
+        // Se debounce estiver OFF, sincroniza com a query atual (não do first render)
+        if (!debounce) setDebouncedQuery(queryRef.current);
+      })
+      .catch(() => {
+        // Mantém defaults.
       });
-    }
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const categories = useMemo(() => {
-    try {
-      const set = new Set<string>();
-      for (const p of products as Product[]) {
-        if (p?.category) set.add(String(p.category));
+  useEffect(() => {
+    if (!homeFF.debounce) {
+      setDebouncedQuery(query);
+      return;
+    }
+    const t = setTimeout(() => setDebouncedQuery(query), 180);
+    return () => clearTimeout(t);
+  }, [homeFF.debounce, query]);
+
+  useEffect(() => {
+    if (!homeFF.persist) return;
+
+    let active = true;
+    restoringRef.current = true;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(HOME_FILTERS_KEY);
+        if (!active) return;
+
+        if (raw) {
+          const parsed = JSON.parse(raw) as { query?: string; category?: string } | null;
+          if (parsed?.query) setQuery(String(parsed.query));
+          if (parsed?.category) setSelectedCategory(String(parsed.category));
+          await trackHomeStateRestore({ restored: true });
+        } else {
+          await trackHomeStateRestore({ restored: false });
+        }
+      } catch {
+        // ignore
+      } finally {
+        restoringRef.current = false;
       }
-      return [ALL, ...Array.from(set)];
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      void trackHomeFail({ scope: "home_render", message: msg.slice(0, 120) }).catch(() => {
-        // no-op
-      });
-      return [ALL];
+    })();
+
+    return () => {
+      active = false;
+      restoringRef.current = false;
+    };
+  }, [homeFF.persist]);
+
+  useEffect(() => {
+    if (!homeFF.persist) return;
+    if (restoringRef.current) return;
+
+    const t = setTimeout(() => {
+      void AsyncStorage.setItem(HOME_FILTERS_KEY, JSON.stringify({ query, category: selectedCategory })).catch(
+        () => {}
+      );
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [homeFF.persist, query, selectedCategory]);
+
+  useEffect(() => {
+    if (restoringRef.current) return;
+
+    const q = debouncedQuery.trim();
+    if (q.length > 0 && q !== lastTrackedSearchRef.current) {
+      lastTrackedSearchRef.current = q;
+      void trackHomeSearch({ queryLen: q.length, hasCategory: selectedCategory !== ALL_CATEGORY }).catch(() => {});
     }
-  }, []);
+  }, [debouncedQuery, selectedCategory]);
+
+  useEffect(() => {
+    if (restoringRef.current) return;
+
+    if (selectedCategory !== lastTrackedCategoryRef.current) {
+      lastTrackedCategoryRef.current = selectedCategory;
+      void trackHomeCategorySelect({ category: selectedCategory }).catch(() => {});
+    }
+  }, [selectedCategory]);
 
   const filteredProducts = useMemo(() => {
-    try {
-      const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = debouncedQuery.trim().toLowerCase();
 
-      return (products as Product[]).filter((product) => {
-        const matchesCategory = selectedCategory === ALL || product.category === selectedCategory;
+    return products.filter((p) => {
+      if (selectedCategory !== ALL_CATEGORY && p.category !== selectedCategory) return false;
+      if (!normalizedQuery) return true;
+      const hay = `${p.title} ${p.description ?? ""}`.toLowerCase();
+      return hay.includes(normalizedQuery);
+    });
+  }, [debouncedQuery, selectedCategory]);
 
-        const title = String(product.title ?? "").toLowerCase();
-        const desc = String(product.description ?? "").toLowerCase();
-
-        const matchesQuery =
-          normalizedQuery.length === 0 || title.includes(normalizedQuery) || desc.includes(normalizedQuery);
-
-        return matchesCategory && matchesQuery;
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      void trackHomeFail({ scope: "home_render", message: msg.slice(0, 120) }).catch(() => {
-        // no-op
-      });
-      return [] as Product[];
-    }
-  }, [query, selectedCategory]);
-
-  const onContentSizeChange = useCallback((_w: number, h: number) => {
-    contentHeightRef.current = h;
+  const onOpenProduct = useCallback((productId: string, position?: number) => {
+    void trackHomeProductClick({ productId, position }).catch(() => {});
+    router.push({ pathname: "/product/[id]", params: { id: productId } });
   }, []);
 
-  const onBlockLayout = useCallback((id: BlockId) => {
-    return (e: LayoutChangeEvent) => {
-      const { y, height } = e.nativeEvent.layout;
-      blockLayoutsRef.current[id] = { y, height };
+  const onCategory = useCallback((cat: string) => {
+    setSelectedCategory(cat);
+  }, []);
+
+  const onScroll = useCallback((y: number, contentH: number, viewportH: number) => {
+    scrollYRef.current = y;
+
+    const denom = Math.max(1, contentH - viewportH);
+    const pct = Math.max(0, Math.min(100, Math.round((y / denom) * 100)));
+
+    const bucket = pct >= 100 ? 100 : pct >= 75 ? 75 : pct >= 50 ? 50 : pct >= 25 ? 25 : 0;
+
+    if (bucket > lastDepthBucketRef.current) {
+      lastDepthBucketRef.current = bucket;
+      void trackHomeScrollDepth(bucket).catch(() => {});
+    }
+  }, []);
+
+  const impressionOnce = useCallback((blockId: string) => {
+    if (impressionsRef.current.has(blockId)) return;
+    impressionsRef.current.add(blockId);
+    void trackHomeBlockImpression(blockId).catch(() => {});
+  }, []);
+
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
   }, []);
 
-  const blockOnLayouts = useMemo(() => {
-    return {
-      title: onBlockLayout("title"),
-      hero: onBlockLayout("hero"),
-      search: onBlockLayout("search"),
-      grid: onBlockLayout("grid"),
-      tip: onBlockLayout("tip"),
-    } as const;
-  }, [onBlockLayout]);
+  const onRetry = useCallback(() => {
+    setLoading(true);
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = setTimeout(() => setLoading(false), 450);
+  }, []);
 
-  const maybeFireDepth = useCallback(
-    (scrollY: number) => {
-      const contentH = contentHeightRef.current;
-      if (!contentH || contentH <= 0) return;
+  const onFailSafe = useCallback((message: string, code?: string) => {
+    void trackHomeFail({ scope: "home_action", message, code }).catch(() => {});
+  }, []);
 
-      // Percentual do conteúdo já “alcançado” no viewport
-      const reached = ((scrollY + viewportHeight) / contentH) * 100;
-      const thresholds = [25, 50, 75, 100] as const;
-
-      for (const t of thresholds) {
-        if (reached >= t && !firedDepthRef.current[t]) {
-          firedDepthRef.current[t] = true;
-          void trackHomeScrollDepth(t).catch(() => {
-            // no-op
-          });
-        }
-      }
-    },
-    [viewportHeight]
-  );
-
-  const maybeFireImpressions = useCallback(
-    (scrollY: number) => {
-      // Visível no scroll
-      const visibleTop = scrollY;
-      const visibleBottom = scrollY + viewportHeight;
-
-      const MIN_VISIBLE_PX = 20;
-
-      const layouts = blockLayoutsRef.current;
-
-      (Object.keys(layouts) as BlockId[]).forEach((id) => {
-        const l = layouts[id];
-        if (!l) return;
-        if (firedBlocksRef.current[id]) return;
-
-        // Converter y relativo ao container de conteúdo para y absoluto no ScrollView:
-        // [header height] + [padding do conteúdo] + [y do bloco]
-        const blockTop = PARALLAX_HEADER_HEIGHT + PARALLAX_CONTENT_PADDING + l.y;
-        const blockBottom = blockTop + l.height;
-
-        const isVisible =
-          visibleBottom >= blockTop + MIN_VISIBLE_PX && visibleTop <= blockBottom - MIN_VISIBLE_PX;
-
-        if (isVisible) {
-          firedBlocksRef.current[id] = true;
-          void trackHomeBlockImpression(id).catch(() => {
-            // no-op
-          });
-        }
-      });
-    },
-    [viewportHeight]
-  );
-
-  const flushScrollWork = useCallback(() => {
-    rafPendingRef.current = false;
-
-    const y = lastScrollYRef.current;
-
-    if (!scrollV3EnabledRef.current) {
-      // fallback seguro (caso flag mude durante execução)
-      maybeFireDepth(y);
-      maybeFireImpressions(y);
-      return;
-    }
-
-    if (perfV3EnabledRef.current) {
-      const start = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-      maybeFireDepth(y);
-      maybeFireImpressions(y);
-      const end = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-
-      void trackHomePerf({ name: "home_scroll_flush", ms: Math.max(0, Math.round(end - start)) }).catch(() => {
-        // no-op
-      });
-      return;
-    }
-
-    maybeFireDepth(y);
-    maybeFireImpressions(y);
-  }, [maybeFireDepth, maybeFireImpressions]);
-
-  const onScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = e.nativeEvent.contentOffset.y ?? 0;
-
-      // Etapa 3 — reduzir trabalho por frame (sem mudar UI):
-      // - guarda o último Y
-      // - processa 1x por RAF quando flag estiver ON
-      if (scrollV3EnabledRef.current) {
-        lastScrollYRef.current = y;
-
-        if (!rafPendingRef.current) {
-          rafPendingRef.current = true;
-          requestAnimationFrame(flushScrollWork);
-        }
-        return;
-      }
-
-      // Etapa 2 (baseline)
-      maybeFireDepth(y);
-      maybeFireImpressions(y);
-    },
-    [flushScrollWork, maybeFireDepth, maybeFireImpressions]
-  );
+  if (loading) return <HomeSkeleton />;
 
   return (
-    <>
-      <StatusBar style="light" />
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: "#0B0B0B", dark: "#0B0B0B" }}
+      headerImage={<View style={{ height: 0 }} />}
+      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const y = e.nativeEvent.contentOffset.y;
+        const contentH = e.nativeEvent.contentSize.height;
+        const viewportH = e.nativeEvent.layoutMeasurement.height;
+        onScroll(y, contentH, viewportH);
+      }}
+      scrollEventThrottle={16}
+    >
+      <View style={styles.container}>
+        <HomeHeroCarousel onImpression={() => impressionOnce("hero")} />
+        <HomeBannerStrip onImpression={() => impressionOnce("banner_strip")} />
+        <HomeTrustRow onImpression={() => impressionOnce("trust_row")} />
 
-      <ParallaxScrollView
-        headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
-        headerImage={
-          <Image
-            source={require("../../assets/banners/banner-home.png")}
-            style={styles.headerBanner}
-            contentFit="cover"
-          />
-        }
-        scrollViewProps={{
-          onScroll,
-          onContentSizeChange,
-          scrollEventThrottle: 16,
-        }}
-      >
-        <ThemedView collapsable={false} onLayout={blockOnLayouts.title} style={styles.titleContainer}>
-          <ThemedText type="title">Economize Mais</ThemedText>
-          <ThemedText type="defaultSemiBold">
-            Soluções curadas para acelerar a operação e o varejo inteligente.
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedView collapsable={false} onLayout={blockOnLayouts.hero} style={styles.heroCard}>
-          <View style={{ flex: 1, gap: 8 }}>
-            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
-            <ThemedText>
-              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em minutos.
-            </ThemedText>
-
-            <Link href="/explore" asChild>
-              <Pressable style={styles.cta}>
-                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
-              </Pressable>
-            </Link>
-          </View>
-
-          <Image
-            source={require("../../assets/banners/banner-splash.png")}
-            style={styles.heroImage}
-            contentFit="cover"
-          />
-        </ThemedView>
-
-        <ThemedView collapsable={false} onLayout={blockOnLayouts.search} style={styles.searchSection}>
-          <ThemedText type="subtitle">Catálogo Plugaishop</ThemedText>
-
+        <HomeSectionHeader title="Buscar" subtitle="Encontre produtos rapidamente" />
+        <View style={styles.searchBox}>
           <TextInput
-            placeholder="Buscar por categoria ou produto"
-            placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+            placeholder="Buscar produtos..."
+            placeholderTextColor="#6B6B6B"
             value={query}
             onChangeText={setQuery}
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
-                borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
-                color: colorScheme === "light" ? "#111827" : "#F9FAFB",
-              },
-            ]}
-            autoCapitalize="none"
+            style={styles.searchInput}
             autoCorrect={false}
+            autoCapitalize="none"
           />
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {categories.map((category) => {
-              const isSelected = selectedCategory === category;
-
-              return (
-                <Pressable
-                  key={category}
-                  onPress={() => onSelectCategory(category)}
-                  style={[styles.chip, isSelected && styles.chipSelected]}
-                >
-                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>{category}</ThemedText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </ThemedView>
-
-        <View collapsable={false} onLayout={blockOnLayouts.grid} style={styles.grid}>
-          {filteredProducts.map((product, idx) => (
-            <ProductCard key={product.id} product={product} position={idx} onPressProduct={onOpenProduct} />
-          ))}
-
-          {filteredProducts.length === 0 ? <ThemedText>Não encontramos itens para sua busca.</ThemedText> : null}
         </View>
 
-        <ThemedView collapsable={false} onLayout={blockOnLayouts.tip} style={styles.tip}>
-          <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
-          <ThemedText>
-            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
-          </ThemedText>
+        <HomeSectionHeader title="Categorias" subtitle="Explore por categoria" />
+        <HomeQuickChips
+          items={categories}
+          selected={selectedCategory}
+          onSelect={onCategory}
+          onImpression={() => impressionOnce("categories")}
+        />
 
-          <Link href="/modal">
-            <Link.Trigger>
-              <ThemedText type="link">Abrir menu de ações</ThemedText>
-            </Link.Trigger>
-            <Link.Preview />
-            <Link.Menu>
-              <Link.MenuAction title="Solicitar demo" icon="cube" onPress={() => alert("Demo")} />
-              <Link.MenuAction title="Compartilhar" icon="square.and.arrow.up" onPress={() => alert("Link copiado")} />
-              <Link.Menu title="Mais" icon="ellipsis">
-                <Link.MenuAction title="Remover" icon="trash" destructive onPress={() => alert("Item removido")} />
-              </Link.Menu>
-            </Link.Menu>
-          </Link>
-        </ThemedView>
-      </ParallaxScrollView>
-    </>
+        <HomeSectionHeader title="Vitrine" subtitle="Seleção do dia" />
+        <HomeGrid onImpression={() => impressionOnce("grid")} />
+
+        <HomeSectionHeader title="Produtos" subtitle="Baseado na sua busca" />
+        <View style={styles.productsWrap}>
+          {filteredProducts.map((p, idx) => (
+            <ProductCard key={p.id} product={p} onPress={() => onOpenProduct(p.id, idx)} />
+          ))}
+        </View>
+
+        <View style={styles.footerActions}>
+          <TouchableOpacity style={styles.ghostBtn} onPress={onRetry}>
+            <Text style={styles.ghostBtnText}>Recarregar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.ghostBtn} onPress={() => onFailSafe("cta_home_debug")}>
+            <Text style={styles.ghostBtnText}>Debug</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ParallaxScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    gap: 8,
-    marginBottom: 12,
+  container: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 16,
   },
-
-  heroCard: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-    backgroundColor: "#E6F4FE",
-    padding: 16,
-    borderRadius: 16,
-  },
-
-  heroImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 18,
-    backgroundColor: "#0E1720",
-  },
-
-  headerBanner: {
-    width: "100%",
-    height: PARALLAX_HEADER_HEIGHT,
-  },
-
-  cta: {
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "#0E1720",
-    alignSelf: "flex-start",
-  },
-
-  searchSection: {
-    marginTop: 14,
-    gap: 10,
-  },
-
-  searchInput: {
+  searchBox: {
+    backgroundColor: "#121212",
     borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: "#1F1F1F",
+  },
+  searchInput: {
+    color: "#fff",
     fontSize: 14,
   },
-
-  chipRow: {
-    marginTop: 4,
+  productsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
   },
-
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginRight: 8,
-  },
-
-  chipSelected: {
-    backgroundColor: "#0E1720",
-    borderColor: "#0E1720",
-  },
-
-  chipSelectedText: {
-    color: "#FFFFFF",
-  },
-
-  grid: {
-    marginTop: 18,
-    gap: 14,
-  },
-
-  tip: {
-    marginTop: 18,
+  footerActions: {
+    flexDirection: "row",
     gap: 10,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E5E7EB",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  ghostBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "#1F1F1F",
+  },
+  ghostBtnText: {
+    color: "#EAEAEA",
+    fontWeight: "700",
   },
 });

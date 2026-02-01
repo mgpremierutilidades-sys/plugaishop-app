@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.expo-base.json",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "_share",
+    "_export_*",
+    "_export*",
+    "_tmp*",
+    "**/_share/**",
+    "**/_export*/**",
+    "**/_tmp*/**",
+    "_export_cart_etapa24",
+    "**/_export_cart_etapa24/**",
+    "utils/notifications.ts"
+  ]
+}

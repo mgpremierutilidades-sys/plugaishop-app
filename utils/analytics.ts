@@ -45,8 +45,6 @@ export function track(name: string, payload?: AnalyticsPayload) {
   const evt: AnalyticsEvent = { name, payload, ts: Date.now() };
   push(evt);
 
-  // console é a forma mais barata por enquanto.
-  // Mais tarde: enviar para endpoint / armazenar offline.
   // eslint-disable-next-line no-console
   console.log(`[analytics] ${name}`, payload ?? {});
 }
@@ -78,4 +76,18 @@ export function trackTimeToInteractive(context: string) {
  */
 export function getAnalyticsQueueSnapshot(): AnalyticsEvent[] {
   return queue.slice(-50);
+}
+
+/**
+ * (Debug Flags) Snapshot de todas as Feature Flags atuais (com defaults aplicados via getFeatureFlag).
+ * - Não altera UI.
+ * - Não depende de AsyncStorage diretamente; usa o mesmo caminho do app.
+ */
+export async function getFeatureFlags(): Promise<Record<string, boolean>> {
+  const keys = Object.values(FeatureFlags) as string[];
+  const values = await Promise.all(keys.map((k) => getFeatureFlag(k as any).catch(() => false)));
+
+  const out: Record<string, boolean> = {};
+  for (let i = 0; i < keys.length; i++) out[keys[i]] = Boolean(values[i]);
+  return out;
 }

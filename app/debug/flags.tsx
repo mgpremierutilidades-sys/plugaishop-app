@@ -1,152 +1,115 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { FeatureFlags, getFeatureFlagDefault, setFeatureFlag } from "../../constants/featureFlags";
+import { getFeatureFlags } from "../../utils/analytics";
 
-import { FeatureFlags, getFeatureFlag, setFeatureFlag } from "../../constants/featureFlags";
-
-type FlagRow = {
-  key: (typeof FeatureFlags)[keyof typeof FeatureFlags];
+type Row = {
+  key: string;
   label: string;
   description: string;
 };
 
-export default function FlagsDebug() {
-  const rows: FlagRow[] = useMemo(
+export default function DebugFlagsScreen() {
+  const [flags, setFlags] = useState<Record<string, boolean>>({});
+
+  const rows: Row[] = useMemo(
     () => [
       {
         key: FeatureFlags.ANALYTICS_EVENTS,
         label: "FF_ANALYTICS_EVENTS",
-        description: "Liga a coleta de analytics (track/queue/console).",
+        description: "Habilita logs de eventos (console).",
       },
       {
         key: FeatureFlags.HOME_EVENTS_V1,
         label: "FF_HOME_EVENTS_V1",
-        description: "Liga instrumentação da Home (view/click/fail).",
+        description: "Liga Etapa 1 da Home (view/click/fail).",
       },
       {
         key: FeatureFlags.HOME_EVENTS_V2,
         label: "FF_HOME_EVENTS_V2",
-        description: "Liga Etapa 2 da Home (scroll depth + block impressions).",
+        description: "Liga Etapa 2 da Home (metas/props adicionais).",
+      },
+      {
+        key: FeatureFlags.HOME_EVENTS_V3,
+        label: "FF_HOME_EVENTS_V3",
+        description: "Liga Etapa 4 da Home (search/category/restore).",
+      },
+      {
+        key: FeatureFlags.HOME_SEARCH_DEBOUNCE_V1,
+        label: "FF_HOME_SEARCH_DEBOUNCE_V1",
+        description: "Debounce do search na Home (perf, invisível).",
+      },
+      {
+        key: FeatureFlags.HOME_PERSIST_FILTERS_V1,
+        label: "FF_HOME_PERSIST_FILTERS_V1",
+        description: "Persistência do search/filtro da Home (invisível).",
       },
       {
         key: FeatureFlags.TTI_V1,
         label: "FF_TTI_V1",
-        description: "Liga time_to_interactive (TTI) no root.",
+        description: "Marca TTI (time-to-interactive) em telas principais.",
       },
     ],
     []
   );
 
-  const [values, setValues] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const entries = await Promise.all(
-        rows.map(async (r) => {
-          const v = await getFeatureFlag(r.key);
-          return [r.key, v] as const;
-        })
-      );
-
-      setValues((prev) => {
-        const next = { ...prev };
-        for (const [k, v] of entries) next[k] = v;
-        return next;
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [rows]);
-
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const toggle = useCallback(
-    async (key: FlagRow["key"]) => {
-      const current = Boolean(values[key]);
-      const next = !current;
-
-      setValues((v) => ({ ...v, [key]: next }));
+    let mounted = true;
+    (async () => {
       try {
-        await setFeatureFlag(key, next);
+        const current = await getFeatureFlags();
+        if (!mounted) return;
+        setFlags(current);
       } catch {
-        setValues((v) => ({ ...v, [key]: current }));
+        // ignore
       }
-    },
-    [values]
-  );
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onToggle = async (key: string, value: boolean) => {
+    setFlags((prev) => ({ ...prev, [key]: value }));
+    await setFeatureFlag(key as any, value);
+  };
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 20, fontWeight: "bold" }}>Flags Debug</Text>
-      <Text style={{ marginTop: 6, color: "#6B7280" }}>
-        Alternar flags em runtime (AsyncStorage). Não altera o layout das abas.
-      </Text>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Debug • Feature Flags</Text>
 
-      <Pressable
-        onPress={() => void refresh()}
-        style={{
-          marginTop: 12,
-          padding: 12,
-          borderRadius: 12,
-          backgroundColor: "#EEF1F5",
-          borderWidth: 1,
-          borderColor: "#E6E8EC",
-        }}
-      >
-        <Text style={{ textAlign: "center", fontWeight: "bold" }}>
-          {loading ? "Carregando…" : "Recarregar"}
-        </Text>
-      </Pressable>
-
-      <ScrollView style={{ marginTop: 12 }} contentContainerStyle={{ paddingBottom: 24 }}>
         {rows.map((r) => {
-          const isOn = Boolean(values[r.key]);
+          const v = flags[r.key] ?? getFeatureFlagDefault(r.key as any);
           return (
-            <Pressable
-              key={r.key}
-              onPress={() => void toggle(r.key)}
-              style={{
-                marginBottom: 12,
-                padding: 12,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: "#E6E8EC",
-                backgroundColor: "#FFFFFF",
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontWeight: "bold" }}>{r.label}</Text>
-                <View
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: isOn ? "#DCFCE7" : "#FEE2E2",
-                    borderWidth: 1,
-                    borderColor: isOn ? "#86EFAC" : "#FCA5A5",
-                  }}
-                >
-                  <Text style={{ fontWeight: "bold", fontSize: 12 }}>{isOn ? "ON" : "OFF"}</Text>
-                </View>
+            <View key={r.key} style={styles.row}>
+              <View style={styles.left}>
+                <Text style={styles.label}>{r.label}</Text>
+                <Text style={styles.desc}>{r.description}</Text>
               </View>
-
-              <Text style={{ marginTop: 6, color: "#6B7280" }}>{r.description}</Text>
-              <Text style={{ marginTop: 8, fontSize: 12, color: "#9CA3AF" }}>
-                Toque para alternar
-              </Text>
-            </Pressable>
+              <Switch value={v} onValueChange={(nv) => onToggle(r.key, nv)} />
+            </View>
           );
         })}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#0B0B0B" },
+  content: { padding: 16, gap: 12 },
+  title: { fontSize: 18, fontWeight: "700", color: "#fff", marginBottom: 8 },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#131313",
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  left: { flex: 1, gap: 4 },
+  label: { color: "#fff", fontWeight: "700" },
+  desc: { color: "#9A9A9A", fontSize: 12 },
+});

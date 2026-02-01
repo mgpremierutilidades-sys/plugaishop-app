@@ -1,0 +1,5 @@
+﻿55ae399 feat(home): etapa 4 perf+telemetria via feature flags (no UI change)
+cb19b5e Revert "fix(shipping): ensure cep8 always present in shippingMock"
+a503750 fix(shipping): ensure cep8 always present in shippingMock
+8ba23f4 feat(home): etapa 3 perf scroll RAF + perf telemetry flags (no UI change)
+1a0ad91 fix(product-card): backward compatible onPress prop (no UI change)

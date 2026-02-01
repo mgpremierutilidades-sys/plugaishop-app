@@ -1,22 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
- * Feature Flags (default: false).
+ * Feature Flags
  * - Persistência via AsyncStorage para permitir ligar/desligar sem mexer no código.
  * - Cache em memória para performance.
- *
- * Diretriz:
- * - Flags novas devem ser "OFF por padrão" + rollback imediato.
  */
 
 export const FeatureFlags = {
   ANALYTICS_EVENTS: "FF_ANALYTICS_EVENTS",
+
   HOME_EVENTS_V1: "FF_HOME_EVENTS_V1",
   HOME_EVENTS_V2: "FF_HOME_EVENTS_V2",
+  HOME_EVENTS_V3: "FF_HOME_EVENTS_V3",
 
-  // Home — Etapa 3 (perf/robustez sem alterar UI)
-  HOME_PERF_V3: "FF_HOME_PERF_V3",
-  HOME_SCROLL_V3: "FF_HOME_SCROLL_V3",
+  HOME_SEARCH_DEBOUNCE_V1: "FF_HOME_SEARCH_DEBOUNCE_V1",
+  HOME_PERSIST_FILTERS_V1: "FF_HOME_PERSIST_FILTERS_V1",
 
   TTI_V1: "FF_TTI_V1",
 } as const;
@@ -26,11 +24,15 @@ export type FeatureFlagKey = (typeof FeatureFlags)[keyof typeof FeatureFlags];
 const STORAGE_PREFIX = "ff:";
 const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   [FeatureFlags.ANALYTICS_EVENTS]: false,
+
+  // Home events (telemetria)
   [FeatureFlags.HOME_EVENTS_V1]: false,
   [FeatureFlags.HOME_EVENTS_V2]: false,
+  [FeatureFlags.HOME_EVENTS_V3]: true,
 
-  [FeatureFlags.HOME_PERF_V3]: false,
-  [FeatureFlags.HOME_SCROLL_V3]: false,
+  // Home perf/state (invisível)
+  [FeatureFlags.HOME_SEARCH_DEBOUNCE_V1]: true,
+  [FeatureFlags.HOME_PERSIST_FILTERS_V1]: true,
 
   [FeatureFlags.TTI_V1]: false,
 };
