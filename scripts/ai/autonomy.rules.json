@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "never_touch": ["_share", "_tmp", "backups", "_bundle_out"],
+    "priority_order": [
+      "cart",
+      "checkout",
+      "catalog",
+      "orders",
+      "profile"
+    ],
+    "benchmark_sources": [
+      "Amazon",
+      "Shopify",
+      "MercadoLivre",
+      "Aliexpress"
+    ]
+  }
+}
