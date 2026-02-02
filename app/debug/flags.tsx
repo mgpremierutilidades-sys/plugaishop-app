@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { FeatureFlags, getFeatureFlagDefault, setFeatureFlag } from "../../constants/featureFlags";
+import {
+  FeatureFlagKey,
+  FeatureFlags,
+  getFeatureFlagDefault,
+  setFeatureFlag,
+} from "../../constants/featureFlags";
 import { getFeatureFlags } from "../../utils/analytics";
 
 type Row = {
-  key: string;
+  key: FeatureFlagKey;
   label: string;
   description: string;
 };
 
 export default function DebugFlagsScreen() {
-  const [flags, setFlags] = useState<Record<string, boolean>>({});
+  const [flags, setFlags] = useState<Partial<Record<FeatureFlagKey, boolean>>>({});
 
   const rows: Row[] = useMemo(
     () => [
@@ -59,7 +64,13 @@ export default function DebugFlagsScreen() {
       try {
         const current = await getFeatureFlags();
         if (!mounted) return;
-        setFlags(current);
+        // current vem como Record<string, boolean> por compat; normaliza para chaves esperadas
+        const normalized: Partial<Record<FeatureFlagKey, boolean>> = {};
+        rows.forEach((r) => {
+          const v = (current as Record<string, boolean>)[r.key];
+          if (typeof v === "boolean") normalized[r.key] = v;
+        });
+        setFlags(normalized);
       } catch {
         // ignore
       }
@@ -67,11 +78,16 @@ export default function DebugFlagsScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [rows]);
 
-  const onToggle = async (key: string, value: boolean) => {
+  const onToggle = async (key: FeatureFlagKey, value: boolean) => {
     setFlags((prev) => ({ ...prev, [key]: value }));
-    await setFeatureFlag(key as any, value);
+    try {
+      await setFeatureFlag(key, value);
+    } catch {
+      // rollback silencioso
+      setFlags((prev) => ({ ...prev, [key]: !value }));
+    }
   };
 
   return (
@@ -80,7 +96,7 @@ export default function DebugFlagsScreen() {
         <Text style={styles.title}>Debug • Feature Flags</Text>
 
         {rows.map((r) => {
-          const v = flags[r.key] ?? getFeatureFlagDefault(r.key as any);
+          const v = flags[r.key] ?? getFeatureFlagDefault(r.key);
           return (
             <View key={r.key} style={styles.row}>
               <View style={styles.left}>

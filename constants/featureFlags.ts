@@ -69,3 +69,17 @@ export async function setFeatureFlag(key: FeatureFlagKey, value: boolean): Promi
 export function getFeatureFlagDefault(key: FeatureFlagKey): boolean {
   return DEFAULT_FLAGS[key];
 }
+
+/**
+ * Snapshot de todas as flags atuais (AsyncStorage + defaults).
+ * Fonte única da verdade para telas de debug e diagnóstico.
+ */
+export async function getFeatureFlags(): Promise<Record<FeatureFlagKey, boolean>> {
+  const keys = Object.values(FeatureFlags) as FeatureFlagKey[];
+  const values = await Promise.all(keys.map((k) => getFeatureFlag(k)));
+
+  return keys.reduce((acc, k, idx) => {
+    acc[k] = Boolean(values[idx]);
+    return acc;
+  }, {} as Record<FeatureFlagKey, boolean>);
+}
