@@ -13,3 +13,6 @@
 
 ## 2026-02-02T07:48:50.073101
 - Evoluir Aba Explorar com descoberta eficiente e scroll performático (Amazon)
+
+## 2026-02-02T14:21:24.437755
+- Infra explorar: discovery/ranking base sem alterar estrutura visual (perf e robustez).
