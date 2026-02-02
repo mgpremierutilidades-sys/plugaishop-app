@@ -8,7 +8,7 @@ import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme from "../../constants/theme";
 import { useCart } from "../../context/CartContext";
-import type { OrderDraft } from "../../types/order";
+import type { OrderDraft, Payment } from "../../types/order";
 import { formatCurrency } from "../../utils/formatCurrency";
 import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 
@@ -141,7 +141,7 @@ export default function Review() {
 
     setSaving(true);
     try {
-      const fallbackPayment = { method: "pix", status: "pending" as const };
+      const fallbackPayment: Payment = { method: "pix", status: "pending" };
 
       const toSave: OrderDraft = {
         ...draft,
@@ -204,7 +204,9 @@ export default function Review() {
             onPress={handleConfirm}
             disabled={saving}
           >
-            <ThemedText style={styles.primaryBtnText}>{saving ? "Confirmando..." : "Confirmar pedido"}</ThemedText>
+            <ThemedText style={styles.primaryBtnText}>
+              {saving ? "Confirmando..." : "Confirmar pedido"}
+            </ThemedText>
           </Pressable>
         </View>
       </ThemedView>
