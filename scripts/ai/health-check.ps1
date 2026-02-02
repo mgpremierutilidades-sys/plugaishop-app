@@ -1,5 +1,6 @@
 ﻿# scripts/ai/health-check.ps1
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $RepoRoot
@@ -10,7 +11,6 @@ $expected = @(
   @{ name="state_exporter"; match="state_exporter\.py";   err="handoff\logs\state_exporter.err.log" }
 )
 
-# bundle_daemon is optional (only if present in this repo)
 if (Test-Path (Join-Path $RepoRoot "scripts\ai\bundle_daemon.py")) {
   $expected += @{ name="bundle_daemon"; match="bundle_daemon\.py"; err="handoff\logs\bundle_daemon.err.log" }
 }
@@ -25,23 +25,27 @@ foreach ($e in $expected) {
   if ($m) { $running += $m }
 }
 
-$running | Format-Table -AutoSize
+Write-Output "=== RUNNING ==="
+if ($running.Count -gt 0) {
+  ($running | Format-Table -AutoSize | Out-String).TrimEnd() | Write-Output
+} else {
+  Write-Output "(none)"
+}
 
 $latest = Test-Path "handoff\state_bundles\latest.zip"
-"latest.zip exists? $latest"
+Write-Output ("latest.zip exists? {0}" -f $latest)
 
 function TailIfMissing($name, $match, $log) {
   $has = $running | Where-Object { $_.CommandLine -match $match }
   if (-not $has) {
     $p = Join-Path $RepoRoot $log
+    Write-Output ""
     if (Test-Path $p) {
-      Write-Host ""
-      Write-Host "---- $name missing; tail 120: $log ----"
-      Get-Content $p -Tail 120
-      Write-Host "---- end tail ----"
+      Write-Output "---- $name missing; tail 160: $log ----"
+      Get-Content $p -Tail 160
+      Write-Output "---- end tail ----"
     } else {
-      Write-Host ""
-      Write-Host "---- $name missing; no log found at: $log ----"
+      Write-Output "---- $name missing; no log found at: $log ----"
     }
   }
 }
@@ -59,8 +63,8 @@ foreach ($e in $expected) {
 }
 
 if ($missing.Count -gt 0) {
-  Write-Host ""
-  Write-Host ("MISSING: {0}" -f ($missing -join ", "))
+  Write-Output ""
+  Write-Output ("MISSING: {0}" -f ($missing -join ", "))
   exit 4
 }
 

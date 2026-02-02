@@ -13,3 +13,6 @@
 
 ## 2026-02-02T07:48:52.765047
 - Evoluir Aba Carrinho com persistência, estados resilientes e performance (Amazon + Shopify)
+
+## 2026-02-02T14:21:17.731755
+- Fix carrinho: garantir +/− funcional e estado consistente (sem alterar layout).
