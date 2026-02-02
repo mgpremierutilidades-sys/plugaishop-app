@@ -31,7 +31,6 @@ export async function initAnalytics(): Promise<void> {
   enabled = await getFeatureFlag(FeatureFlags.ANALYTICS_EVENTS);
   initialized = true;
 
-  // Evento opcional (só se estiver ligado)
   track("system_start", { ts: Date.now() });
 }
 
@@ -79,9 +78,9 @@ export function getAnalyticsQueueSnapshot(): AnalyticsEvent[] {
 }
 
 /**
- * (Debug Flags) Snapshot de todas as Feature Flags atuais (com defaults aplicados via getFeatureFlag).
+ * (Debug Flags) Snapshot de todas as Feature Flags atuais.
  * - Não altera UI.
- * - Não depende de AsyncStorage diretamente; usa o mesmo caminho do app.
+ * - Usa o mesmo caminho do app (getFeatureFlag).
  */
 export async function getFeatureFlags(): Promise<Record<string, boolean>> {
   const keys = Object.values(FeatureFlags) as string[];
