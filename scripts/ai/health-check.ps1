@@ -1,30 +1,67 @@
-# scripts/ai/health-check.ps1
+﻿# scripts/ai/health-check.ps1
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $RepoRoot
 
-$targets = "state_exporter|agent_loop|planner_autonomo|bundle_daemon"
+$expected = @(
+  @{ name="planner";        match="planner_autonomo\.py"; err="handoff\logs\planner.err.log" },
+  @{ name="agent_loop";     match="agent_loop\.py";       err="handoff\logs\agent_loop.err.log" },
+  @{ name="state_exporter"; match="state_exporter\.py";   err="handoff\logs\state_exporter.err.log" }
+)
+
+# bundle_daemon is optional (only if present in this repo)
+if (Test-Path (Join-Path $RepoRoot "scripts\ai\bundle_daemon.py")) {
+  $expected += @{ name="bundle_daemon"; match="bundle_daemon\.py"; err="handoff\logs\bundle_daemon.err.log" }
+}
 
 $procs = Get-CimInstance Win32_Process |
-  Where-Object { $_.Name -match "python" -and $_.CommandLine -match $targets } |
+  Where-Object { $_.Name -match "python" } |
   Select-Object ProcessId, CommandLine
 
-$procs | Format-Table -AutoSize
+$running = @()
+foreach ($e in $expected) {
+  $m = $procs | Where-Object { $_.CommandLine -match $e.match }
+  if ($m) { $running += $m }
+}
+
+$running | Format-Table -AutoSize
 
 $latest = Test-Path "handoff\state_bundles\latest.zip"
 "latest.zip exists? $latest"
 
-if (-not $latest) {
-  Write-Host "WARNING: state bundle not found at handoff\state_bundles\latest.zip"
-  Write-Host "Searching for any latest.zip under handoff..."
-  Get-ChildItem "handoff" -Recurse -Filter "latest.zip" -ErrorAction SilentlyContinue |
-    Select-Object FullName, LastWriteTime |
-    Format-Table -AutoSize
+function TailIfMissing($name, $match, $log) {
+  $has = $running | Where-Object { $_.CommandLine -match $match }
+  if (-not $has) {
+    $p = Join-Path $RepoRoot $log
+    if (Test-Path $p) {
+      Write-Host ""
+      Write-Host "---- $name missing; tail 120: $log ----"
+      Get-Content $p -Tail 120
+      Write-Host "---- end tail ----"
+    } else {
+      Write-Host ""
+      Write-Host "---- $name missing; no log found at: $log ----"
+    }
+  }
 }
 
-# Exit codes (useful for automation)
-# 0 = OK enough; 2 = no processes; 3 = missing latest.zip
-if (-not $procs -or $procs.Count -eq 0) { exit 2 }
+foreach ($e in $expected) {
+  TailIfMissing $e.name $e.match $e.err
+}
+
 if (-not $latest) { exit 3 }
+
+$missing = @()
+foreach ($e in $expected) {
+  $has = $running | Where-Object { $_.CommandLine -match $e.match }
+  if (-not $has) { $missing += $e.name }
+}
+
+if ($missing.Count -gt 0) {
+  Write-Host ""
+  Write-Host ("MISSING: {0}" -f ($missing -join ", "))
+  exit 4
+}
+
 exit 0
