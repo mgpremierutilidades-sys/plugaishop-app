@@ -18,7 +18,12 @@ export function buildOrderDraft(params: BuildDraftParams): OrderDraft {
 
   return {
     id: params.id,
+
+    v: 2,
+    createdAt: new Date().toISOString(),
     items: params.items,
+    selectedItemIds: (params.items ?? []).map((it) => String(it.id)),
+
     subtotal: params.subtotal,
     discount,
     shipping: params.shipping,
