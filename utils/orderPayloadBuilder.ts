@@ -2,60 +2,50 @@ import type { Order } from "../types/order";
 import type { LineItemPayload, OrderPayload, PaymentPayload } from "../types/orderPayload";
 
 function safeNumber(n: unknown, fallback = 0) {
-  const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
-  return v;
-}
-
-function buildPaymentPayload(order: Order): PaymentPayload | undefined {
-  const method = order.payment?.method;
-  const status = order.payment?.status;
-
-  if (!status) return undefined;
-  if (method !== "pix" && method !== "card" && method !== "boleto") return undefined;
-
-  return { method, status };
+  const v = typeof n === "number" && Number.isFinite(n) ? n : Number(n);
+  return Number.isFinite(v) ? v : fallback;
 }
 
 export function buildOrderPayload(order: Order): OrderPayload {
-  const items: LineItemPayload[] = order.items.map((it) => ({
-    sku: (it as any).sku ?? (it as any).id ?? undefined,
-    productId: (it as any).id ?? undefined,
-    title: (it as any).title ?? (it as any).name ?? "Item",
-    quantity: safeNumber((it as any).qty ?? (it as any).quantity ?? 1, 1),
-    unitPrice: safeNumber((it as any).price ?? (it as any).unitPrice ?? 0, 0),
-    discount: safeNumber((it as any).discount ?? 0, 0),
+  const items: LineItemPayload[] = order.items.map((it: any) => ({
+    productId: String(it.id),
+    title: String(it.title ?? "Produto"),
+    quantity: Math.max(1, Math.floor(safeNumber(it.qty ?? 1))),
+    unitPrice: safeNumber(it.price ?? 0),
+    discount: safeNumber(it.discountPercent ? (safeNumber(it.price ?? 0) * safeNumber(it.discountPercent) / 100) : 0),
   }));
 
-  const shippingPrice = safeNumber(order.shipping?.price ?? 0, 0);
-  const discount = safeNumber(order.discount ?? 0, 0);
+  const subtotal = safeNumber(order.subtotal ?? 0);
+  const discount = safeNumber(order.discount ?? 0);
+  const total = safeNumber(order.total ?? Math.max(0, subtotal - discount));
+
+  const shippingPrice = safeNumber(order.shipping?.price ?? 0);
+  const shipping = {
+    method: String(order.shipping?.method ?? "delivery"),
+    price: shippingPrice,
+    deadline: String(order.shipping?.deadline ?? ""),
+  };
+
+  const payment: PaymentPayload | undefined = order.payment
+    ? {
+        method: order.payment.method === "card" ? "card" : order.payment.method === "boleto" ? "boleto" : "pix",
+        status: (order.payment.status as PaymentPayload["status"]) ?? "pending",
+      }
+    : undefined;
 
   return {
     source: "plugaishop-app",
-    orderId: order.id,
-    createdAt: order.createdAt,
-
-    customer: undefined,
-    address: {
-      zip: order.address?.zip,
-      street: order.address?.street,
-      number: order.address?.number,
-      city: order.address?.city,
-      state: order.address?.state,
-      complement: undefined,
-    },
+    orderId: String(order.id),
+    createdAt: String(order.createdAt),
 
     items,
 
-    subtotal: safeNumber(order.subtotal, 0),
+    subtotal,
     discount,
-    shipping: {
-      method: order.shipping?.method,
-      price: shippingPrice,
-      deadline: order.shipping?.deadline,
-    },
-    total: safeNumber(order.total, 0),
+    shipping,
+    total,
 
-    payment: buildPaymentPayload(order),
+    payment,
 
     rawOrder: order,
   };
