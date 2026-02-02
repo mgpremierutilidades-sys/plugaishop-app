@@ -88,3 +88,6 @@ ai/governance/decisions.log.ndjson
 
 # local tool (temp)
 tools/maxximus-orchestrator/
+
+_tmp/
+
