@@ -8,8 +8,8 @@ import { ThemedView } from "../../components/themed-view";
 import theme from "../../constants/theme";
 
 // Ponte de compat (mantém padrão do projeto)
-import { listOrders } from "../../utils/ordersStorage";
 import type { Order } from "../../utils/ordersStore";
+import { listOrders } from "../../utils/ordersStore";
 
 export default function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -20,7 +20,7 @@ export default function OrdersTab() {
     setLoading(true);
 
     listOrders()
-      .then((list) => {
+      .then((list: Order[]) => {
         if (!alive) return;
         setOrders(Array.isArray(list) ? list : []);
       })
