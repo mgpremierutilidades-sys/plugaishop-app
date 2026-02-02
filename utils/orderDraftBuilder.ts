@@ -2,7 +2,7 @@
 import type { Address, OrderDraft, Payment, Shipping } from "../types/order";
 
 type BuildDraftParams = {
-  id: string;
+  id: string; // mantido por compat, mas OrderDraft não possui id
   items: OrderDraft["items"];
   subtotal: number;
   discount?: number;
@@ -17,8 +17,6 @@ export function buildOrderDraft(params: BuildDraftParams): OrderDraft {
   const discount = params.discount ?? 0;
 
   return {
-    id: params.id,
-
     v: 2,
     createdAt: new Date().toISOString(),
     items: params.items,
@@ -30,6 +28,7 @@ export function buildOrderDraft(params: BuildDraftParams): OrderDraft {
     address: params.address,
     payment: params.payment,
     note: params.note,
+
     total: params.subtotal - discount + shippingPrice,
   };
 }
