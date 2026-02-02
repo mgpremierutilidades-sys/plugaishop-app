@@ -676,3 +676,6 @@
 
 ## 2026-02-02T15:05:40.417550
 - Fix carrinho: garantir +/− funcional e estado consistente (sem alterar layout).
+
+## 2026-02-02T15:05:55.653198
+- Fix carrinho: garantir +/− funcional e estado consistente (sem alterar layout).
