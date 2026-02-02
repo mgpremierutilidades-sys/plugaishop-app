@@ -1,42 +1,35 @@
 import type { Shipping } from "../types/order";
-import { normalizeCEP, isValidCEP } from "./cep";
+import { isValidCEP, normalizeCEP } from "./cep";
 
 export type ShippingOption = Shipping & {
   id: "pac" | "sedex" | "express";
 };
 
 function baseByRegion(cep8: string): number {
-  // Heurística simples por faixa de CEP (mock)
-  // 0–3: Sudeste / 4–6: Sul / 7–9: Centro-Oeste/Norte/Nordeste (aprox.)
-  const first = Number(cep8[0] ?? 9);
-  if (first <= 3) return 24.9;
-  if (first <= 6) return 29.9;
-  return 34.9;
+  // mock simples por região (prefixo)
+  const prefix = Number(cep8.slice(0, 2));
+  if (prefix >= 10 && prefix <= 29) return 19.9;
+  if (prefix >= 30 && prefix <= 59) return 24.9;
+  return 29.9;
 }
 
-export function getShippingOptions(zipRaw: string): ShippingOption[] {
-  const zip = normalizeCEP(zipRaw);
+export function getShippingOptions(zip?: string): ShippingOption[] {
+  const raw = zip ?? "";
+  const cep8 = isValidCEP(raw) ? normalizeCEP(raw) : "";
 
-  if (!isValidCEP(zip)) {
+  if (!cep8) {
     return [
-      { id: "pac", method: "Correios PAC", price: 0, deadline: "Informe o CEP" },
-      { id: "sedex", method: "Correios SEDEX", price: 0, deadline: "Informe o CEP" },
-      { id: "express", method: "Entrega Expressa", price: 0, deadline: "Informe o CEP" },
+      { id: "pac", method: "delivery", carrier: "Correios PAC", cep8: "", price: 0, deadline: "Informe o CEP" },
+      { id: "sedex", method: "delivery", carrier: "Correios SEDEX", cep8: "", price: 0, deadline: "Informe o CEP" },
+      { id: "express", method: "delivery", carrier: "Entrega Expressa", cep8: "", price: 0, deadline: "Informe o CEP" },
     ];
   }
 
-  const base = baseByRegion(zip);
+  const base = baseByRegion(cep8);
 
-  // Opções mock (mas com cara de real)
   return [
-    { id: "pac", method: "Correios PAC", price: base, deadline: "5 a 7 dias úteis" },
-    { id: "sedex", method: "Correios SEDEX", price: base + 18.0, deadline: "2 a 3 dias úteis" },
-    { id: "express", method: "Entrega Expressa", price: base + 29.0, deadline: "24 a 48 horas" },
+    { id: "pac", method: "delivery", carrier: "Correios PAC", cep8, price: base, deadline: "5 a 7 dias úteis" },
+    { id: "sedex", method: "delivery", carrier: "Correios SEDEX", cep8, price: base + 18.0, deadline: "2 a 3 dias úteis" },
+    { id: "express", method: "delivery", carrier: "Entrega Expressa", cep8, price: base + 29.0, deadline: "24 a 48 horas" },
   ];
-}
-
-export function pickDefaultShipping(zipRaw: string): ShippingOption {
-  const options = getShippingOptions(zipRaw);
-  // Default: PAC
-  return options[0];
 }
