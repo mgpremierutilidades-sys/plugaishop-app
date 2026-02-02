@@ -15,7 +15,7 @@ export function patchOrderDraft(
   const discount = next.discount ?? 0;
 
   // total = subtotal - desconto + frete
-  next.total = next.subtotal - discount + shippingPrice;
+  next.total = (next.subtotal ?? 0) - discount + shippingPrice;
 
   return next;
 }
