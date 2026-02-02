@@ -41,6 +41,23 @@ function calcFromCart(cartItems: any[]) {
   return { subtotal, discount, total };
 }
 
+function toDraftItems(cartItems: any[]) {
+  return (cartItems ?? []).map((it) => {
+    const p = it?.product;
+    return {
+      id: String(it?.id ?? p?.id ?? p?.productId ?? `item_${Math.random().toString(16).slice(2)}`),
+      title: String(p?.title ?? "Produto"),
+      price: n(p?.price ?? 0),
+      qty: Math.max(1, Math.floor(n(it?.qty ?? 1))),
+      discountPercent: n(p?.discountPercent ?? 0) || undefined,
+    };
+  });
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
 export default function Review() {
   const cartAny = useCart() as any;
   const goBack = () => router.back();
@@ -50,10 +67,8 @@ export default function Review() {
     return Array.isArray(items) ? items : [];
   }, [cartAny?.items]);
 
-  // Base imediata (não trava): sempre consegue renderizar usando carrinho
   const computed = useMemo(() => calcFromCart(cartItems), [cartItems]);
 
-  // Draft vindo do storage (opcional)
   const [storedDraft, setStoredDraft] = useState<OrderDraft | null>(null);
 
   useEffect(() => {
@@ -65,7 +80,6 @@ export default function Review() {
         if (!alive) return;
         setStoredDraft(d);
       } catch {
-        // Não deixa travar por erro de storage
         if (!alive) return;
         setStoredDraft(null);
       }
@@ -76,13 +90,18 @@ export default function Review() {
     };
   }, []);
 
-  // Draft efetivo: storage (se existir) + fallback do carrinho
   const draft: OrderDraft = useMemo(() => {
+    const baseItems = toDraftItems(cartItems);
+
     const base: OrderDraft = {
-      items: cartItems,
-      subtotal: computed.subtotal,
-      discount: computed.discount,
-      total: computed.total,
+      v: 2,
+      createdAt: nowISO(),
+      items: baseItems,
+      selectedItemIds: baseItems.map((it) => it.id),
+
+      subtotal: n(computed.subtotal),
+      discount: n(computed.discount),
+      total: n(computed.total),
     };
 
     if (!storedDraft) return base;
@@ -90,14 +109,12 @@ export default function Review() {
     const hasItems = Array.isArray(storedDraft.items) && storedDraft.items.length > 0;
     const items = hasItems ? storedDraft.items : base.items;
 
-    const subtotal = storedDraft.subtotal == null ? base.subtotal : n(storedDraft.subtotal);
-    const discount = storedDraft.discount == null ? base.discount : n(storedDraft.discount);
-    const shippingPrice = n(storedDraft.shipping?.price ?? 0);
+    const subtotal: number = storedDraft.subtotal == null ? n(base.subtotal) : n(storedDraft.subtotal);
+    const discount: number = storedDraft.discount == null ? n(base.discount) : n(storedDraft.discount);
+    const shippingPrice: number = n(storedDraft.shipping?.price ?? 0);
 
-    const total =
-      storedDraft.total == null
-        ? Math.max(0, subtotal - (discount ?? 0) + shippingPrice)
-        : Math.max(0, n(storedDraft.total));
+    const total: number =
+      storedDraft.total == null ? Math.max(0, subtotal - discount + shippingPrice) : Math.max(0, n(storedDraft.total));
 
     return {
       ...base,
@@ -117,73 +134,41 @@ export default function Review() {
     return Math.max(0, t);
   }, [draft.total, subtotal, discount, shipping]);
 
-  const itemCount = useMemo(() => (draft.items?.length ?? 0), [draft.items]);
+  const [saving, setSaving] = useState(false);
 
-  async function handleConfirm() {
-    // Salva um draft consistente para o success/Orders
-    await saveOrderDraft({
-      ...draft,
-      items: draft.items ?? cartItems,
-      subtotal,
-      discount,
-      total,
-      payment: draft.payment ?? { method: "pix", status: "pending" },
-    });
+  const handleConfirm = async () => {
+    if (saving) return;
 
-    router.push("/checkout/success" as any);
-  }
+    setSaving(true);
+    try {
+      const fallbackPayment = { method: "pix", status: "pending" as const };
+
+      const toSave: OrderDraft = {
+        ...draft,
+        payment: draft.payment ?? fallbackPayment,
+      };
+
+      await saveOrderDraft(toSave);
+      router.push("/checkout/success");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+          <Pressable onPress={goBack} style={styles.backBtn}>
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
           <ThemedText style={styles.title}>Revisão</ThemedText>
+
           <View style={styles.rightSpacer} />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-          <View style={styles.card}>
-            <ThemedText style={styles.sectionTitle}>Itens</ThemedText>
-
-            <ThemedText style={styles.mutedText}>
-              {itemCount} {itemCount === 1 ? "item" : "itens"}
-            </ThemedText>
-
-            <View style={{ height: 10 }} />
-
-            {(draft.items ?? []).slice(0, 6).map((it: any) => {
-              const p = it?.product ?? it;
-              const title = String(p?.title ?? it?.title ?? "Produto");
-              const qty = Math.max(1, Math.floor(n(it?.qty ?? 1)));
-              const price = n(p?.price ?? it?.price ?? 0);
-
-              return (
-                <View key={String(p?.id ?? it?.id ?? title)} style={styles.itemRow}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText numberOfLines={2} style={styles.itemTitle}>
-                      {title}
-                    </ThemedText>
-                    <ThemedText style={styles.mutedText}>
-                      {qty}x · {formatCurrency(price)}
-                    </ThemedText>
-                  </View>
-
-                  <ThemedText style={styles.itemRight}>{formatCurrency(price * qty)}</ThemedText>
-                </View>
-              );
-            })}
-
-            {(draft.items?.length ?? 0) > 6 ? (
-              <ThemedText style={[styles.mutedText, { marginTop: 8 }]}>
-                + {(draft.items?.length ?? 0) - 6} itens
-              </ThemedText>
-            ) : null}
-          </View>
-
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
             <ThemedText style={styles.sectionTitle}>Resumo</ThemedText>
 
@@ -194,12 +179,12 @@ export default function Review() {
 
             <View style={styles.summaryRow}>
               <ThemedText style={styles.summaryKey}>Descontos</ThemedText>
-              <ThemedText style={styles.summaryVal}>- {formatCurrency(discount)}</ThemedText>
+              <ThemedText style={styles.summaryVal}>-{formatCurrency(discount)}</ThemedText>
             </View>
 
             <View style={styles.summaryRow}>
               <ThemedText style={styles.summaryKey}>Frete</ThemedText>
-              <ThemedText style={styles.summaryVal}>{shipping === 0 ? "Grátis" : formatCurrency(shipping)}</ThemedText>
+              <ThemedText style={styles.summaryVal}>{formatCurrency(shipping)}</ThemedText>
             </View>
 
             <View style={styles.hr} />
@@ -209,11 +194,17 @@ export default function Review() {
               <ThemedText style={styles.totalVal}>{formatCurrency(total)}</ThemedText>
             </View>
           </View>
+
+          <View style={{ height: 80 }} />
         </ScrollView>
 
         <View style={styles.footer}>
-          <Pressable onPress={handleConfirm} style={styles.primaryBtn} accessibilityRole="button">
-            <ThemedText style={styles.primaryBtnText}>CONFIRMAR PEDIDO</ThemedText>
+          <Pressable
+            style={[styles.primaryBtn, saving && { opacity: 0.7 }]}
+            onPress={handleConfirm}
+            disabled={saving}
+          >
+            <ThemedText style={styles.primaryBtnText}>{saving ? "Confirmando..." : "Confirmar pedido"}</ThemedText>
           </Pressable>
         </View>
       </ThemedView>
@@ -222,16 +213,15 @@ export default function Review() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
-
+  container: { flex: 1, paddingHorizontal: 14 },
   header: {
-    height: 44,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
   },
+  content: { paddingVertical: 14 },
+
   backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
   rightSpacer: { width: 40, height: 40 },
@@ -247,18 +237,6 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: { fontSize: 14, fontFamily: FONT_BODY_BOLD, marginBottom: 6 },
-  mutedText: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.75 },
-
-  itemRow: {
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.divider,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  itemTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.95 },
-  itemRight: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
 
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8 },
   summaryKey: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.85 },
@@ -290,4 +268,3 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 });
-
