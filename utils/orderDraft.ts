@@ -42,9 +42,9 @@ export function buildOrderDraft(input: {
     createdAt: new Date().toISOString(),
     items: input.items.map((it) => ({
       id: it.id,
-      title: it.title,
+      title: it.product?.title ?? "Produto",
       qty: it.qty,
-      price: it.price,
+      price: Number(it.product?.price ?? 0),
     })),
     subtotal: input.subtotal,
     shipping: input.shipping,
