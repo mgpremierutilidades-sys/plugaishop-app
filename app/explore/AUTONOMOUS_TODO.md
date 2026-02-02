@@ -949,3 +949,6 @@
 
 ## 2026-02-02T15:24:21.432886
 - Infra explorar: discovery/ranking base sem alterar estrutura visual (perf e robustez).
+
+## 2026-02-02T15:24:48.560827
+- Infra explorar: discovery/ranking base sem alterar estrutura visual (perf e robustez).
