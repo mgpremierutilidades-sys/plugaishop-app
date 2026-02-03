@@ -1,6 +1,7 @@
-# scripts/ai/.gitignore
-
+@"
 __pycache__/
 _out/
 *.pyc
 *.pyo
+CORRECAO_CARRINHO_PERFORMANCE_*.md
+"@ | Set-Content -LiteralPath .\scripts\ai\.gitignore -Encoding utf8
