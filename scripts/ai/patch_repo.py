@@ -1,1 +1,3 @@
-﻿# (cole AQUI dentro só o conteúdo Python do arquivo)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# ... COLE AQUI O PYTHON (sem New-Item / Set-Content / @' do PS dentro) ...
