@@ -1,3 +1,6 @@
+cd C:\plugaishop-app
+
+@'
 param(
   [string]$Branch = "",
   [string]$OutDir = "context/_artifacts"
@@ -15,15 +18,22 @@ if ([string]::IsNullOrWhiteSpace($Branch)) {
   $Branch = (git branch --show-current).Trim()
 }
 
-# exige gh
 gh --version | Out-Null
 gh auth status | Out-Null
 
+# Descobre o workflow pelo path do arquivo (mais estável que o name)
+$wfId = (gh workflow list --json id,path -q ".[] | select(.path==`.github/workflows/autoflow-upload.yml`) | .id")
+if (!$wfId) {
+  throw "Workflow não encontrado no remoto: .github/workflows/autoflow-upload.yml (confira commit + push)"
+}
+
+Write-Host "Workflow ID: $wfId"
 Write-Host "Running workflow on branch: $Branch"
-gh workflow run "Autoflow Upload" --ref $Branch | Out-Null
+gh workflow run $wfId --ref $Branch | Out-Null
+
 Start-Sleep -Seconds 2
 
-$runId = (gh run list --workflow "Autoflow Upload" --limit 1 --json databaseId -q ".[0].databaseId")
+$runId = (gh run list --workflow $wfId --limit 1 --json databaseId -q ".[0].databaseId")
 if (!$runId) { throw "Could not find workflow run id." }
 
 Write-Host "Run ID: $runId"
@@ -34,3 +44,4 @@ gh run download $runId -n route-collision-dump -D $OutDir
 
 Write-Host "Downloaded to: $OutDir"
 Get-ChildItem -Recurse $OutDir
+'@ | Set-Content -Encoding UTF8 .\scripts\ai\upload_route_dump.ps1
