@@ -1,3 +1,39 @@
+﻿# scripts/ai/bootstrap_patch_repo.ps1
+# PS 5.1-safe. NÃO usa MyInvocation.
+# Sempre gera scripts/ai/patch_repo.py em UTF-8 sem BOM e valida com py_compile.
+
+$ErrorActionPreference = "Stop"
+
+function Write-Utf8NoBomFile {
+  param(
+    [Parameter(Mandatory=$true)][string]$Path,
+    [Parameter(Mandatory=$true)][string]$Content
+  )
+  $dir = Split-Path -Parent $Path
+  if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
+function Get-ScriptDir {
+  if ($PSScriptRoot -and $PSScriptRoot.Length -gt 0) { return $PSScriptRoot }
+  if ($PSCommandPath -and $PSCommandPath.Length -gt 0) { return (Split-Path -Parent $PSCommandPath) }
+  return (Get-Location).Path
+}
+
+$scriptDir = Get-ScriptDir
+$repoRoot  = Resolve-Path (Join-Path $scriptDir "..\..")
+$aiDir     = Join-Path $repoRoot "scripts\ai"
+New-Item -ItemType Directory -Force $aiDir | Out-Null
+
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) { throw "python não encontrado no PATH." }
+
+$patchRepo = Join-Path $aiDir "patch_repo.py"
+
+# Conteúdo do patch_repo.py (PYTHON PURO). Sem PowerShell aqui dentro.
+$pyContent = @'
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -251,3 +287,14 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+'@
+
+Write-Host "[bootstrap] Writing patch_repo.py (utf8 no bom): $patchRepo"
+Write-Utf8NoBomFile -Path $patchRepo -Content $pyContent
+
+Write-Host "[bootstrap] Validating python syntax..."
+python -m py_compile $patchRepo
+if ($LASTEXITCODE -ne 0) { throw "py_compile failed" }
+
+Write-Host "[bootstrap] OK"
+Write-Host "Run: python scripts/ai/patch_repo.py --apply"
