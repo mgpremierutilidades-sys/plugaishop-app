@@ -1,0 +1,136 @@
+== PLUGAISHOP AUTOFLOW ==
+Mode: dry-run
+[export] Bundling files...
+[export] Checking ghost paths...
+[export] Wrote: scripts/ai/_out/context-bundle.txt
+Analysis generated: C:\plugaishop-app\scripts\ai\_out\analysis.json
+Autoflow finalizado (sem alterações no app).
+(.venv) PS C:\plugaishop-app> Get-Content .\scripts\ai\_out\analysis.json -Raw
+{
+  "tabs": [
+    "account.tsx",
+    "cart.tsx",
+    "explore.tsx",
+    "index.tsx",
+    "orders.tsx",
+    "profile.tsx",
+    "_layout.tsx"
+  ],
+  "checkout": [
+    "address.tsx",
+    "index.tsx",
+    "payment.tsx",
+    "review.tsx",
+    "shipping.tsx",
+    "success.tsx",
+    "_layout.tsx"
+  ],
+  "orders": [
+    "app\\orders\\index.tsx",
+    "app\\orders\\notifications.tsx",
+    "app\\orders\\[id].tsx",
+    "app\\orders\\_layout.tsx",
+    "app\\orders\\[id]\\invoice.tsx",
+    "app\\orders\\[id]\\return.tsx",
+    "app\\orders\\[id]\\review.tsx",
+    "app\\orders\\[id]\\support.tsx",
+    "app\\orders\\[id]\\tracking.tsx"
+  ],
+  "issues": []
+}
+(.venv) PS C:\plugaishop-app> cd C:\plugaishop-app
+(.venv) PS C:\plugaishop-app> .\scripts\ai\autoflow_step2.ps1
+(.venv) PS C:\plugaishop-app> param(
+>>   [string]$Branch = "",
+>>   [string]$OutDir = "context/_artifacts"
+>> )
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> $ErrorActionPreference = "Stop"
+(.venv) PS C:\plugaishop-app> Set-Location (Split-Path $PSScriptRoot -Parent -Resolve)
+Split-Path: Cannot bind argument to parameter 'Path' because it is an empty string.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> if (!(Test-Path -LiteralPath "context/route_collision_files_dump.txt")) {
+>>   throw "Missing: context/route_collision_files_dump.txt"
+>> }
+Exception:
+Line |
+   2 |    throw "Missing: context/route_collision_files_dump.txt"
+     |    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Missing: context/route_collision_files_dump.txt
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> # branch atual se não informado
+(.venv) PS C:\plugaishop-app> if ([string]::IsNullOrWhiteSpace($Branch)) {
+>>   $Branch = (git branch --show-current).Trim()
+>> }
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> # valida gh
+(.venv) PS C:\plugaishop-app> gh --version | Out-Null
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app> gh auth status | Out-Null
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> Write-Host "Running workflow on branch: $Branch"
+Running workflow on branch: chore/autoflow-symbiosis
+(.venv) PS C:\plugaishop-app> gh workflow run "Autoflow Upload" --ref $Branch | Out-Null
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> Start-Sleep -Seconds 2
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> # pega o run mais recente desse workflow
+(.venv) PS C:\plugaishop-app> $runId = (gh run list --workflow "Autoflow Upload" --limit 1 --json databaseId -q ".[0].databaseId")
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app> if (!$runId) { throw "Could not find workflow run id." }
+Exception: Could not find workflow run id.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> Write-Host "Run ID: $runId"
+Run ID:
+(.venv) PS C:\plugaishop-app> Write-Host "Waiting for completion..."
+Waiting for completion...
+(.venv) PS C:\plugaishop-app> gh run watch $runId
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+(.venv) PS C:\plugaishop-app> gh run download $runId -n route-collision-dump -D $OutDir
+gh: The term 'gh' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> Write-Host "Downloaded to: $OutDir"
+Downloaded to: context/_artifacts
+(.venv) PS C:\plugaishop-app> Get-ChildItem -Recurse $OutDir
+(.venv) PS C:\plugaishop-app> cd C:\plugaishop-app
+(.venv) PS C:\plugaishop-app> git add .github/workflows/autoflow-upload.yml scripts/ai/upload_route_dump.ps1
+fatal: pathspec '.github/workflows/autoflow-upload.yml' did not match any files
+(.venv) PS C:\plugaishop-app> git commit -m "chore(autoflow): add upload workflow + uploader script"
+On branch chore/autoflow-symbiosis
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        plugaishop_basefiles_dump.txt
+        plugaishop_dump.txt
+        scripts/ai/autoflow_step2.ps1
+        tools/
+
+nothing added to commit but untracked files present (use "git add" to track)
+(.venv) PS C:\plugaishop-app> git push
+Enumerating objects: 21, done.
+Counting objects: 100% (21/21), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (17/17), done.
+Writing objects: 100% (17/17), 87.97 KiB | 2.93 MiB/s, done.
+Total 17 (delta 5), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (5/5), completed with 2 local objects.
+remote:
+remote: Create a pull request for 'chore/autoflow-symbiosis' on GitHub by visiting:
+remote:      https://github.com/mgpremierutilidades-sys/plugaishop-app/pull/new/chore/autoflow-symbiosis
+remote:
+To https://github.com/mgpremierutilidades-sys/plugaishop-app.git
+ * [new branch]      chore/autoflow-symbiosis -> chore/autoflow-symbiosis
+branch 'chore/autoflow-symbiosis' set up to track 'origin/chore/autoflow-symbiosis'.
+(.venv) PS C:\plugaishop-app>
+(.venv) PS C:\plugaishop-app> .\scripts\ai\upload_route_dump.ps1
+.\scripts\ai\upload_route_dump.ps1: The term '.\scripts\ai\upload_route_dump.ps1' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
