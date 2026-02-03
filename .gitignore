@@ -1,43 +1,20 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+cd C:\plugaishop-app
 
-# dependencies
-node_modules/
+@'
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# --- AUTOFLOW / CONTEXT ARTIFACTS ---
+scripts/ai/_out/
+scripts/ai/_stash_routes/**/_tmp/
+context/*.zip
+context/*.txt
+context/_artifacts/
+*_dump*.txt
+plugaishop_*dump*.txt
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
+# --- MAXXIMUS ORCHESTRATOR (generated state / reports) ---
+tools/maxximus-orchestrator/data/state.json
+tools/maxximus-orchestrator/data/tasks.json
+tools/maxximus-orchestrator/data/metrics.json
+tools/maxximus-orchestrator/data/reports/
 
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-app-example
-
-# generated native folders
-/ios
-/android
+'@ | Add-Content -Encoding UTF8 .\.gitignore
