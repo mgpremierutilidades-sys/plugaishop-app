@@ -21,6 +21,11 @@ type ShippingOption = {
   title: string;
   desc: string;
   price: string; // display
+  deadline?: string;
+  deadline?: string;
+  deadline?: string;
+  deadline?: string;
+
 };
 
 function Option({

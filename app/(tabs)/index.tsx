@@ -233,13 +233,15 @@ export default function HomeScreen() {
     <ParallaxScrollView
       headerBackgroundColor={{ light: "#0B0B0B", dark: "#0B0B0B" }}
       headerImage={<View style={{ height: 0 }} />}
-      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollViewProps={{
+        onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const y = e.nativeEvent.contentOffset.y;
         const contentH = e.nativeEvent.contentSize.height;
         const viewportH = e.nativeEvent.layoutMeasurement.height;
         onScroll(y, contentH, viewportH);
+      },
+        scrollEventThrottle: 16,
       }}
-      scrollEventThrottle={16}
     >
       <View style={styles.container}>
         <HomeHeroCarousel onImpression={() => impressionOnce("hero")} />

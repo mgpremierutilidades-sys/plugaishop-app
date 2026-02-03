@@ -18,15 +18,18 @@
   ],
   "exclude": [
     "node_modules",
-    "_share",
-    "_export_*",
-    "_export*",
-    "_tmp*",
-    "**/_share/**",
-    "**/_export*/**",
-    "**/_tmp*/**",
-    "_export_cart_etapa24",
-    "**/_export_cart_etapa24/**",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+
+    "_share/**",
+    "_export*/**",
+    "_tmp*/**",
+    "backups/**",
+
+    "scripts/ai/**",
     "utils/notifications.ts"
   ]
 }

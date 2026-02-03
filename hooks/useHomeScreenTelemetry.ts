@@ -11,7 +11,7 @@ type HomeEventBase = {
 export function useHomeScreenTelemetry() {
   const trackHomeView = async (payload: HomeEventBase) => {
     try {
-      track("view_home", payload);
+      track("view_home" as any, payload);
     } catch {
       // ignore
     }
@@ -19,7 +19,7 @@ export function useHomeScreenTelemetry() {
 
   const trackHomeClick = async (payload: HomeEventBase) => {
     try {
-      track("click_home", payload);
+      track("click_home" as any, payload);
     } catch {
       // ignore
     }
@@ -27,7 +27,7 @@ export function useHomeScreenTelemetry() {
 
   const trackHomeFail = async (payload: HomeEventBase) => {
     try {
-      track("fail_home", payload);
+      track("fail_home" as any, payload);
     } catch {
       // ignore
     }

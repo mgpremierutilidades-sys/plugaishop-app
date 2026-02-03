@@ -30,6 +30,8 @@ export type Payment = {
   brand?: string; // ex: visa/master
   last4?: string;
   installments?: number;
+  status?: "pending" | "paid" | "failed";
+
 };
 
 export type Shipping = {
@@ -38,6 +40,8 @@ export type Shipping = {
   price: number;
   carrier?: string;
   etaDays?: number;
+  deadline?: string;
+
 };
 
 export type OrderItem = {
@@ -103,3 +107,33 @@ export type OrderDraft = {
   /** Observação/nota do pedido (campo legado) */
   note?: string;
 };
+
+export type Order = {
+  id: string;
+  createdAt: string;
+
+  items: OrderItem[];
+  selectedItemIds: string[];
+
+  coupon?: OrderCoupon | null;
+
+  shipping?: Shipping | null;
+  address?: Address | null;
+  payment?: Payment | null;
+
+  protectionById?: Record<string, number>;
+
+  pricing?: OrderPricingSnapshot;
+  pricingHash?: string;
+
+  subtotal?: number;
+  discount?: number;
+  total?: number;
+
+  note?: string;
+
+  status?: "created" | "paid" | "shipped" | "delivered" | "canceled" | string;
+  review?: { stars: number; comment?: string } | null;
+};
+
+
