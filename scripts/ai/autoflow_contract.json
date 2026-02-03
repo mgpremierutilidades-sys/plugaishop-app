@@ -1,0 +1,19 @@
+{
+  "mode": "dry-run",
+  "rules": {
+    "no_overwrite_without_full_file": true,
+    "layout_frozen": true,
+    "incremental_only": true
+  },
+  "flows": [
+    "tabs_navigation",
+    "cart_to_checkout",
+    "checkout_full",
+    "orders_post_purchase"
+  ],
+  "artifacts": {
+    "analysis": "scripts/ai/_out/analysis.json",
+    "proposals": "scripts/ai/_out/proposals.json",
+    "logs": "scripts/ai/_out/autoflow.log"
+  }
+}
