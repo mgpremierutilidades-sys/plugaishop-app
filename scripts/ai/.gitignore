@@ -1,0 +1,6 @@
+# scripts/ai/.gitignore
+
+__pycache__/
+_out/
+*.pyc
+*.pyo
