@@ -1,0 +1,2245 @@
+===== PATH: package.json =====
+{
+  "name": "plugaishop-app",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo-google-fonts/arimo": "^0.4.2",
+    "@expo-google-fonts/lexend": "^0.4.1",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.4.1",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "expo": "~54.0.30",
+    "expo-clipboard": "~8.0.8",
+    "expo-constants": "~18.0.12",
+    "expo-font": "~14.0.10",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.15",
+    "expo-router": "~6.0.21",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+
+
+
+===== PATH: tsconfig.json =====
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
+}
+
+
+
+===== PATH: app.json =====
+{
+  "expo": {
+    "name": "plugaishop-app",
+    "slug": "plugaishop-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "plugaishopapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
+
+
+
+===== MISSING: app.config.ts =====
+
+===== MISSING: app.config.js =====
+
+===== MISSING: babel.config.js =====
+
+===== MISSING: metro.config.js =====
+
+===== PATH: expo-env.d.ts =====
+/// <reference types="expo/types" />
+
+// NOTE: This file should not be edited and should be in your git ignore
+
+
+===== PATH: app/_layout.tsx =====
+// app/_layout.tsx
+import { Stack } from "expo-router";
+
+import GlobalChrome from "../components/global-chrome";
+
+export default function RootLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+      }}
+    >
+      {/* Rotas reais de topo */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="orders" options={{ headerShown: false }} />
+
+      {/* Modal (se existir app/modal.tsx) */}
+      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+    </Stack>
+  );
+}
+
+
+
+===== PATH: app/(tabs)/_layout.tsx =====
+import { Tabs } from "expo-router";
+import IconSymbol from "../../components/ui/icon-symbol";
+import theme from "../../constants/theme";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.colors.tabIconActive,
+        tabBarInactiveTintColor: theme.colors.tabIconInactive,
+        tabBarHideOnKeyboard: false,
+        tabBarStyle: {
+          borderTopColor: theme.colors.divider,
+          backgroundColor: theme.colors.background,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Início",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="home-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explorar",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="compass-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: "Carrinho",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="cart-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Conta",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="receipt-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="person-circle-outline" color={color} size={22} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+
+
+
+===== PATH: app/(tabs)/index.tsx =====
+import { Image } from "expo-image";
+import { Link } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+
+import ParallaxScrollView from "../../components/parallax-scroll-view";
+import { ProductCard } from "../../components/product-card";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import { categories, products } from "../../constants/products";
+import { useColorScheme } from "../../hooks/use-color-scheme";
+
+// fail-safe + outbox flush
+import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
+import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
+
+export default function HomeScreen() {
+  // retoma checkout se existir draft pendente
+  useCheckoutFailSafe();
+
+  // tenta enviar fila quando abrir o app
+  useOutboxAutoFlush();
+
+  const colorScheme = useColorScheme() ?? "light";
+  const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof categories)[number]>("Todos");
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === "Todos" || product.category === selectedCategory;
+      const matchesQuery =
+        normalizedQuery.length === 0 ||
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [query, selectedCategory]);
+
+  return (
+    <>
+      {/* ✅ iPhone: horas/bateria brancas sobre o banner */}
+      <StatusBar style="light" />
+
+      <ParallaxScrollView
+        headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
+        headerImage={
+          <Image
+            source={require("../../assets/banners/banner-home.png")}
+            style={styles.headerBanner}
+            contentFit="cover"
+          />
+        }
+      >
+        <ThemedView style={styles.titleContainer}>
+          {/* ✅ nome correto, sem acento */}
+          <ThemedText type="title">PLUGAISHOP</ThemedText>
+          <ThemedText type="defaultSemiBold">
+            Soluções curadas para acelerar a operação e o varejo inteligente.
+          </ThemedText>
+        </ThemedView>
+
+        <ThemedView style={styles.heroCard}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
+            <ThemedText>
+              Combine iluminação, organização e sinalização para deixar seu ponto de
+              venda pronto em minutos.
+            </ThemedText>
+
+            <Link href="/explore" asChild>
+              <Pressable style={styles.cta}>
+                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
+              </Pressable>
+            </Link>
+          </View>
+
+          {/* ✅ Remove o “banner miniatura” repetido:
+              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
+          <Image
+            source={require("../../assets/banners/banner-splash.png")}
+            style={styles.heroImage}
+            contentFit="cover"
+          />
+        </ThemedView>
+
+        <ThemedView style={styles.searchSection}>
+          <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+          <TextInput
+            placeholder="Buscar por categoria ou produto"
+            placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+            value={query}
+            onChangeText={setQuery}
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
+                borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
+                color: colorScheme === "light" ? "#111827" : "#F9FAFB",
+              },
+            ]}
+          />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipRow}
+          >
+            {categories.map((category) => {
+              const isSelected = selectedCategory === category;
+
+              return (
+                <Pressable
+                  key={category}
+                  onPress={() => setSelectedCategory(category)}
+                  style={[styles.chip, isSelected && styles.chipSelected]}
+                >
+                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                    {category}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </ThemedView>
+
+        <View style={styles.grid}>
+          {filteredProducts.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+
+          {filteredProducts.length === 0 ? (
+            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+          ) : null}
+        </View>
+
+        <ThemedView style={styles.tip}>
+          <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
+          <ThemedText>
+            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
+          </ThemedText>
+
+          <Link href="/modal">
+            <Link.Trigger>
+              <ThemedText type="link">Abrir menu de ações</ThemedText>
+            </Link.Trigger>
+            <Link.Preview />
+            <Link.Menu>
+              <Link.MenuAction
+                title="Solicitar demo"
+                icon="cube"
+                onPress={() => alert("Demo")}
+              />
+              <Link.MenuAction
+                title="Compartilhar"
+                icon="square.and.arrow.up"
+                onPress={() => alert("Link copiado")}
+              />
+              <Link.Menu title="Mais" icon="ellipsis">
+                <Link.MenuAction
+                  title="Remover"
+                  icon="trash"
+                  destructive
+                  onPress={() => alert("Item removido")}
+                />
+              </Link.Menu>
+            </Link.Menu>
+          </Link>
+        </ThemedView>
+      </ParallaxScrollView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  titleContainer: {
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  heroCard: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    backgroundColor: "#E6F4FE",
+    padding: 16,
+    borderRadius: 16,
+  },
+
+  heroImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 18,
+    backgroundColor: "#0E1720",
+  },
+
+  cta: {
+    marginTop: 8,
+    backgroundColor: "#0a7ea4",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+
+  searchSection: {
+    gap: 12,
+    marginTop: 16,
+  },
+
+  searchInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+  },
+
+  chipRow: {
+    flexGrow: 0,
+  },
+
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#CBD5E1",
+    marginRight: 8,
+  },
+
+  chipSelected: {
+    backgroundColor: "#0a7ea4",
+    borderColor: "#0a7ea4",
+  },
+
+  chipSelectedText: {
+    color: "#fff",
+  },
+
+  grid: {
+    marginTop: 16,
+    gap: 12,
+  },
+
+  tip: {
+    gap: 8,
+    marginTop: 16,
+  },
+
+  // ✅ Banner do Parallax: ocupa tudo (sem “quadrado”)
+  headerBanner: {
+    width: "100%",
+    height: "100%",
+  },
+});
+
+
+
+===== PATH: app/(tabs)/cart.tsx =====
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  View,
+  type ImageSourcePropType,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import theme from "../../constants/theme";
+import { useCart } from "../../context/CartContext";
+import type { Product } from "../../data/catalog";
+import { products } from "../../data/catalog";
+import { formatCurrency } from "../../utils/formatCurrency";
+
+const FONT_TITLE = "Arimo_400Regular";
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+
+type Row = {
+  type: "cart";
+  id: string;
+  title: string;
+  price: number;
+  oldPrice?: number;
+  qty: number;
+  image?: string;
+};
+
+type CartSection = {
+  title: string;
+  data: Row[];
+};
+
+function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
+  const src: ImageSourcePropType | null =
+    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
+
+  return (
+    <View style={[styles.itemImage, { width: size, height: size }]}>
+      {src ? (
+        <Image
+          source={src}
+          style={{ width: "100%", height: "100%", borderRadius: 12 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.itemImagePlaceholder} />
+      )}
+    </View>
+  );
+}
+
+export default function CartTab() {
+  const cartCtx = useCart() as any;
+
+  // Fallback local (para o caso do contexto ainda não estar 100% pronto)
+  const seededRows = useMemo<Row[]>(() => {
+    const base = (products as Product[]).slice(0, 6);
+    return base.map((p, idx) => ({
+      type: "cart",
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      qty: 1 + (idx % 3),
+      image: (p as any).image,
+    }));
+  }, []);
+
+  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
+
+  // Se o contexto expuser itens, tentamos refletir (sem depender do formato exato)
+  useEffect(() => {
+    const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
+    if (!ctxItems) return;
+
+    if (Array.isArray(ctxItems)) {
+      const mapped: Row[] = ctxItems
+        .map((it: any) => {
+          const p = it?.product ?? it;
+          const qty = it?.qty ?? it?.quantity ?? 1;
+          const id = p?.id ?? it?.id ?? it?.productId;
+          if (!id) return null;
+
+          return {
+            type: "cart",
+            id: String(id),
+            title: String(p?.title ?? it?.title ?? "Produto"),
+            price: Number(p?.price ?? it?.price ?? 0),
+            oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
+            qty: Math.max(1, Number(qty ?? 1)),
+            image: p?.image ?? it?.image,
+          } as Row;
+        })
+        .filter(Boolean) as Row[];
+
+      if (mapped.length) setLocalRows(mapped);
+      return;
+    }
+
+    if (typeof ctxItems === "object") {
+      const mapped: Row[] = Object.keys(ctxItems).map((id) => {
+        const qty = Number((ctxItems as any)[id] ?? 1);
+        const p = (products as Product[]).find((x) => String(x.id) === String(id));
+        return {
+          type: "cart",
+          id: String(id),
+          title: String(p?.title ?? "Produto"),
+          price: Number(p?.price ?? 0),
+          qty: Math.max(1, qty),
+          image: (p as any)?.image,
+        };
+      });
+      if (mapped.length) setLocalRows(mapped);
+    }
+  }, [cartCtx, seededRows]);
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const r of localRows) next[r.id] = true;
+    setSelected(next);
+  }, [localRows]);
+
+  function toProduct(row: Row): Product {
+    const p = (products as Product[]).find((x) => x.id === row.id);
+    return (
+      p ?? {
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        category: "",
+        image: row.image ?? "",
+      }
+    );
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function safeAdd(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.addItem?.bind(any) ||
+      any?.add?.bind(any) ||
+      any?.addToCart?.bind(any) ||
+      any?.increase?.bind(any) ||
+      any?.increment?.bind(any);
+
+    if (fn) {
+      fn(product, 1);
+      return;
+    }
+
+    setLocalRows((prev) => prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)));
+  }
+
+  function safeDec(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.decItem?.bind(any) ||
+      any?.decrease?.bind(any) ||
+      any?.dec?.bind(any) ||
+      any?.decrement?.bind(any) ||
+      any?.removeOne?.bind(any);
+
+    if (fn) {
+      fn(product, 1);
+      return;
+    }
+
+    setLocalRows((prev) =>
+      prev
+        .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
+        .filter((r) => r.qty > 0)
+    );
+  }
+
+  function safeRemove(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.removeItem?.bind(any) ||
+      any?.remove?.bind(any) ||
+      any?.removeFromCart?.bind(any) ||
+      any?.deleteItem?.bind(any) ||
+      any?.clearItem?.bind(any);
+
+    if (fn) {
+      fn(product.id);
+      return;
+    }
+
+    setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+  }
+
+  const selectedSubtotal = useMemo(() => {
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.price * r.qty;
+    }, 0);
+  }, [localRows, selected]);
+
+  const sections: CartSection[] = useMemo(() => {
+    return [
+      {
+        title: "Produtos",
+        data: localRows,
+      },
+    ];
+  }, [localRows]);
+
+  const renderRow = ({ item }: { item: Row }) => {
+    const isChecked = !!selected[item.id];
+    const product = toProduct(item);
+
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemTop}>
+          <Pressable
+            onPress={() => toggleSelect(item.id)}
+            hitSlop={10}
+            style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
+            accessibilityRole="button"
+            accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
+          >
+            {isChecked ? <View style={styles.checkboxDot} /> : null}
+          </Pressable>
+
+          <ProductThumb image={item.image} />
+
+          <View style={styles.itemInfo}>
+            <ThemedText numberOfLines={2} style={styles.itemTitle}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceRow}>
+              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+              <ThemedText style={styles.unit}> / un</ThemedText>
+            </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={styles.oldPrice}>{formatCurrency(item.oldPrice)}</ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.qtyRow}>
+          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+
+          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => safeRemove(product)}
+            hitSlop={10}
+            accessibilityRole="button"
+            style={{ marginLeft: "auto" }}
+          >
+            <ThemedText style={styles.remove}>✕</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const goCheckout = () => {
+    router.push("/checkout" as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+            <ThemedText style={styles.backIcon}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Carrinho</ThemedText>
+
+          <View style={styles.rightSpacer} />
+        </View>
+
+        <SectionList
+          sections={sections}
+          keyExtractor={(it) => `${it.type}-${it.id}`}
+          renderItem={renderRow}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionHeaderText}>{section.title.toUpperCase()}</ThemedText>
+            </View>
+          )}
+          stickySectionHeadersEnabled
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 160 }}
+        />
+
+        {/* Rodapé fixo: TOTAL embaixo + botão */}
+        <View style={styles.footerBar}>
+          <View style={styles.totalBox}>
+            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+            <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+          </View>
+
+          <Pressable onPress={goCheckout} style={styles.footerBtn} accessibilityRole="button">
+            <ThemedText style={styles.footerBtnText}>CONTINUAR A COMPRA</ThemedText>
+          </Pressable>
+        </View>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 14,
+  },
+
+  header: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
+
+  title: {
+    fontSize: 24,
+    fontFamily: FONT_TITLE,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  rightSpacer: { width: 40, height: 40 },
+
+  // PRODUTOS fixo (sticky) e sempre visível
+  sectionHeader: {
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: theme.colors.background,
+    zIndex: 10,
+  },
+  sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  itemCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 10,
+    marginBottom: 8,
+  },
+
+  itemTop: { flexDirection: "row", gap: 10 },
+
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  checkboxUnchecked: { borderColor: theme.colors.divider, backgroundColor: theme.colors.surface },
+  checkboxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  checkboxDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
+
+  itemImage: {
+    borderRadius: 12,
+    backgroundColor: theme.colors.surfaceAlt,
+    overflow: "hidden",
+  },
+  itemImagePlaceholder: { flex: 1, borderRadius: 12, backgroundColor: theme.colors.surfaceAlt },
+
+  itemInfo: { flex: 1 },
+  itemTitle: { fontSize: 11, fontFamily: FONT_BODY_BOLD },
+  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
+  price: { fontSize: 11, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
+  unit: { fontSize: 11, fontFamily: FONT_BODY, opacity: 0.7 },
+  oldPrice: {
+    marginTop: 3,
+    fontSize: 11,
+    fontFamily: FONT_BODY,
+    opacity: 0.6,
+    textDecorationLine: "line-through",
+  },
+
+  qtyRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  qtyBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD },
+
+  qtyText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
+
+  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  // Rodapé: TOTAL + CTA
+  footerBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 10,
+    gap: 8,
+  },
+
+  totalBox: {
+    backgroundColor: "#F59E0B",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+
+  footerBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#3F5A3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerBtnText: {
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
+});
+
+
+
+===== PATH: eslint.config.js =====
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+
+
+
+===== MISSING: jest.config.js =====
+
+===== MISSING: jest.setup.js =====
+
+===== MISSING: .prettierrc =====
+
+===== MISSING: .prettierrc.json =====
+
+===== MISSING: .prettierrc.js =====
+
+===== MISSING: .eslintrc.js =====
+
+===== MISSING: .eslintrc.cjs =====
+
+===== MISSING: .eslintrc.json =====
+
+===== PATH: constants/theme.ts =====
+// constants/theme.ts
+
+export const Spacing = {
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+} as const;
+
+export const Radius = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  pill: 999,
+} as const;
+
+/**
+ * Mantemos o shape “Colors.light/dark.*” para compatibilidade com arquivos antigos.
+ */
+export const Colors = {
+  light: {
+    text: "#0F172A",
+    background: "#F7F8FA",
+    tint: "#16A34A",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#16A34A",
+  },
+  dark: {
+    text: "#E5E7EB",
+    background: "#0B1220",
+    tint: "#22C55E",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#22C55E",
+  },
+} as const;
+
+const theme = {
+  colors: {
+    background: "#F7F8FA",
+    backgroundSoft: "#EEF1F5",
+    surface: "#FFFFFF",
+    surfaceAlt: "#F1F3F6",
+    divider: "#E6E8EC",
+    border: "#E6E8EC",
+
+    // textos (inclui aliases)
+    text: "#0F172A",
+    textMuted: "#64748B",
+    textPrimary: "#0F172A",
+    textSecondary: "#64748B",
+
+    // Alias exigido por alguns componentes (ex.: OrderTimeline)
+    muted: "#94A3B8",
+
+    // Alias extra (opcional, mas ajuda compatibilidade sem quebrar nada)
+    mutedText: "#64748B",
+
+    primary: "#16A34A",
+    primarySoft: "#DCFCE7",
+
+    success: "#16A34A",
+    successSoft: "#DCFCE7",
+
+    warning: "#F59E0B",
+    warningSoft: "#FEF3C7",
+
+    danger: "#EF4444",
+    dangerSoft: "#FEE2E2",
+
+    tabIconActive: "#16A34A",
+    tabIconInactive: "#94A3B8",
+  },
+
+  spacing: Spacing,
+  radius: Radius,
+
+  typography: {
+    h1: { fontSize: 28, lineHeight: 34, fontWeight: "800" as const },
+    h2: { fontSize: 22, lineHeight: 28, fontWeight: "800" as const },
+    h3: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
+
+    // Alias que o Profile está pedindo:
+    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "800" as const },
+
+    title: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
+    subtitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+    body: { fontSize: 16, lineHeight: 22, fontWeight: "400" as const },
+    bodySmall: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    caption: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
+    button: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
+  },
+} as const;
+
+export default theme;
+
+
+
+===== PATH: constants/layout.ts =====
+export const BACK_BUTTON_MARGIN = 12;
+export const FOOTER_HEIGHT = 72;
+export const FOOTER_PADDING = 12;
+
+export const getFooterOffset = (bottomInset: number) => FOOTER_HEIGHT + FOOTER_PADDING + bottomInset;
+
+
+
+===== PATH: components/global-chrome.tsx =====
+// components/global-chrome.tsx
+import type { PropsWithChildren } from "react";
+import { View } from "react-native";
+
+type GlobalChromeProps = PropsWithChildren<{
+  /** Se você quiser, no futuro podemos adicionar opções aqui sem quebrar imports */
+}>;
+
+export function GlobalChrome({ children }: GlobalChromeProps) {
+  // Wrapper neutro e seguro: não altera navegação, só garante "children" válido.
+  return <View style={{ flex: 1 }}>{children}</View>;
+}
+
+// Para compatibilidade total (quem importar default não quebra)
+export default GlobalChrome;
+
+
+
+===== PATH: components/product-card.tsx =====
+import { Image } from 'expo-image';
+import { StyleSheet, View } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Product } from '@/constants/products';
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+type ProductCardProps = {
+  product: Product;
+};
+
+export function ProductCard({ product }: ProductCardProps) {
+  const background = useThemeColor({ light: '#F7FBFF', dark: '#0F1115' }, 'background');
+  const accent = useThemeColor({ light: '#0a7ea4', dark: '#7AC4FF' }, 'tint');
+
+  return (
+    <ThemedView style={[styles.card, { backgroundColor: background }]}>
+      <View style={styles.header}>
+        <ThemedText type="defaultSemiBold">{product.category}</ThemedText>
+        {product.badge ? (
+          <ThemedText style={[styles.badge, { color: accent }]}>{product.badge}</ThemedText>
+        ) : null}
+      </View>
+
+      <Image
+        source={product.image}
+        contentFit="cover"
+        transition={150}
+        style={styles.image}
+        accessibilityLabel={product.name}
+      />
+
+      <View style={styles.info}>
+        <ThemedText type="subtitle" numberOfLines={2}>
+          {product.name}
+        </ThemedText>
+        <ThemedText numberOfLines={3}>{product.description}</ThemedText>
+      </View>
+
+      <View style={styles.footer}>
+        <ThemedText type="defaultSemiBold">R$ {product.price.toFixed(2)}</ThemedText>
+        <ThemedText type="link">Ver detalhes</ThemedText>
+      </View>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D5DDE5',
+    gap: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  badge: {
+    fontSize: 12,
+  },
+  image: {
+    width: '100%',
+    height: 160,
+  },
+  info: {
+    gap: 6,
+    paddingHorizontal: 16,
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+});
+
+
+
+===== PATH: components/themed-text.tsx =====
+import { StyleSheet, Text, type TextProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedTextProps = TextProps & {
+  lightColor?: string;
+  darkColor?: string;
+  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+};
+
+export function ThemedText({
+  style,
+  lightColor,
+  darkColor,
+  type = 'default',
+  ...rest
+}: ThemedTextProps) {
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+
+  return (
+    <Text
+      style={[
+        { color },
+        type === 'default' ? styles.default : undefined,
+        type === 'title' ? styles.title : undefined,
+        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
+        type === 'subtitle' ? styles.subtitle : undefined,
+        type === 'link' ? styles.link : undefined,
+        style,
+      ]}
+      {...rest}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  default: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  defaultSemiBold: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    lineHeight: 32,
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  link: {
+    lineHeight: 30,
+    fontSize: 16,
+    color: '#0a7ea4',
+  },
+});
+
+
+
+===== PATH: components/themed-view.tsx =====
+import { View, type ViewProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedViewProps = ViewProps & {
+  lightColor?: string;
+  darkColor?: string;
+};
+
+export function ThemedView({ style, lightColor, darkColor, ...otherProps }: ThemedViewProps) {
+  const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'background');
+
+  return <View style={[{ backgroundColor }, style]} {...otherProps} />;
+}
+
+
+
+===== PATH: context/CartContext.tsx =====
+// context/CartContext.tsx
+import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { Product } from "../data/catalog";
+
+/**
+ * CartItem (COMPATÍVEL COM O cart.tsx + checkout)
+ * - cart.tsx usa campos "flat": id, title, price, image, etc.
+ * - checkout/review usa it.product.*
+ */
+export type CartItem = {
+  // checkout
+  product: Product;
+
+  // carrinho (compat)
+  id: string;
+  title: string;
+  price: number;
+  category?: string;
+  image?: string;
+  description?: string;
+  unitLabel?: string;
+  discountPercent?: number;
+
+  // comum
+  qty: number;
+};
+
+/**
+ * ESTADO INTERNO
+ */
+type CartState = {
+  items: CartItem[];
+};
+
+const state: CartState = { items: [] };
+const listeners = new Set<() => void>();
+
+function emit() {
+  listeners.forEach((l) => l());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot(): CartState {
+  return { items: state.items };
+}
+
+function setItems(next: CartItem[]) {
+  state.items = next;
+  emit();
+}
+
+/** Helper: transforma Product -> CartItem flat */
+function toCartItem(product: Product, qty: number): CartItem {
+  const price = Number((product as any).price) || 0;
+
+  return {
+    product,
+    id: (product as any).id,
+    title: (product as any).title ?? "",
+    price,
+    category: (product as any).category,
+    image: (product as any).image,
+    description: (product as any).description,
+    unitLabel: (product as any).unitLabel,
+    discountPercent: (product as any).discountPercent,
+    qty,
+  };
+}
+
+/**
+ * REGRAS DE NEGÓCIO
+ */
+function upsert(product: Product, qtyDelta: number) {
+  const current = state.items;
+  const pid = (product as any).id;
+  const index = current.findIndex((i) => i.id === pid);
+
+  if (index === -1) {
+    setItems([...current, toCartItem(product, Math.max(1, qtyDelta))]);
+    return;
+  }
+
+  const nextQty = current[index].qty + qtyDelta;
+
+  if (nextQty <= 0) {
+    setItems(current.filter((_, i) => i !== index));
+    return;
+  }
+
+  setItems(
+    current.map((it, i) => (i === index ? { ...toCartItem(it.product, nextQty), qty: nextQty } : it))
+  );
+}
+
+function setQty(productId: string, qty: number) {
+  const q = Math.max(1, Math.floor(qty));
+  setItems(
+    state.items.map((it) =>
+      it.id === productId ? { ...toCartItem(it.product, q), qty: q } : it
+    )
+  );
+}
+
+function remove(productId: string) {
+  setItems(state.items.filter((it) => it.id !== productId));
+}
+
+function clear() {
+  setItems([]);
+}
+
+/**
+ * HOOK PÚBLICO
+ * (com aliases para compatibilidade com o cart.tsx)
+ */
+export function useCart() {
+  const [snap, setSnap] = useState<CartState>(() => getSnapshot());
+
+  useEffect(() => {
+    const unsub = subscribe(() => setSnap(getSnapshot()));
+    return unsub;
+  }, []);
+
+  const totalQty = useMemo(() => snap.items.reduce((acc, it) => acc + it.qty, 0), [snap.items]);
+
+  const subtotal = useMemo(() => {
+    return snap.items.reduce((acc, it) => {
+      const price = Number(it.price);
+      return acc + (Number.isFinite(price) ? price * it.qty : 0);
+    }, 0);
+  }, [snap.items]);
+
+  const total = subtotal;
+
+  const addItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, qtyDelta), []);
+  const decItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, -Math.abs(qtyDelta)), []);
+
+  const removeItem = useCallback((productId: string, _ignored?: any) => remove(productId), []);
+  const setItemQty = useCallback((productId: string, qty: number) => setQty(productId, qty), []);
+  const clearCart = useCallback(() => clear(), []);
+
+  return {
+    items: snap.items,
+
+    totalQty,
+    subtotal,
+    total,
+
+    addItem,
+    decItem,
+    removeItem,
+    setItemQty,
+    clearCart,
+
+    setQty: setItemQty,
+  };
+}
+
+const DummyCartContext = createContext(true);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  return <DummyCartContext.Provider value={true}>{children}</DummyCartContext.Provider>;
+}
+
+export function useCartProviderGuard() {
+  return useContext(DummyCartContext);
+}
+
+
+
+===== PATH: app/(tabs)/checkout/_layout.tsx =====
+// app/checkout/_layout.tsx
+import { Stack } from "expo-router";
+
+export default function CheckoutLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+      }}
+    />
+  );
+}
+
+
+
+===== PATH: app/(tabs)/checkout/index.tsx =====
+import { router } from "expo-router";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../../components/themed-text";
+import { ThemedView } from "../../../components/themed-view";
+import theme from "../../../constants/theme";
+
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+const FONT_TITLE = "Arimo_400Regular";
+
+function ComingSoon(title: string) {
+  Alert.alert(title, "Em breve no Plugaí Shop.");
+}
+
+export default function CheckoutIndex() {
+  const goBack = () => router.back();
+  const push = (path: string) => router.push(path as any);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+            <ThemedText style={styles.backIcon}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Finalizar compra</ThemedText>
+          <View style={styles.rightSpacer} />
+        </View>
+
+        <View style={styles.card}>
+          <ThemedText style={styles.sectionTitle}>Resumo</ThemedText>
+
+          <View style={styles.row}>
+            <ThemedText style={styles.label}>Entrega</ThemedText>
+            <ThemedText style={styles.value}>Endereço + Frete</ThemedText>
+          </View>
+
+          <View style={styles.row}>
+            <ThemedText style={styles.label}>Pagamento</ThemedText>
+            <ThemedText style={styles.value}>Selecionar forma</ThemedText>
+          </View>
+
+          <View style={styles.row}>
+            <ThemedText style={styles.label}>Revisão</ThemedText>
+            <ThemedText style={styles.value}>Conferir pedido</ThemedText>
+          </View>
+
+          <Pressable
+            onPress={() => push("/checkout/address")}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+          >
+            <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
+          </Pressable>
+        </View>
+
+        {/* Espaço de banner / conteúdo (ocupa o “vazio” abaixo do botão e do texto) */}
+        <View style={styles.promoWrap}>
+          <Pressable onPress={() => ComingSoon("JOGOS")} style={[styles.promoCard, styles.promoCardA]} accessibilityRole="button">
+            <ThemedText style={styles.promoTitle}>JOGOS</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>Desafios, prêmios e novidades</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={() => ComingSoon("VÍDEOS")} style={[styles.promoCard, styles.promoCardB]} accessibilityRole="button">
+            <ThemedText style={styles.promoTitle}>VÍDEOS</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>Conteúdo rápido e ofertas</ThemedText>
+          </Pressable>
+
+          <View style={styles.promoRow}>
+            <Pressable onPress={() => ComingSoon("FOTOS")} style={[styles.promoMini, styles.promoMiniC]} accessibilityRole="button">
+              <ThemedText style={styles.promoMiniText}>FOTOS</ThemedText>
+            </Pressable>
+
+            <Pressable onPress={() => ComingSoon("TEXTOS")} style={[styles.promoMini, styles.promoMiniD]} accessibilityRole="button">
+              <ThemedText style={styles.promoMiniText}>TEXTOS</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.helpCard}>
+          <ThemedText style={styles.helpTitle}>Precisa de ajuda?</ThemedText>
+          <ThemedText style={styles.helpText}>
+            Você poderá editar endereço, frete e pagamento nas próximas etapas.
+          </ThemedText>
+        </View>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+
+  header: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
+  rightSpacer: { width: 40, height: 40 },
+  title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    padding: 14,
+  },
+  sectionTitle: { fontSize: 14, fontFamily: FONT_BODY_BOLD, marginBottom: 10 },
+
+  row: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  label: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.85 },
+  value: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
+
+  primaryBtn: {
+    marginTop: 14,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    textTransform: "uppercase",
+  },
+
+  promoWrap: {
+    marginTop: 12,
+    gap: 10,
+  },
+  promoCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  promoCardA: { backgroundColor: theme.colors.surface },
+  promoCardB: { backgroundColor: theme.colors.surface },
+
+  promoTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
+  promoSubtitle: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.9 },
+
+  promoRow: { flexDirection: "row", gap: 10 },
+  promoMini: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  promoMiniC: {},
+  promoMiniD: {},
+  promoMiniText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
+
+  helpCard: {
+    marginTop: 12,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    padding: 14,
+  },
+  helpTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, marginBottom: 6 },
+  helpText: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.9 },
+});
+
+
+
+===== PATH: app/(tabs)/checkout/payment.tsx =====
+// app/(tabs)/checkout/payment.tsx
+import { router } from "expo-router";
+import { Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../../components/themed-text";
+import { ThemedView } from "../../../components/themed-view";
+import theme from "../../../constants/theme";
+
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+const FONT_TITLE = "Arimo_400Regular";
+
+function Option({
+  title,
+  desc,
+  selected,
+  onPress,
+}: {
+  title: string;
+  desc: string;
+  selected?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.option, selected ? styles.optionSelected : null]}
+      accessibilityRole="button"
+    >
+      <View style={{ flex: 1 }}>
+        <ThemedText style={styles.optionTitle}>{title}</ThemedText>
+        <ThemedText style={styles.optionDesc}>{desc}</ThemedText>
+      </View>
+      <ThemedText style={styles.optionMark}>{selected ? "✓" : ""}</ThemedText>
+    </Pressable>
+  );
+}
+
+export default function CheckoutPayment() {
+  const goBack = () => router.back();
+
+  const goNext = () => {
+    router.push("/(tabs)/checkout/review" as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+            <ThemedText style={styles.backIcon}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Pagamento</ThemedText>
+          <View style={styles.rightSpacer} />
+        </View>
+
+        <View style={styles.card}>
+          <ThemedText style={styles.sectionTitle}>Escolha uma forma</ThemedText>
+
+          <Option title="Pix" desc="Aprovação imediata" selected onPress={() => {}} />
+          <Option title="Cartão de crédito" desc="Parcelamento disponível" onPress={() => {}} />
+          <Option title="Boleto" desc="Compensação em até 2 dias úteis" onPress={() => {}} />
+
+          <Pressable onPress={goNext} style={styles.primaryBtn} accessibilityRole="button">
+            <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
+          </Pressable>
+        </View>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+
+  header: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
+  rightSpacer: { width: 40, height: 40 },
+  title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    padding: 14,
+  },
+  sectionTitle: { fontSize: 14, fontFamily: FONT_BODY_BOLD, marginBottom: 10 },
+
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+    marginBottom: 10,
+  },
+  optionSelected: { borderColor: theme.colors.primary },
+  optionTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
+  optionDesc: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.85, marginTop: 4 },
+  optionMark: { width: 22, textAlign: "center", fontSize: 16, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+
+  primaryBtn: {
+    marginTop: 6,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { color: "#fff", fontSize: 12, fontFamily: FONT_BODY_BOLD },
+});
+
+
+
+===== PATH: app/(tabs)/checkout/success.tsx =====
+// app/(tabs)/checkout/success.tsx
+import { router } from "expo-router";
+import { useCallback, useRef } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../../components/themed-text";
+import { ThemedView } from "../../../components/themed-view";
+import theme, { Radius, Spacing } from "../../../constants/theme";
+import { useCart } from "../../../context/CartContext";
+import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
+
+function normalizeCartItems(cartAny: any) {
+  const raw =
+    cartAny?.items ??
+    cartAny?.cartItems ??
+    cartAny?.cart ??
+    cartAny?.products ??
+    [];
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((it) => {
+      const product = it?.product ?? it?.item ?? it;
+      const productId = product?.id ?? it?.productId ?? it?.id;
+      const title = product?.title ?? it?.title ?? "Produto";
+      const price = product?.price ?? it?.price ?? 0;
+      const qty = it?.qty ?? it?.quantity ?? 1;
+
+      if (productId == null) return null;
+
+      return {
+        productId: String(productId),
+        title: String(title),
+        price: Number(price ?? 0),
+        qty: Math.max(1, Number(qty ?? 1)),
+      };
+    })
+    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+}
+
+export default function CheckoutSuccessScreen() {
+  const cartAny = useCart() as any;
+  const creatingRef = useRef(false);
+
+  const clearCart = useCallback(() => {
+    if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
+    else if (typeof cartAny?.clear === "function") cartAny.clear();
+    else if (typeof cartAny?.reset === "function") cartAny.reset();
+  }, [cartAny]);
+
+  const generateOrder = useCallback(async () => {
+    if (creatingRef.current) return null;
+    creatingRef.current = true;
+
+    try {
+      const items = normalizeCartItems(cartAny);
+      if (!items.length) return null;
+
+      // Importante:
+      // status é TÉCNICO (created/paid/...) — label "Confirmado" é só para UI.
+      const order = createOrderFromCart({
+        items,
+        discount: 0,
+        shipping: 0,
+      });
+
+      await addOrder(order);
+      return order;
+    } finally {
+      creatingRef.current = false;
+    }
+  }, [cartAny]);
+
+  const goOrders = () => router.push("/orders" as any);
+  const goHome = () => router.push("/(tabs)" as any);
+
+  const goToLatestOrder = async () => {
+    const order = await generateOrder();
+    clearCart();
+
+    if (order?.id) {
+      router.push(`/orders/${order.id}` as any);
+      return;
+    }
+
+    Alert.alert("Pedido", "Seu pedido foi confirmado.");
+    goOrders();
+  };
+
+  const justGoOrders = async () => {
+    await generateOrder();
+    clearCart();
+    goOrders();
+  };
+
+  return (
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
+      <ThemedView style={styles.container}>
+        <View style={styles.topbar}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <ThemedText style={styles.backArrow}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Compra concluída</ThemedText>
+
+          <View style={{ width: 44 }} />
+        </View>
+
+        <ThemedView style={styles.card}>
+          <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
+          <ThemedText style={styles.p}>
+            Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
+          </ThemedText>
+
+          <View style={{ height: 6 }} />
+
+          <Pressable onPress={goToLatestOrder} style={styles.primaryBtn}>
+            <ThemedText style={styles.primaryBtnText}>Ver pedido agora</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={justGoOrders} style={styles.secondaryBtn}>
+            <ThemedText style={styles.secondaryBtnText}>Ir para Pedidos</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              clearCart();
+              goHome();
+            }}
+            style={styles.ghostBtn}
+          >
+            <ThemedText style={styles.ghostBtnText}>Voltar ao início</ThemedText>
+          </Pressable>
+        </ThemedView>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+
+  topbar: {
+    height: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  h1: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  p: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)", lineHeight: 16 },
+
+  primaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+
+  secondaryBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  secondaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+
+  ghostBtn: {
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
+});
+
+
+
+===== PATH: utils/httpClient.ts =====
+export type HttpMethod = "POST" | "PUT" | "PATCH";
+
+export async function httpJson<T>(url: string, method: HttpMethod, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+
+  return (await res.json()) as T;
+}
+
+
+
+===== PATH: utils/checkoutFlow.ts =====
+import type { OrderDraft } from "../types/order";
+
+export type CheckoutStep = "address" | "shipping" | "payment" | "review";
+
+export function getNextCheckoutStep(draft: OrderDraft | null): CheckoutStep {
+  if (!draft) return "address";
+
+  const hasZip = !!draft.address?.zip && String(draft.address?.zip).length === 8;
+  const hasShipping = !!draft.shipping && typeof draft.shipping.price === "number";
+  const hasPayment = !!draft.payment?.method;
+
+  if (!hasZip) return "address";
+  if (!hasShipping) return "shipping";
+  if (!hasPayment) return "payment";
+
+  return "review";
+}
+
+export function stepToRoute(step: CheckoutStep): string {
+  switch (step) {
+    case "address":
+      return "/checkout/address";
+    case "shipping":
+      return "/checkout/shipping";
+    case "payment":
+      return "/checkout/payment";
+    case "review":
+    default:
+      return "/checkout/review";
+  }
+}
+
+
+
+===== PATH: utils/paymentBridge.ts =====
+import type { Payment } from "../types/order";
+
+export type PixMock = {
+  type: "pix";
+  qrText: string;
+  expiresAt: string; // ISO
+};
+
+export type BoletoMock = {
+  type: "boleto";
+  barcode: string;
+  expiresAt: string; // ISO
+};
+
+export type CardMock = {
+  type: "card";
+  last4: string;
+  brand: "visa" | "mastercard" | "elo" | "amex" | "other";
+};
+
+export type PaymentMockPayload = PixMock | BoletoMock | CardMock;
+
+function addHoursISO(hours: number) {
+  const d = new Date();
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
+
+export function createPayment(method: Payment["method"]): Payment {
+  return { method, status: "pending" };
+}
+
+export function createPaymentPayload(method: Payment["method"], args?: { last4?: string; brand?: CardMock["brand"] }): PaymentMockPayload {
+  if (method === "pix") {
+    return {
+      type: "pix",
+      qrText: `00020126PLUGAISHOP-MOCK-${Date.now()}-END`,
+      expiresAt: addHoursISO(2),
+    };
+  }
+
+  if (method === "boleto") {
+    return {
+      type: "boleto",
+      barcode: `34191.79001 01043.510047 91020.150008 8 ${String(Date.now()).slice(-10)}`,
+      expiresAt: addHoursISO(48),
+    };
+  }
+
+  // card
+  const last4 = (args?.last4 ?? "0000").slice(-4);
+  const brand = args?.brand ?? "other";
+  return { type: "card", last4, brand };
+}
+
+
+
+===== PATH: tools/maxximus-orchestrator/data/metrics.json =====
+{
+  "tasks_created": 4,
+  "tasks_assigned": 4,
+  "tasks_done": 0,
+  "tasks_failed": 0,
+  "goals_set": 1,
+  "last_event": {
+    "type": "task_assigned",
+    "at": "2026-01-30T17:03:14.915Z"
+  }
+}
+
+
+===== PATH: tools/maxximus-orchestrator/data/tasks.json =====
+[
+  {
+    "id": "6ef2ad94-021e-4bde-9d9c-cfa45585b844",
+    "title": "Etapa 2: ativar ciclo de tarefas :: Executar 1 melhoria pequena (perf/robustez)",
+    "tags": [
+      "planning"
+    ],
+    "createdAt": "2026-01-30T17:02:51.035Z",
+    "status": "assigned",
+    "notes": [
+      "assigned_to:architect_ai@2026-01-30T17:02:54.895Z"
+    ],
+    "assignedTo": "architect_ai"
+  },
+  {
+    "id": "d15866bd-5b75-4580-88a7-592ba71f0425",
+    "title": "Etapa 2: ativar ciclo de tarefas :: Criar plano incremental (feature flags)",
+    "tags": [
+      "planning"
+    ],
+    "createdAt": "2026-01-30T17:02:51.028Z",
+    "status": "assigned",
+    "notes": [
+      "assigned_to:architect_ai@2026-01-30T17:02:55.530Z"
+    ],
+    "assignedTo": "architect_ai"
+  },
+  {
+    "id": "b056aa00-f8a5-4bd1-8eef-504528ef7858",
+    "title": "Etapa 2: ativar ciclo de tarefas :: Definir métrica principal e eventos",
+    "tags": [
+      "planning"
+    ],
+    "createdAt": "2026-01-30T17:02:51.020Z",
+    "status": "assigned",
+    "notes": [
+      "assigned_to:architect_ai@2026-01-30T17:03:04.902Z"
+    ],
+    "assignedTo": "architect_ai"
+  },
+  {
+    "id": "3dcc3364-2a43-4005-bc68-f85db9313fc5",
+    "title": "Etapa 2: ativar ciclo de tarefas :: Mapear riscos e dependências",
+    "tags": [
+      "planning"
+    ],
+    "createdAt": "2026-01-30T17:02:51.008Z",
+    "status": "assigned",
+    "notes": [
+      "assigned_to:architect_ai@2026-01-30T17:03:14.909Z"
+    ],
+    "assignedTo": "architect_ai"
+  }
+]
+
+
+===== PATH: tools/maxximus-orchestrator/data/state.json =====
+{
+  "goals": [
+    {
+      "id": "f8ef5c88-ed99-48d0-8586-0e0b95ec3ed5",
+      "text": "Etapa 2: ativar ciclo de tarefas",
+      "createdAt": "2026-01-30T17:02:50.994Z"
+    }
+  ]
+}
+
+

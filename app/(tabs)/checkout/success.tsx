@@ -37,7 +37,7 @@ function normalizeCartItems(cartAny: any) {
         qty: Math.max(1, Number(qty ?? 1)),
       };
     })
-    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+    .filter(Boolean) as { productId: string; qty: number; price: number; title: string }[];
 }
 
 export default function CheckoutSuccessScreen() {

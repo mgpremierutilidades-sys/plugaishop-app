@@ -1,0 +1,145 @@
+{
+  "generatedAt": "2026-01-30T17:14:54.831Z",
+  "api": "http://127.0.0.1:8080",
+  "summary": {
+    "goals_count": 1,
+    "tasks_total": 4,
+    "tasks_by_status": {
+      "assigned": 4
+    },
+    "metrics": {
+      "tasks_created": 4,
+      "tasks_assigned": 4,
+      "tasks_done": 0,
+      "tasks_failed": 0,
+      "goals_set": 1,
+      "last_event": {
+        "type": "task_assigned",
+        "at": "2026-01-30T17:03:14.915Z"
+      }
+    }
+  },
+  "snapshot": {
+    "ok": true,
+    "agents": [
+      {
+        "id": "architect_ai",
+        "avatar": "👨‍💻",
+        "name": "Arquimedes",
+        "role": "Arquiteto de Sistemas",
+        "specialty": "Arquitetura escalável",
+        "port": 5001
+      },
+      {
+        "id": "frontend_ai",
+        "avatar": "🎨",
+        "name": "DaVinci",
+        "role": "Designer & Frontend",
+        "specialty": "UI/UX e React Native",
+        "port": 5002
+      },
+      {
+        "id": "backend_ai",
+        "avatar": "⚙️",
+        "name": "Tesla",
+        "role": "Backend & Database",
+        "specialty": "APIs e Microserviços",
+        "port": 5003
+      },
+      {
+        "id": "qa_ai",
+        "avatar": "🔬",
+        "name": "Marie",
+        "role": "Quality Assurance",
+        "specialty": "Testes e Debug",
+        "port": 5004
+      },
+      {
+        "id": "devops_ai",
+        "avatar": "🚀",
+        "name": "Sputnik",
+        "role": "DevOps & Deploy",
+        "specialty": "CI/CD e Cloud",
+        "port": 5005
+      }
+    ],
+    "state": {
+      "goals": [
+        {
+          "id": "f8ef5c88-ed99-48d0-8586-0e0b95ec3ed5",
+          "text": "Etapa 2: ativar ciclo de tarefas",
+          "createdAt": "2026-01-30T17:02:50.994Z"
+        }
+      ]
+    },
+    "tasks": [
+      {
+        "id": "6ef2ad94-021e-4bde-9d9c-cfa45585b844",
+        "title": "Etapa 2: ativar ciclo de tarefas :: Executar 1 melhoria pequena (perf/robustez)",
+        "tags": [
+          "planning"
+        ],
+        "createdAt": "2026-01-30T17:02:51.035Z",
+        "status": "assigned",
+        "notes": [
+          "assigned_to:architect_ai@2026-01-30T17:02:54.895Z"
+        ],
+        "assignedTo": "architect_ai"
+      },
+      {
+        "id": "d15866bd-5b75-4580-88a7-592ba71f0425",
+        "title": "Etapa 2: ativar ciclo de tarefas :: Criar plano incremental (feature flags)",
+        "tags": [
+          "planning"
+        ],
+        "createdAt": "2026-01-30T17:02:51.028Z",
+        "status": "assigned",
+        "notes": [
+          "assigned_to:architect_ai@2026-01-30T17:02:55.530Z"
+        ],
+        "assignedTo": "architect_ai"
+      },
+      {
+        "id": "b056aa00-f8a5-4bd1-8eef-504528ef7858",
+        "title": "Etapa 2: ativar ciclo de tarefas :: Definir métrica principal e eventos",
+        "tags": [
+          "planning"
+        ],
+        "createdAt": "2026-01-30T17:02:51.020Z",
+        "status": "assigned",
+        "notes": [
+          "assigned_to:architect_ai@2026-01-30T17:03:04.902Z"
+        ],
+        "assignedTo": "architect_ai"
+      },
+      {
+        "id": "3dcc3364-2a43-4005-bc68-f85db9313fc5",
+        "title": "Etapa 2: ativar ciclo de tarefas :: Mapear riscos e dependências",
+        "tags": [
+          "planning"
+        ],
+        "createdAt": "2026-01-30T17:02:51.008Z",
+        "status": "assigned",
+        "notes": [
+          "assigned_to:architect_ai@2026-01-30T17:03:14.909Z"
+        ],
+        "assignedTo": "architect_ai"
+      }
+    ],
+    "metrics": {
+      "tasks_created": 4,
+      "tasks_assigned": 4,
+      "tasks_done": 0,
+      "tasks_failed": 0,
+      "goals_set": 1,
+      "last_event": {
+        "type": "task_assigned",
+        "at": "2026-01-30T17:03:14.915Z"
+      }
+    },
+    "guidelines": {
+      "ok": false,
+      "reason": "MAXXIMUS_GUIDELINES_ROOT not set"
+    }
+  }
+}

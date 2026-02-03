@@ -24,7 +24,7 @@ function dateLabel(isoOrAny: string) {
   return d;
 }
 
-const FILTERS: Array<{ label: string; value: "ALL" | OrderStatus }> = [
+const FILTERS: { label: string; value: "ALL" | OrderStatus }[] = [
   { label: "Todos", value: "ALL" },
   { label: "Confirmado", value: "Confirmado" },
   { label: "Pago", value: "Pago" },

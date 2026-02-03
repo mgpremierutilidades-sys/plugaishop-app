@@ -1,4 +1,4 @@
-﻿// components/global-chrome.tsx
+// components/global-chrome.tsx
 import type { PropsWithChildren } from "react";
 import { View } from "react-native";
 

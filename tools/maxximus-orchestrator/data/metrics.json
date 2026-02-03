@@ -1,0 +1,11 @@
+{
+  "tasks_created": 4,
+  "tasks_assigned": 4,
+  "tasks_done": 0,
+  "tasks_failed": 0,
+  "goals_set": 1,
+  "last_event": {
+    "type": "task_assigned",
+    "at": "2026-01-30T17:03:14.915Z"
+  }
+}

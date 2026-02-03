@@ -1,6 +1,3 @@
-cd C:\plugaishop-app
-
-@'
 param(
   [string]$Branch = "",
   [string]$OutDir = "context/_artifacts"
@@ -44,4 +41,3 @@ gh run download $runId -n route-collision-dump -D $OutDir
 
 Write-Host "Downloaded to: $OutDir"
 Get-ChildItem -Recurse $OutDir
-'@ | Set-Content -Encoding UTF8 .\scripts\ai\upload_route_dump.ps1

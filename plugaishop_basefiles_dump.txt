@@ -1,0 +1,997 @@
+===== PATH: package.json =====
+{
+  "name": "plugaishop-app",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo-google-fonts/arimo": "^0.4.2",
+    "@expo-google-fonts/lexend": "^0.4.1",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.4.1",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@react-navigation/native": "^7.1.8",
+    "expo": "~54.0.30",
+    "expo-clipboard": "~8.0.8",
+    "expo-constants": "~18.0.12",
+    "expo-font": "~14.0.10",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-linking": "~8.0.11",
+    "expo-notifications": "~0.32.15",
+    "expo-router": "~6.0.21",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "eslint": "^9.25.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+
+
+
+===== PATH: tsconfig.json =====
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
+}
+
+
+
+===== PATH: app.json =====
+{
+  "expo": {
+    "name": "plugaishop-app",
+    "slug": "plugaishop-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "plugaishopapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
+
+
+
+===== PATH: expo-env.d.ts =====
+/// <reference types="expo/types" />
+
+// NOTE: This file should not be edited and should be in your git ignore
+
+
+===== PATH: app/_layout.tsx =====
+// app/_layout.tsx
+import { Stack } from "expo-router";
+
+import GlobalChrome from "../components/global-chrome";
+
+export default function RootLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+      }}
+    >
+      {/* Rotas reais de topo */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="orders" options={{ headerShown: false }} />
+
+      {/* Modal (se existir app/modal.tsx) */}
+      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+    </Stack>
+  );
+}
+
+
+
+===== PATH: app/(tabs)/_layout.tsx =====
+import { Tabs } from "expo-router";
+import IconSymbol from "../../components/ui/icon-symbol";
+import theme from "../../constants/theme";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.colors.tabIconActive,
+        tabBarInactiveTintColor: theme.colors.tabIconInactive,
+        tabBarHideOnKeyboard: false,
+        tabBarStyle: {
+          borderTopColor: theme.colors.divider,
+          backgroundColor: theme.colors.background,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Início",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="home-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explorar",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="compass-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: "Carrinho",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="cart-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Conta",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="receipt-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol name="person-circle-outline" color={color} size={22} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+
+
+
+===== PATH: app/(tabs)/index.tsx =====
+import { Image } from "expo-image";
+import { Link } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+
+import ParallaxScrollView from "../../components/parallax-scroll-view";
+import { ProductCard } from "../../components/product-card";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import { categories, products } from "../../constants/products";
+import { useColorScheme } from "../../hooks/use-color-scheme";
+
+// fail-safe + outbox flush
+import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
+import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
+
+export default function HomeScreen() {
+  // retoma checkout se existir draft pendente
+  useCheckoutFailSafe();
+
+  // tenta enviar fila quando abrir o app
+  useOutboxAutoFlush();
+
+  const colorScheme = useColorScheme() ?? "light";
+  const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof categories)[number]>("Todos");
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === "Todos" || product.category === selectedCategory;
+      const matchesQuery =
+        normalizedQuery.length === 0 ||
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [query, selectedCategory]);
+
+  return (
+    <>
+      {/* ✅ iPhone: horas/bateria brancas sobre o banner */}
+      <StatusBar style="light" />
+
+      <ParallaxScrollView
+        headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
+        headerImage={
+          <Image
+            source={require("../../assets/banners/banner-home.png")}
+            style={styles.headerBanner}
+            contentFit="cover"
+          />
+        }
+      >
+        <ThemedView style={styles.titleContainer}>
+          {/* ✅ nome correto, sem acento */}
+          <ThemedText type="title">PLUGAISHOP</ThemedText>
+          <ThemedText type="defaultSemiBold">
+            Soluções curadas para acelerar a operação e o varejo inteligente.
+          </ThemedText>
+        </ThemedView>
+
+        <ThemedView style={styles.heroCard}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
+            <ThemedText>
+              Combine iluminação, organização e sinalização para deixar seu ponto de
+              venda pronto em minutos.
+            </ThemedText>
+
+            <Link href="/explore" asChild>
+              <Pressable style={styles.cta}>
+                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
+              </Pressable>
+            </Link>
+          </View>
+
+          {/* ✅ Remove o “banner miniatura” repetido:
+              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
+          <Image
+            source={require("../../assets/banners/banner-splash.png")}
+            style={styles.heroImage}
+            contentFit="cover"
+          />
+        </ThemedView>
+
+        <ThemedView style={styles.searchSection}>
+          <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+          <TextInput
+            placeholder="Buscar por categoria ou produto"
+            placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+            value={query}
+            onChangeText={setQuery}
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
+                borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
+                color: colorScheme === "light" ? "#111827" : "#F9FAFB",
+              },
+            ]}
+          />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipRow}
+          >
+            {categories.map((category) => {
+              const isSelected = selectedCategory === category;
+
+              return (
+                <Pressable
+                  key={category}
+                  onPress={() => setSelectedCategory(category)}
+                  style={[styles.chip, isSelected && styles.chipSelected]}
+                >
+                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                    {category}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </ThemedView>
+
+        <View style={styles.grid}>
+          {filteredProducts.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+
+          {filteredProducts.length === 0 ? (
+            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+          ) : null}
+        </View>
+
+        <ThemedView style={styles.tip}>
+          <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
+          <ThemedText>
+            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
+          </ThemedText>
+
+          <Link href="/modal">
+            <Link.Trigger>
+              <ThemedText type="link">Abrir menu de ações</ThemedText>
+            </Link.Trigger>
+            <Link.Preview />
+            <Link.Menu>
+              <Link.MenuAction
+                title="Solicitar demo"
+                icon="cube"
+                onPress={() => alert("Demo")}
+              />
+              <Link.MenuAction
+                title="Compartilhar"
+                icon="square.and.arrow.up"
+                onPress={() => alert("Link copiado")}
+              />
+              <Link.Menu title="Mais" icon="ellipsis">
+                <Link.MenuAction
+                  title="Remover"
+                  icon="trash"
+                  destructive
+                  onPress={() => alert("Item removido")}
+                />
+              </Link.Menu>
+            </Link.Menu>
+          </Link>
+        </ThemedView>
+      </ParallaxScrollView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  titleContainer: {
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  heroCard: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    backgroundColor: "#E6F4FE",
+    padding: 16,
+    borderRadius: 16,
+  },
+
+  heroImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 18,
+    backgroundColor: "#0E1720",
+  },
+
+  cta: {
+    marginTop: 8,
+    backgroundColor: "#0a7ea4",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+
+  searchSection: {
+    gap: 12,
+    marginTop: 16,
+  },
+
+  searchInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+  },
+
+  chipRow: {
+    flexGrow: 0,
+  },
+
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#CBD5E1",
+    marginRight: 8,
+  },
+
+  chipSelected: {
+    backgroundColor: "#0a7ea4",
+    borderColor: "#0a7ea4",
+  },
+
+  chipSelectedText: {
+    color: "#fff",
+  },
+
+  grid: {
+    marginTop: 16,
+    gap: 12,
+  },
+
+  tip: {
+    gap: 8,
+    marginTop: 16,
+  },
+
+  // ✅ Banner do Parallax: ocupa tudo (sem “quadrado”)
+  headerBanner: {
+    width: "100%",
+    height: "100%",
+  },
+});
+
+
+
+===== PATH: app/(tabs)/cart.tsx =====
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  View,
+  type ImageSourcePropType,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import theme from "../../constants/theme";
+import { useCart } from "../../context/CartContext";
+import type { Product } from "../../data/catalog";
+import { products } from "../../data/catalog";
+import { formatCurrency } from "../../utils/formatCurrency";
+
+const FONT_TITLE = "Arimo_400Regular";
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+
+type Row = {
+  type: "cart";
+  id: string;
+  title: string;
+  price: number;
+  oldPrice?: number;
+  qty: number;
+  image?: string;
+};
+
+type CartSection = {
+  title: string;
+  data: Row[];
+};
+
+function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
+  const src: ImageSourcePropType | null =
+    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
+
+  return (
+    <View style={[styles.itemImage, { width: size, height: size }]}>
+      {src ? (
+        <Image
+          source={src}
+          style={{ width: "100%", height: "100%", borderRadius: 12 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.itemImagePlaceholder} />
+      )}
+    </View>
+  );
+}
+
+export default function CartTab() {
+  const cartCtx = useCart() as any;
+
+  // Fallback local (para o caso do contexto ainda não estar 100% pronto)
+  const seededRows = useMemo<Row[]>(() => {
+    const base = (products as Product[]).slice(0, 6);
+    return base.map((p, idx) => ({
+      type: "cart",
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      qty: 1 + (idx % 3),
+      image: (p as any).image,
+    }));
+  }, []);
+
+  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
+
+  // Se o contexto expuser itens, tentamos refletir (sem depender do formato exato)
+  useEffect(() => {
+    const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
+    if (!ctxItems) return;
+
+    if (Array.isArray(ctxItems)) {
+      const mapped: Row[] = ctxItems
+        .map((it: any) => {
+          const p = it?.product ?? it;
+          const qty = it?.qty ?? it?.quantity ?? 1;
+          const id = p?.id ?? it?.id ?? it?.productId;
+          if (!id) return null;
+
+          return {
+            type: "cart",
+            id: String(id),
+            title: String(p?.title ?? it?.title ?? "Produto"),
+            price: Number(p?.price ?? it?.price ?? 0),
+            oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
+            qty: Math.max(1, Number(qty ?? 1)),
+            image: p?.image ?? it?.image,
+          } as Row;
+        })
+        .filter(Boolean) as Row[];
+
+      if (mapped.length) setLocalRows(mapped);
+      return;
+    }
+
+    if (typeof ctxItems === "object") {
+      const mapped: Row[] = Object.keys(ctxItems).map((id) => {
+        const qty = Number((ctxItems as any)[id] ?? 1);
+        const p = (products as Product[]).find((x) => String(x.id) === String(id));
+        return {
+          type: "cart",
+          id: String(id),
+          title: String(p?.title ?? "Produto"),
+          price: Number(p?.price ?? 0),
+          qty: Math.max(1, qty),
+          image: (p as any)?.image,
+        };
+      });
+      if (mapped.length) setLocalRows(mapped);
+    }
+  }, [cartCtx, seededRows]);
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const next: Record<string, boolean> = {};
+    for (const r of localRows) next[r.id] = true;
+    setSelected(next);
+  }, [localRows]);
+
+  function toProduct(row: Row): Product {
+    const p = (products as Product[]).find((x) => x.id === row.id);
+    return (
+      p ?? {
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        category: "",
+        image: row.image ?? "",
+      }
+    );
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function safeAdd(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.addItem?.bind(any) ||
+      any?.add?.bind(any) ||
+      any?.addToCart?.bind(any) ||
+      any?.increase?.bind(any) ||
+      any?.increment?.bind(any);
+
+    if (fn) {
+      fn(product, 1);
+      return;
+    }
+
+    setLocalRows((prev) => prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)));
+  }
+
+  function safeDec(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.decItem?.bind(any) ||
+      any?.decrease?.bind(any) ||
+      any?.dec?.bind(any) ||
+      any?.decrement?.bind(any) ||
+      any?.removeOne?.bind(any);
+
+    if (fn) {
+      fn(product, 1);
+      return;
+    }
+
+    setLocalRows((prev) =>
+      prev
+        .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
+        .filter((r) => r.qty > 0)
+    );
+  }
+
+  function safeRemove(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.removeItem?.bind(any) ||
+      any?.remove?.bind(any) ||
+      any?.removeFromCart?.bind(any) ||
+      any?.deleteItem?.bind(any) ||
+      any?.clearItem?.bind(any);
+
+    if (fn) {
+      fn(product.id);
+      return;
+    }
+
+    setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+  }
+
+  const selectedSubtotal = useMemo(() => {
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.price * r.qty;
+    }, 0);
+  }, [localRows, selected]);
+
+  const sections: CartSection[] = useMemo(() => {
+    return [
+      {
+        title: "Produtos",
+        data: localRows,
+      },
+    ];
+  }, [localRows]);
+
+  const renderRow = ({ item }: { item: Row }) => {
+    const isChecked = !!selected[item.id];
+    const product = toProduct(item);
+
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemTop}>
+          <Pressable
+            onPress={() => toggleSelect(item.id)}
+            hitSlop={10}
+            style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
+            accessibilityRole="button"
+            accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
+          >
+            {isChecked ? <View style={styles.checkboxDot} /> : null}
+          </Pressable>
+
+          <ProductThumb image={item.image} />
+
+          <View style={styles.itemInfo}>
+            <ThemedText numberOfLines={2} style={styles.itemTitle}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceRow}>
+              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+              <ThemedText style={styles.unit}> / un</ThemedText>
+            </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={styles.oldPrice}>{formatCurrency(item.oldPrice)}</ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.qtyRow}>
+          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+
+          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
+            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => safeRemove(product)}
+            hitSlop={10}
+            accessibilityRole="button"
+            style={{ marginLeft: "auto" }}
+          >
+            <ThemedText style={styles.remove}>✕</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const goCheckout = () => {
+    router.push("/checkout" as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+            <ThemedText style={styles.backIcon}>←</ThemedText>
+          </Pressable>
+
+          <ThemedText style={styles.title}>Carrinho</ThemedText>
+
+          <View style={styles.rightSpacer} />
+        </View>
+
+        <SectionList
+          sections={sections}
+          keyExtractor={(it) => `${it.type}-${it.id}`}
+          renderItem={renderRow}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <ThemedText style={styles.sectionHeaderText}>{section.title.toUpperCase()}</ThemedText>
+            </View>
+          )}
+          stickySectionHeadersEnabled
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 160 }}
+        />
+
+        {/* Rodapé fixo: TOTAL embaixo + botão */}
+        <View style={styles.footerBar}>
+          <View style={styles.totalBox}>
+            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+            <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+          </View>
+
+          <Pressable onPress={goCheckout} style={styles.footerBtn} accessibilityRole="button">
+            <ThemedText style={styles.footerBtnText}>CONTINUAR A COMPRA</ThemedText>
+          </Pressable>
+        </View>
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 14,
+  },
+
+  header: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
+
+  title: {
+    fontSize: 24,
+    fontFamily: FONT_TITLE,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  rightSpacer: { width: 40, height: 40 },
+
+  // PRODUTOS fixo (sticky) e sempre visível
+  sectionHeader: {
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: theme.colors.background,
+    zIndex: 10,
+  },
+  sectionHeaderText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  itemCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 10,
+    marginBottom: 8,
+  },
+
+  itemTop: { flexDirection: "row", gap: 10 },
+
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  checkboxUnchecked: { borderColor: theme.colors.divider, backgroundColor: theme.colors.surface },
+  checkboxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  checkboxDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
+
+  itemImage: {
+    borderRadius: 12,
+    backgroundColor: theme.colors.surfaceAlt,
+    overflow: "hidden",
+  },
+  itemImagePlaceholder: { flex: 1, borderRadius: 12, backgroundColor: theme.colors.surfaceAlt },
+
+  itemInfo: { flex: 1 },
+  itemTitle: { fontSize: 11, fontFamily: FONT_BODY_BOLD },
+  priceRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
+  price: { fontSize: 11, fontFamily: FONT_BODY_BOLD, opacity: 0.9 },
+  unit: { fontSize: 11, fontFamily: FONT_BODY, opacity: 0.7 },
+  oldPrice: {
+    marginTop: 3,
+    fontSize: 11,
+    fontFamily: FONT_BODY,
+    opacity: 0.6,
+    textDecorationLine: "line-through",
+  },
+
+  qtyRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  qtyBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD },
+
+  qtyText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
+
+  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  // Rodapé: TOTAL + CTA
+  footerBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 10,
+    gap: 8,
+  },
+
+  totalBox: {
+    backgroundColor: "#F59E0B",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+
+  footerBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#3F5A3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerBtnText: {
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
+});
+
+
+
+===== PATH: eslint.config.js =====
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expoConfig,
+  {
+    ignores: ['dist/*'],
+  },
+]);
+
+
+
