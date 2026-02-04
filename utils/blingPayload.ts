@@ -19,13 +19,13 @@ export type BlingOrderPayload = {
       uf?: string;
       complemento?: string;
     };
-    itens: Array<{
+    itens: {
       codigo?: string; // SKU
       descricao: string;
       quantidade: number;
       valor: number; // unit
       desconto?: number;
-    }>;
+    }[];
     transporte?: {
       frete: number;
       servico?: string;

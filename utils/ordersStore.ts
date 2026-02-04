@@ -140,7 +140,7 @@ function makeAccessKeyMock() {
 /* ---------------- ORDERS ---------------- */
 
 export function createOrderFromCart(params: {
-  items: Array<{ productId: string; qty: number; price: number; title: string }>;
+  items: { productId: string; qty: number; price: number; title: string }[];
   discount?: number;
   shipping?: number;
   status?: OrderStatus;
