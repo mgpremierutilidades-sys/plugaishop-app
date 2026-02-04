@@ -15,9 +15,28 @@ try {
   $runPath = Join-Path $Repo "scripts\ai\_autoflow\run.ps1"
   if (!(Test-Path -LiteralPath $runPath)) { throw "Missing run.ps1: $runPath" }
 
-  # stdout+stderr -> log (parser-safe)
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runPath -Mode verify -AutoCommit 1 -AutoPush 1 2>&1 |
-    Out-File -Encoding utf8 -Append -FilePath $log
+  # IMPORTANT:
+  # Em alguns ambientes, stderr de comando nativo vira ErrorRecord e, com EAP=Stop, vira exceção.
+  # Isso é exatamente o caso de "Everything up-to-date".
+  $prevEap = $ErrorActionPreference
+  $prevNative = $null
+
+  # PowerShell 7+ possui PSNativeCommandUseErrorActionPreference; Windows PowerShell normalmente não.
+  if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+    $prevNative = $global:PSNativeCommandUseErrorActionPreference
+    $global:PSNativeCommandUseErrorActionPreference = $false
+  }
+
+  $ErrorActionPreference = "Continue"
+  try {
+    # stdout+stderr -> log
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runPath -Mode verify -AutoCommit 1 -AutoPush 1 2>&1 |
+      Out-File -Encoding utf8 -Append -FilePath $log
+  }
+  finally {
+    $ErrorActionPreference = $prevEap
+    if ($null -ne $prevNative) { $global:PSNativeCommandUseErrorActionPreference = $prevNative }
+  }
 
   $code = $LASTEXITCODE
   Add-Content -Encoding UTF8 -LiteralPath $log -Value ("[runner] exitcode=" + $code)
