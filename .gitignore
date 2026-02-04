@@ -36,3 +36,4 @@ scripts/ai/_backup/
 
 # expo-cli generated
 expo-env.d.ts
+build/
