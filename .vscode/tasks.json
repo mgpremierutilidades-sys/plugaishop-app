@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Autoflow: Dry Run",
+      "label": "Autoflow: verify (auto-commit/push)",
       "type": "shell",
       "command": "powershell",
       "args": [
@@ -10,15 +10,24 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}\\scripts\\ai\\run_autoflow.ps1",
+        "${workspaceFolder}\\scripts\\ai\\_autoflow\\run.ps1",
         "-Mode",
-        "dry-run"
+        "verify",
+        "-AutoCommit:$true",
+        "-AutoPush:$true",
+        "-LogFile",
+        "scripts/ai/_out/autoflow-vscode.log"
       ],
       "problemMatcher": [],
-      "group": "build"
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
     },
     {
-      "label": "Autoflow: Step2 (Route Collisions Dump)",
+      "label": "Autoflow: recreate scheduled task",
       "type": "shell",
       "command": "powershell",
       "args": [
@@ -26,58 +35,27 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}\\scripts\\ai\\autoflow_step2.ps1"
+        "${workspaceFolder}\\scripts\\ai\\_autoflow\\recreate_schtask.ps1"
       ],
       "problemMatcher": [],
-      "group": "build"
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
     },
     {
-      "label": "Autoflow: Fix Route Duplicates",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\scripts\\ai\\fix-route-duplicates.ps1"
-      ],
-      "problemMatcher": [],
-      "group": "build"
-    },
-    {
-      "label": "Autoflow: Routes Detector (Python)",
-      "type": "shell",
-      "command": "python",
-      "args": [
-        "${workspaceFolder}\\scripts\\ai\\autoflow_routes.py"
-      ],
-      "problemMatcher": [],
-      "group": "build"
-    },
-    {
-      "label": "Quality: Lint",
-      "type": "shell",
-      "command": "npm",
-      "args": [
-        "run",
-        "lint"
-      ],
-      "problemMatcher": [],
-      "group": "test"
-    },
-    {
-      "label": "Quality: Typecheck (tsc --noEmit)",
+      "label": "Expo: start (LAN)",
       "type": "shell",
       "command": "npx",
-      "args": [
-        "tsc",
-        "-p",
-        "tsconfig.json",
-        "--noEmit"
-      ],
+      "args": ["expo", "start", "--lan"],
       "problemMatcher": [],
-      "group": "test"
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
     }
   ]
 }
