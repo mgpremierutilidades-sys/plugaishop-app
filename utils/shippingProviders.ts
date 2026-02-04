@@ -1,6 +1,6 @@
 import type { ShippingQuote, ShippingRequest } from "../types/shippingProviders";
 
-export async function quoteCorreios(req: ShippingRequest): Promise<ShippingQuote[]> {
+export async function quoteCorreios(_req: ShippingRequest): Promise<ShippingQuote[]> {
   // mock agora; depois troca por chamada real
   return [
     { provider: "correios", service: "PAC", price: 24.9, deadline: "5 a 7 dias úteis" },
@@ -8,13 +8,13 @@ export async function quoteCorreios(req: ShippingRequest): Promise<ShippingQuote
   ];
 }
 
-export async function quoteLoggi(req: ShippingRequest): Promise<ShippingQuote[]> {
+export async function quoteLoggi(_req: ShippingRequest): Promise<ShippingQuote[]> {
   return [
     { provider: "loggi", service: "Express", price: 55.9, deadline: "24 a 48 horas" },
   ];
 }
 
-export async function quoteDropi(req: ShippingRequest): Promise<ShippingQuote[]> {
+export async function quoteDropi(_req: ShippingRequest): Promise<ShippingQuote[]> {
   return [
     { provider: "dropi", service: "Padrão", price: 29.9, deadline: "5 a 9 dias úteis" },
   ];
