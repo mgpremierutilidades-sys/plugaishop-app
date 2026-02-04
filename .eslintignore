@@ -1,0 +1,10 @@
+# generated / backups
+scripts/ai/_stash_routes/
+scripts/ai/_out/
+scripts/ai/_backup/
+
+# build artifacts
+node_modules/
+dist/
+build/
+.expo/
