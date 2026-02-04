@@ -3,7 +3,7 @@ param(
   [ValidateSet("full","verify","hygiene")]
   [string]$Mode = "full",
 
-  # Task Scheduler/cmd passa tudo como string. Parse manual resolve.
+  # schtasks/cmd passa tudo como string -> parse manual
   [string]$AutoCommit = "1",
   [string]$AutoPush = "1"
 )
@@ -13,11 +13,8 @@ param(
 function To-Bool([string]$v, [bool]$default = $true) {
   if ($null -eq $v) { return $default }
   $s = $v.Trim().ToLowerInvariant()
-
   if ($s -in @("1","true","t","yes","y","on")) { return $true }
   if ($s -in @("0","false","f","no","n","off")) { return $false }
-
-  # Se vier vazio, respeita default; se vier qualquer outra string não vazia, assume true
   if ($s -eq "") { return $default }
   return $true
 }
@@ -31,7 +28,6 @@ Say "mode: $Mode"
 Say "autocommit: $AutoCommitB"
 Say "autopush: $AutoPushB"
 
-# 1) Hygiene (não “enfia” coisas grandes no repo)
 if ($Mode -in @("hygiene","full")) {
   Append-GitIgnoreLines @(
     "node_modules/",
@@ -53,7 +49,6 @@ if ($Mode -in @("hygiene","full")) {
   )
 }
 
-# 2) Gates: routes -> lint -> tsc
 if ($Mode -in @("verify","full")) {
   Say "routes gate..."
   python .\scripts\ai\autoflow_routes.py | Out-Null
@@ -75,7 +70,6 @@ if ($Mode -in @("verify","full")) {
   npx tsc -p tsconfig.json --noEmit
 }
 
-# 3) Auto-commit do estado atual
 if ($AutoCommitB) {
   $pathsToAdd = @(
     ".gitignore",
@@ -98,7 +92,7 @@ if ($AutoCommitB) {
   Say "git add (safe paths)..."
   Git-AddSafe $existing
 
-  $didCommit = Git-CommitSafe "chore(autoflow): hourly verify+fix"
+  $didCommit = Git-CommitSafe "fix(autoflow): schtasks-safe args + stable repo root"
   if ($didCommit -and $AutoPushB) {
     Say "push..."
     git push

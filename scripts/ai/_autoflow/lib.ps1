@@ -4,9 +4,12 @@ $ErrorActionPreference = "Stop"
 function Say([string]$m) { Write-Host ("[autoflow] " + $m) }
 
 function Ensure-RepoRoot {
-  $root = (git rev-parse --show-toplevel).Trim()
+  # Não confia no cwd do Task Scheduler.
+  # run.ps1 está em: scripts/ai/_autoflow/run.ps1
+  # root do repo: sobe 3 níveis a partir do PSScriptRoot (_autoflow -> ai -> scripts -> repo)
+  $root = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
   Set-Location $root
-  return $root
+  return $root.Path
 }
 
 function Backup-File([string]$path) {
@@ -22,9 +25,7 @@ function Backup-File([string]$path) {
 
 function Append-GitIgnoreLines([string[]]$lines) {
   $gitignore = ".gitignore"
-  if (!(Test-Path -LiteralPath $gitignore)) {
-    "" | Set-Content -Encoding UTF8 $gitignore
-  }
+  if (!(Test-Path -LiteralPath $gitignore)) { "" | Set-Content -Encoding UTF8 $gitignore }
   $existing = Get-Content -LiteralPath $gitignore -Raw
   $toAdd = @()
   foreach ($l in $lines) {
@@ -40,7 +41,6 @@ function Append-GitIgnoreLines([string[]]$lines) {
 }
 
 function Git-AddSafe([string[]]$paths) {
-  # paths com (), [] etc: sempre usar `--` e strings separadas
   $args = @("add","--")
   $args += $paths
   & git @args | Out-Null
@@ -49,7 +49,6 @@ function Git-AddSafe([string[]]$paths) {
 function Git-CommitSafe([string]$message) {
   $st = (git status --porcelain)
   if (!$st) { Say "nothing to commit"; return $false }
-
   & git commit -m $message | Out-Null
   Say "committed: $message"
   return $true
@@ -57,6 +56,7 @@ function Git-CommitSafe([string]$message) {
 
 function Write-RunReport([hashtable]$data) {
   $out = "scripts/ai/_out/autoflow-run.json"
+  New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
   $json = ($data | ConvertTo-Json -Depth 10)
   Set-Content -Encoding UTF8 -LiteralPath $out -Value $json
   Say "report: $out"
