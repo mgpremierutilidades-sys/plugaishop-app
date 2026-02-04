@@ -9,6 +9,12 @@ $log = Join-Path $OutDir "task-15min.log"
 $ts  = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Add-Content -Encoding UTF8 -LiteralPath $log -Value "`n===== RUN $ts ====="
 
+function Append-File([string]$path) {
+  if (Test-Path -LiteralPath $path) {
+    Add-Content -Encoding UTF8 -LiteralPath $log -Value (Get-Content -LiteralPath $path -Raw)
+  }
+}
+
 try {
   if (!(Test-Path -LiteralPath $Repo)) { throw "Missing repo path: $Repo" }
   Set-Location $Repo
@@ -16,8 +22,6 @@ try {
   $runPath = Join-Path $Repo "scripts\ai\_autoflow\run.ps1"
   if (!(Test-Path -LiteralPath $runPath)) { throw "Missing run.ps1: $runPath" }
 
-  # Executa powershell.exe de forma "parser-safe" e "NativeCommandError-safe"
-  # (captura stdout/stderr como arquivos, sem redirecionadores inline).
   $tmpOut = Join-Path $OutDir "autoflow.stdout.tmp"
   $tmpErr = Join-Path $OutDir "autoflow.stderr.tmp"
   Remove-Item -Force -ErrorAction SilentlyContinue $tmpOut, $tmpErr
@@ -42,17 +46,11 @@ try {
     -RedirectStandardOutput $tmpOut `
     -RedirectStandardError  $tmpErr
 
-  # Anexa outputs ao log (mantém evidência do que aconteceu)
-  if (Test-Path -LiteralPath $tmpOut) {
-    Add-Content -Encoding UTF8 -LiteralPath $log -Value (Get-Content -LiteralPath $tmpOut -Raw)
-  }
-  if (Test-Path -LiteralPath $tmpErr) {
-    Add-Content -Encoding UTF8 -LiteralPath $log -Value (Get-Content -LiteralPath $tmpErr -Raw)
-  }
+  Append-File $tmpOut
+  Append-File $tmpErr
 
   $code = $p.ExitCode
   Add-Content -Encoding UTF8 -LiteralPath $log -Value ("[runner] exitcode=" + $code)
-
   exit $code
 }
 catch {
@@ -61,7 +59,6 @@ catch {
   exit 1
 }
 finally {
-  # limpeza best-effort
   $tmpOut = Join-Path $OutDir "autoflow.stdout.tmp"
   $tmpErr = Join-Path $OutDir "autoflow.stderr.tmp"
   Remove-Item -Force -ErrorAction SilentlyContinue $tmpOut, $tmpErr

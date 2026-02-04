@@ -18,39 +18,30 @@ Set-Location $Repo
 
 $OutDir = Join-Path $Repo "scripts\ai\_out"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-$Log = Join-Path $OutDir "fixer.log"
 
-function Backup-File([string]$path) {
-  if (!(Test-Path -LiteralPath $path)) { return }
-  $ts = Get-Date -Format "yyyyMMdd-HHmmss"
-  $backupDir = Join-Path $Repo "scripts\ai\_backup"
-  New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
-  $safe = ($path -replace "[/\\:]", "_")
-  $dest = Join-Path $backupDir ("{0}.{1}.bak" -f $safe, $ts)
-  Copy-Item -LiteralPath $path -Destination $dest -Force
+$Log = Join-Path $OutDir "fixer.log"
+$EslintJson = Join-Path $OutDir "problems-eslint.json"
+$TscTxt = Join-Path $OutDir "problems-tsc.txt"
+
+function LogLine([string]$line) {
+  Add-Content -Encoding UTF8 -LiteralPath $Log -Value $line
 }
 
 function Run([string]$title, [scriptblock]$cmd) {
-  Add-Content -Encoding UTF8 -LiteralPath $Log -Value "`n===== $title @ $(Get-Date -Format o) ====="
+  LogLine "`n===== $title @ $(Get-Date -Format o) ====="
   & $cmd 2>&1 | Tee-Object -FilePath $Log -Append | Out-Null
   return $LASTEXITCODE
 }
 
 function Git-PushSafe {
-  # Push resiliente:
-  # - não falha por "Everything up-to-date"
-  # - falha apenas por exit code != 0
   $prevEap = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
     $out = & git push 2>&1
     $code = $LASTEXITCODE
-
-    Add-Content -Encoding UTF8 -LiteralPath $Log -Value ("[fixer] git push exitcode=" + $code)
-    if ($out) { Add-Content -Encoding UTF8 -LiteralPath $Log -Value $out }
-
-    if ($code -ne 0) { return $code }
-    return 0
+    LogLine ("[fixer] git push exitcode=" + $code)
+    if ($out) { LogLine $out }
+    return $code
   }
   finally {
     $ErrorActionPreference = $prevEap
@@ -58,56 +49,61 @@ function Git-PushSafe {
 }
 
 Say "repo: $Repo"
-Add-Content -Encoding UTF8 -LiteralPath $Log -Value "`n===== FIXER START @ $(Get-Date -Format o) ====="
-Add-Content -Encoding UTF8 -LiteralPath $Log -Value ("mode=" + $Mode + " maxFixPasses=" + $MaxFixPasses + " autoPush=" + [bool]$AutoPush)
+LogLine "`n===== FIXER START @ $(Get-Date -Format o) ====="
+LogLine ("mode=" + $Mode + " maxFixPasses=" + $MaxFixPasses + " autoPush=" + [bool]$AutoPush)
 
-# 1) Snapshot de arquivos possivelmente alterados
-$touch = @(
-  "app/_layout.tsx",
-  "app/(tabs)/_layout.tsx",
-  "app/(tabs)/explore.tsx",
-  "components/global-chrome.tsx",
-  "components/ui/collapsible.tsx",
-  "tsconfig.json",
-  ".vscode/tasks.json",
-  ".vscode/settings.json",
-  ".vscode/launch.json"
-)
-foreach ($p in $touch) { Backup-File $p }
+# Export “Problems” do VS Code de forma automatizada (sem depender de você)
+try {
+  # ESLint em JSON (não altera UI)
+  & npx eslint . -f json 2>$null | Out-File -Encoding utf8 -FilePath $EslintJson
+  LogLine "[fixer] wrote $EslintJson"
+} catch {
+  LogLine ("[fixer][WARN] eslint export failed: " + $_.Exception.Message)
+}
 
-# 2) Passes de fix (lint) + verify (tsc)
+try {
+  # TypeScript em texto “sem pretty” (bom pra logs)
+  & npx tsc -p tsconfig.json --noEmit --pretty false 2>&1 | Out-File -Encoding utf8 -FilePath $TscTxt
+  LogLine "[fixer] wrote $TscTxt"
+} catch {
+  LogLine ("[fixer][WARN] tsc export failed: " + $_.Exception.Message)
+}
+
+# Passes de correção/validação
 for ($i=1; $i -le $MaxFixPasses; $i++) {
   Say "pass $i/$MaxFixPasses"
 
-  $codeLint = Run "lint" { npm -s run lint }
-  if ($codeLint -ne 0) { Say "lint exitcode=$codeLint (stop)"; exit $codeLint }
+  if ($Mode -eq "fix") {
+    $codeLint = Run "lint (fix)" { npm -s run lint -- --fix }
+  } else {
+    $codeLint = Run "lint" { npm -s run lint }
+  }
+  if ($codeLint -ne 0) { Say "lint failed"; exit $codeLint }
 
   $codeTsc = Run "typecheck" { npx tsc -p tsconfig.json --noEmit }
   if ($codeTsc -eq 0) { break }
 
-  # sem “chute”: se tsc falhar, paramos com exit code claro
-  Say "tsc exitcode=$codeTsc (manual fix needed or targeted codemods)"
+  Say "typecheck failed"
   exit $codeTsc
 }
 
-# 3) Commit/push se houver mudanças
+# Commit/push se houver mudanças
 $st = (git status --porcelain)
 if ($st) {
   Say "changes detected -> commit"
-  git add -- app components tsconfig.json .vscode scripts/ai/_backup | Out-Null
-  git commit -m "chore(autoflow): auto-fix problems (lint/verify)" | Out-Null
+  git add -A | Out-Null
+  git commit -m "chore(autoflow): auto-fix problems (lint/typecheck)" | Out-Null
 
   if ($AutoPush) {
     Say "push..."
     $pushCode = Git-PushSafe
     if ($pushCode -ne 0) { exit $pushCode }
   }
-
   Say "committed"
 } else {
   Say "no changes"
 }
 
 Say "OK"
-Add-Content -Encoding UTF8 -LiteralPath $Log -Value ("===== FIXER END @ " + (Get-Date -Format o) + " =====")
+LogLine ("===== FIXER END @ " + (Get-Date -Format o) + " =====")
 exit 0
