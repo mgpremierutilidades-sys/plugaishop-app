@@ -4,7 +4,10 @@ cd C:\plugaishop-app
 
 # --- AUTOFLOW / CONTEXT ARTIFACTS ---
 scripts/ai/_out/
+backups / stash
+scripts/ai/_stash_routes/
 scripts/ai/_stash_routes/**/_tmp/
+scripts/ai/_backup/
 context/*.zip
 context/*.txt
 context/_artifacts/
