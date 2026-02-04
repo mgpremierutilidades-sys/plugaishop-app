@@ -10,6 +10,8 @@ type ProductCardProps = {
   product: Product;
 };
 
+export * from "./product-card";
+
 export function ProductCard({ product }: ProductCardProps) {
   const background = useThemeColor({ light: '#F7FBFF', dark: '#0F1115' }, 'background');
   const accent = useThemeColor({ light: '#0a7ea4', dark: '#7AC4FF' }, 'tint');
