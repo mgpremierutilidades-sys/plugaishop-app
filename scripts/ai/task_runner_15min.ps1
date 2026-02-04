@@ -13,11 +13,9 @@ try {
   Set-Location $Repo
 
   $runPath = Join-Path $Repo "scripts\ai\_autoflow\run.ps1"
-  if (!(Test-Path -LiteralPath $runPath)) {
-    throw "Missing run.ps1 at: $runPath"
-  }
+  if (!(Test-Path -LiteralPath $runPath)) { throw "Missing run.ps1: $runPath" }
 
-  # Captura stdout+stderr em pipeline e grava no log (parser-safe)
+  # stdout+stderr -> log (parser-safe)
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runPath -Mode verify -AutoCommit 1 -AutoPush 1 2>&1 |
     Out-File -Encoding utf8 -Append -FilePath $log
 
