@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import IconSymbol from "../../components/ui/icon-symbol";
+import IconSymbolUI from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 
 export default function TabsLayout() {
@@ -28,7 +28,7 @@ export default function TabsLayout() {
         options={{
           title: "Início",
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="home-outline" color={color} size={22} />
+            <IconSymbolUI name="home-outline" color={color} size={22} />
           ),
         }}
       />
@@ -38,7 +38,7 @@ export default function TabsLayout() {
         options={{
           title: "Explorar",
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="compass-outline" color={color} size={22} />
+            <IconSymbolUI name="compass-outline" color={color} size={22} />
           ),
         }}
       />
@@ -48,7 +48,7 @@ export default function TabsLayout() {
         options={{
           title: "Carrinho",
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="cart-outline" color={color} size={22} />
+            <IconSymbolUI name="cart-outline" color={color} size={22} />
           ),
         }}
       />
@@ -58,7 +58,7 @@ export default function TabsLayout() {
         options={{
           title: "Conta",
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="receipt-outline" color={color} size={22} />
+            <IconSymbolUI name="receipt-outline" color={color} size={22} />
           ),
         }}
       />
@@ -68,7 +68,7 @@ export default function TabsLayout() {
         options={{
           title: "Perfil",
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="person-circle-outline" color={color} size={22} />
+            <IconSymbolUI name="person-circle-outline" color={color} size={22} />
           ),
         }}
       />

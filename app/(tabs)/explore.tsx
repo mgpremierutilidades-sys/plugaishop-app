@@ -4,18 +4,16 @@ import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import IconSymbol from "../../components/ui/icon-symbol";
+import { Collapsible as CollapsibleNamed } from "../../components/ui/collapsible";
+import IconSymbolUI from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
 
-// Collapsible blindado
-const CollapsibleModule = require("../../components/ui/collapsible");
-const CollapsibleComp = CollapsibleModule?.default ?? CollapsibleModule?.Collapsible;
-
+// Collapsible blindado (sem require)
 const SafeCollapsible =
-  CollapsibleComp ??
+  (CollapsibleNamed as unknown as any) ??
   function FallbackCollapsible(props: any) {
     return (
       <View>
@@ -53,9 +51,6 @@ function categoryIconName(categoryName: string) {
 }
 
 export default function ExploreScreen() {
-  // ✅ status bar normal (escuro) aqui, porque o topo é claro
-  <StatusBar style="dark" />;
-
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
@@ -120,7 +115,7 @@ export default function ExploreScreen() {
                   onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
                 >
                   <View style={styles.categoryIconWrap}>
-                    <IconSymbol
+                    <IconSymbolUI
                       name={categoryIconName(c.name)}
                       size={20}
                       color={theme.colors.primary}
@@ -150,9 +145,7 @@ export default function ExploreScreen() {
             }
             initiallyExpanded={false}
           >
-            <Text style={styles.helperText}>
-              Promoções, avisos e conteúdo leve podem ficar aqui.
-            </Text>
+            <Text style={styles.helperText}>Promoções, avisos e conteúdo leve podem ficar aqui.</Text>
           </SafeCollapsible>
         </View>
 

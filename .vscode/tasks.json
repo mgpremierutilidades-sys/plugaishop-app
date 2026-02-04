@@ -2,39 +2,82 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "autoflow: full",
+      "label": "Autoflow: Dry Run",
       "type": "shell",
       "command": "powershell",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/ai/autoflow.ps1", "-Mode", "full"],
-      "problemMatcher": []
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\ai\\run_autoflow.ps1",
+        "-Mode",
+        "dry-run"
+      ],
+      "problemMatcher": [],
+      "group": "build"
     },
     {
-      "label": "autoflow: analyze",
+      "label": "Autoflow: Step2 (Route Collisions Dump)",
       "type": "shell",
       "command": "powershell",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/ai/autoflow.ps1", "-Mode", "analyze"],
-      "problemMatcher": []
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\ai\\autoflow_step2.ps1"
+      ],
+      "problemMatcher": [],
+      "group": "build"
     },
     {
-      "label": "autoflow: fix-routes",
+      "label": "Autoflow: Fix Route Duplicates",
       "type": "shell",
       "command": "powershell",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/ai/autoflow.ps1", "-Mode", "fix-routes"],
-      "problemMatcher": []
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\scripts\\ai\\fix-route-duplicates.ps1"
+      ],
+      "problemMatcher": [],
+      "group": "build"
     },
     {
-      "label": "lint",
+      "label": "Autoflow: Routes Detector (Python)",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}\\scripts\\ai\\autoflow_routes.py"
+      ],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Quality: Lint",
       "type": "shell",
       "command": "npm",
-      "args": ["run", "lint"],
-      "problemMatcher": []
+      "args": [
+        "run",
+        "lint"
+      ],
+      "problemMatcher": [],
+      "group": "test"
     },
     {
-      "label": "tsc",
+      "label": "Quality: Typecheck (tsc --noEmit)",
       "type": "shell",
-      "command": "npm",
-      "args": ["run", "tsc"],
-      "problemMatcher": []
+      "command": "npx",
+      "args": [
+        "tsc",
+        "-p",
+        "tsconfig.json",
+        "--noEmit"
+      ],
+      "problemMatcher": [],
+      "group": "test"
     }
   ]
 }

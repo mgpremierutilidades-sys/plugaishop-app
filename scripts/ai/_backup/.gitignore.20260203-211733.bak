@@ -18,19 +18,3 @@ tools/maxximus-orchestrator/data/metrics.json
 tools/maxximus-orchestrator/data/reports/
 
 '@ | Add-Content -Encoding UTF8 .\.gitignore
-
-# --- AUTOFLOW HYGIENE ---
-node_modules/
-.expo/
-android/
-ios/
-dist/
-dist-web/
-_share/
-_tmp_support_bundle/
-tools/**/node_modules/
-tools/**/data/reports/
-tools/**/data/state.json
-tools/**/data/tasks.json
-tools/**/data/metrics.json
-
