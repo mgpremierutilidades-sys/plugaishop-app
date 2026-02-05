@@ -23,17 +23,9 @@ export default (async () => {
   const js = jsMod?.default ?? null;
   const tseslint = tsEslintMod ?? null;
 
-  const parser =
-    tseslint?.parser ??
-    tsParserMod?.default ??
-    tsParserMod ??
-    null;
+  const parser = tseslint?.parser ?? tsParserMod?.default ?? tsParserMod ?? null;
 
-  const tsPlugin =
-    tseslint?.plugin ??
-    tsPluginMod?.default ??
-    tsPluginMod ??
-    null;
+  const tsPlugin = tseslint?.plugin ?? tsPluginMod?.default ?? tsPluginMod ?? null;
 
   const react = reactMod?.default ?? reactMod ?? null;
   const reactHooks = reactHooksMod?.default ?? reactHooksMod ?? null;
@@ -51,6 +43,10 @@ export default (async () => {
 
   // React Native / Expo common globals (avoid no-undef false positives)
   const rnGlobals = {
+    // RN / Expo
+    __DEV__: "readonly",
+    console: "readonly",
+
     // Node-ish (often used by tooling / bundlers)
     process: "readonly",
     require: "readonly",
@@ -107,7 +103,6 @@ export default (async () => {
       ...(react ? { react: { version: "detect" } } : {}),
     },
     rules: {
-      // Hooks (if plugin exists)
       ...(reactHooks
         ? {
             "react-hooks/rules-of-hooks": "error",
@@ -115,18 +110,14 @@ export default (async () => {
           }
         : {}),
 
-      // Avoid false positives with TS path aliases / metro resolution
       ...(importPlugin
         ? {
             "import/no-unresolved": "off",
           }
         : {}),
 
-      // Make unused-vars practical for RN/TS:
-      // Allow underscore-prefixed vars/args (e.g. _ignored)
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
 
-      // Keep no-undef ON, but globals above prevent RN false positives
       "no-undef": "error",
     },
   });
@@ -138,7 +129,6 @@ export default (async () => {
       ...tseslint.configs.recommended,
       rules: {
         ...(tseslint.configs.recommended.rules ?? {}),
-        // Prefer TS unused-vars when available; disable core for TS
         "no-unused-vars": "off",
         ...(tsPlugin
           ? {
