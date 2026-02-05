@@ -8,7 +8,11 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/ci/smoke.mjs",
+    "ci": "node scripts/ci/ci.mjs",
+    "orchestrate": "node tools/maxximus-orchestrator/run.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/arimo": "^0.4.2",
