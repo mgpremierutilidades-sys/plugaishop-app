@@ -37,3 +37,31 @@ scripts/ai/_backup/
 # expo-cli generated
 expo-env.d.ts
 build/
+
+# allow CI workflow even if broad ignore exists
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
+# ignore local dumps / exports
+_project_*.txt
+*.zip
+
+# allow CI workflow even if broad ignore exists
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
+# ignore local dumps / exports
+_project_*.txt
+*.zip
+
+# allow CI workflow even if broad ignore exists
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
+# ignore local dumps / exports
+_project_*.txt
+*.zip
+
