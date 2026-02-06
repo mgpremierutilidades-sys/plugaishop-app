@@ -25,7 +25,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}\\scripts\\ai\\_autoflow\\run.ps1",
+        "${workspaceFolder}\\\\scripts\\\\ai\\\\_autoflow\\\\run.ps1",
         "-Mode",
         "verify",
         "-AutoCommit:$true",
@@ -50,7 +50,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}\\scripts\\ai\\_autoflow\\recreate_schtask.ps1"
+        "${workspaceFolder}\\\\scripts\\\\ai\\\\_autoflow\\\\recreate_schtask.ps1"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -72,7 +72,6 @@
         "clear": false
       }
     },
-
     {
       "label": "Plugaishop: Commit Green (typecheck+lint+commit+push)",
       "type": "shell",
@@ -82,7 +81,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "if ('${input:pushChoice}' -eq 'no-push') { powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\scripts\\ai\\commit_green.ps1\" -Message \"${input:commitMessage}\" -NoPush } else { powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\scripts\\ai\\commit_green.ps1\" -Message \"${input:commitMessage}\" }"
+        "if ('${input:pushChoice}' -eq 'no-push') { powershell -NoProfile -ExecutionPolicy Bypass -File \\"${workspaceFolder}\\\\scripts\\\\ai\\\\commit_green.ps1\\" -Message \\"${input:commitMessage}\\" -NoPush } else { powershell -NoProfile -ExecutionPolicy Bypass -File \\"${workspaceFolder}\\\\scripts\\\\ai\\\\commit_green.ps1\\" -Message \\"${input:commitMessage}\\" }"
       ],
       "problemMatcher": [],
       "group": "build",
