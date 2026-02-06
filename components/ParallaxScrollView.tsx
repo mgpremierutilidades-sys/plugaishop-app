@@ -1,42 +1,63 @@
-// components/ParallaxScrollView.tsx
-import type { PropsWithChildren, ReactElement, ReactNode } from "react";
-import React from "react";
+import type { PropsWithChildren, ReactNode } from "react";
+import { useMemo } from "react";
 import {
   ScrollView,
-  View,
+  StyleSheet,
   useColorScheme,
+  View,
   type ScrollViewProps,
-  type StyleProp,
   type ViewStyle,
 } from "react-native";
 
-type HeaderBg = { light: string; dark: string };
+type HeaderBackgroundColor = { light: string; dark: string };
 
-type Props = PropsWithChildren<{
-  headerImage: ReactElement;
-  headerBackgroundColor: HeaderBg;
+export type ParallaxScrollViewProps = PropsWithChildren<{
+  headerImage: ReactNode;
+  headerBackgroundColor: HeaderBackgroundColor;
   scrollViewProps?: ScrollViewProps;
-  contentContainerStyle?: StyleProp<ViewStyle>;
-  children?: ReactNode;
+
+  /**
+   * Útil para ajustar padding/margens do corpo sem mexer nos filhos.
+   */
+  bodyStyle?: ViewStyle | ViewStyle[];
 }>;
 
-export default function ParallaxScrollView(props: Props) {
-  const { headerImage, headerBackgroundColor, scrollViewProps, contentContainerStyle, children } = props;
-
+export default function ParallaxScrollView({
+  children,
+  headerImage,
+  headerBackgroundColor,
+  scrollViewProps,
+  bodyStyle,
+}: ParallaxScrollViewProps) {
   const scheme = useColorScheme();
-  const bg = scheme === "dark" ? headerBackgroundColor.dark : headerBackgroundColor.light;
+
+  const bg = useMemo(() => {
+    const isDark = scheme === "dark";
+    return isDark ? headerBackgroundColor.dark : headerBackgroundColor.light;
+  }, [scheme, headerBackgroundColor.dark, headerBackgroundColor.light]);
 
   return (
     <ScrollView
       {...scrollViewProps}
-      contentContainerStyle={contentContainerStyle}
-      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.content, scrollViewProps?.contentContainerStyle]}
     >
-      {/* Header */}
-      <View style={{ backgroundColor: bg }}>{headerImage}</View>
+      <View style={[styles.header, { backgroundColor: bg }]}>{headerImage}</View>
 
-      {/* Content */}
-      {children}
+      {/* ✅ children agora é ReactNode (múltiplos filhos ok) */}
+      <View style={[styles.body, bodyStyle]}>{children}</View>
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 24,
+  },
+  header: {
+    width: "100%",
+    overflow: "hidden",
+  },
+  body: {
+    flex: 1,
+  },
+});

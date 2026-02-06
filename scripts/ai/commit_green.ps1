@@ -1,12 +1,15 @@
 # scripts/ai/commit_green.ps1
+# Commit gate: typecheck + lint + stage + commit + (optional) push
+#
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File .\scripts\ai\commit_green.ps1 -Message "chore: ci green"
-# Optional:
-#   -NoPush  (does not push)
-#   -OnlyFiles "path1","path2" (stages only the provided files)
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\ai\commit_green.ps1 -Message "fix: ci green"
+# Options:
+#   -NoPush
+#   -OnlyFiles "path1","path2"
 
+[CmdletBinding()]
 param(
-  [Parameter(Mandatory=$true)]
+  [Parameter(Mandatory = $true)]
   [string]$Message,
 
   [switch]$NoPush,
@@ -16,65 +19,83 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Fail($msg) {
+function Fail {
+  param([string]$Msg)
   Write-Host ""
-  Write-Host "✖ $msg" -ForegroundColor Red
+  Write-Host ("[FAIL] " + $Msg) -ForegroundColor Red
   exit 1
 }
 
-function Ok($msg) {
-  Write-Host "✔ $msg" -ForegroundColor Green
+function Ok {
+  param([string]$Msg)
+  Write-Host ("[OK] " + $Msg) -ForegroundColor Green
 }
 
+function Info {
+  param([string]$Msg)
+  Write-Host ("[INFO] " + $Msg) -ForegroundColor Cyan
+}
+
+function Warn {
+  param([string]$Msg)
+  Write-Host ("[WARN] " + $Msg) -ForegroundColor Yellow
+}
+
+# Ensure we are inside a git repository
 try {
-  # Ensure in git repo
   git rev-parse --is-inside-work-tree *> $null
 } catch {
   Fail "Not inside a git repository."
 }
 
 Write-Host ""
-Write-Host "== Plugaishop Commit Gate ==" -ForegroundColor Cyan
-
-# 1) Typecheck
+Info "Plugaishop Commit Gate"
 Write-Host ""
-Write-Host "Running: npm run typecheck" -ForegroundColor Yellow
+
+# Status
+Warn "Working tree status:"
+git status -sb
+
+# Typecheck
+Write-Host ""
+Warn "Running: npm run typecheck"
 npm run typecheck
 Ok "typecheck ok"
 
-# 2) Lint
+# Lint
 Write-Host ""
-Write-Host "Running: npm run lint" -ForegroundColor Yellow
+Warn "Running: npm run lint"
 npm run lint
 Ok "lint ok"
 
-# 3) Stage
+# Stage
 Write-Host ""
-if ($OnlyFiles -and $OnlyFiles.Length -gt 0) {
-  Write-Host "Staging only files:" -ForegroundColor Yellow
-  $OnlyFiles | ForEach-Object { Write-Host " - $_" }
+if ($OnlyFiles -and $OnlyFiles.Count -gt 0) {
+  Warn "Staging only selected files:"
+  foreach ($f in $OnlyFiles) { Write-Host (" - " + $f) }
   git add -- $OnlyFiles
 } else {
-  Write-Host "Staging all changes (git add -A)" -ForegroundColor Yellow
+  Warn "Staging all changes (git add -A)"
   git add -A
 }
 Ok "staging ok"
 
-# 4) Commit (only if there is something staged)
+# Verify staged changes exist
 $staged = git diff --cached --name-only
 if (-not $staged) {
   Fail "No staged changes to commit."
 }
 
+# Commit
 Write-Host ""
-Write-Host "Committing: $Message" -ForegroundColor Yellow
+Warn ("Committing: " + $Message)
 git commit -m "$Message"
 Ok "commit ok"
 
-# 5) Push
+# Push (optional)
 if (-not $NoPush) {
   Write-Host ""
-  Write-Host "Pushing to origin..." -ForegroundColor Yellow
+  Warn "Pushing to origin..."
   git push
   Ok "push ok"
 } else {
