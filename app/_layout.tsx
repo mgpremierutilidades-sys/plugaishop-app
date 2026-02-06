@@ -1,4 +1,4 @@
-// app/_layout.tsx
+﻿// app/_layout.tsx
 import { Stack } from "expo-router";
 
 export default function RootLayout() {
@@ -12,9 +12,7 @@ export default function RootLayout() {
       {/* Rotas reais de topo */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
-
-      {/* Modal (se existir app/modal.tsx) */}
-      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      <Stack.Screen name="checkout" options={{ headerShown: false }} />
     </Stack>
   );
 }
