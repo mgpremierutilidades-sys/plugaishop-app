@@ -1,5 +1,20 @@
 {
   "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "type": "promptString",
+      "description": "Mensagem do commit (ex: fix: ci green)",
+      "default": "fix: ci green"
+    },
+    {
+      "id": "pushChoice",
+      "type": "pickString",
+      "description": "Fazer push após commit?",
+      "options": ["push", "no-push"],
+      "default": "push"
+    }
+  ],
   "tasks": [
     {
       "label": "Autoflow: verify (auto-commit/push)",
@@ -55,6 +70,26 @@
         "reveal": "always",
         "panel": "shared",
         "clear": false
+      }
+    },
+
+    {
+      "label": "Plugaishop: Commit Green (typecheck+lint+commit+push)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "if ('${input:pushChoice}' -eq 'no-push') { powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\scripts\\ai\\commit_green.ps1\" -Message \"${input:commitMessage}\" -NoPush } else { powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\scripts\\ai\\commit_green.ps1\" -Message \"${input:commitMessage}\" }"
+      ],
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
       }
     }
   ]
