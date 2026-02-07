@@ -65,3 +65,7 @@ _project_*.txt
 _project_*.txt
 *.zip
 
+
+repo-tree.txt
+*.log
+
