@@ -1,26 +1,45 @@
+// app/(tabs)/cart.tsx
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
   SectionList,
   StyleSheet,
+  TextInput,
   View,
   type ImageSourcePropType,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import Toast from "../../components/Toast";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
+import Icon from "../../components/ui/icon-symbol";
+import flags from "../../constants/flags";
 import theme from "../../constants/theme";
 import { useCart } from "../../context/CartContext";
-import type { Product } from "../../data/catalog";
-import { products } from "../../data/catalog";
+import { computeCartPricing } from "../../utils/cartPricing";
 import { formatCurrency } from "../../utils/formatCurrency";
+import { trackSafe } from "../../utils/telemetry";
 
 const FONT_TITLE = "Arimo_400Regular";
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
+
+// Regras congeladas do Carrinho (teste/UX)
+const CTA_GREEN = "#3F5A3A";
+const TOTAL_ORANGE = "#F59E0B";
+
+// Conversão (frete grátis)
+const FREE_SHIPPING_THRESHOLD = 199.9;
+
+// TabBar deve permanecer fixa/visível: margem conservadora para não “brigar” com Tabs.
+const TABBAR_HEIGHT = 56;
+
+// Cupom (mock exigido)
+type Coupon = { code: "PLUGAI10"; type: "percent"; value: 10; label: "10% OFF" };
+const COUPON: Coupon = { code: "PLUGAI10", type: "percent", value: 10, label: "10% OFF" };
 
 type Row = {
   type: "cart";
@@ -32,10 +51,22 @@ type Row = {
   image?: string;
 };
 
-type CartSection = {
-  title: string;
-  data: Row[];
-};
+type CartSection = { title: string; data: Row[] };
+
+function n(value: unknown) {
+  const v = Number(value);
+  return Number.isFinite(v) ? v : 0;
+}
+
+function clampQty(qty: unknown) {
+  const q = Math.floor(n(qty));
+  return Number.isFinite(q) ? Math.max(1, q) : 1;
+}
+
+// Frete mock: simples e determinístico. Sem CEP para não redesenhar.
+function estimateShippingMock(): number {
+  return 19.9;
+}
 
 function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   const src: ImageSourcePropType | null =
@@ -44,11 +75,7 @@ function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   return (
     <View style={[styles.itemImage, { width: size, height: size }]}>
       {src ? (
-        <Image
-          source={src}
-          style={{ width: "100%", height: "100%", borderRadius: 12 }}
-          resizeMode="cover"
-        />
+        <Image source={src} style={{ width: "100%", height: "100%", borderRadius: 12 }} resizeMode="cover" />
       ) : (
         <View style={styles.itemImagePlaceholder} />
       )}
@@ -56,247 +83,362 @@ function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   );
 }
 
-export default function CartTab() {
-  const cartCtx = useCart() as any;
+const CartRowItem = memo(function CartRowItem(props: {
+  item: Row;
+  checked: boolean;
+  onToggle: (_id: string) => void;
+  onInc: (_id: string) => void;
+  onDec: (_id: string) => void;
+  onRemove: (_id: string) => void;
+}) {
+  const { item, checked, onToggle, onInc, onDec, onRemove } = props;
 
-  // Fallback local (para o caso do contexto ainda não estar 100% pronto)
-  const seededRows = useMemo<Row[]>(() => {
-    const base = (products as Product[]).slice(0, 6);
-    return base.map((p, idx) => ({
-      type: "cart",
-      id: p.id,
-      title: p.title,
-      price: p.price,
-      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
-      qty: 1 + (idx % 3),
-      image: (p as any).image,
-    }));
-  }, []);
+  const handleToggle = useCallback(() => onToggle(item.id), [onToggle, item.id]);
+  const handleInc = useCallback(() => onInc(item.id), [onInc, item.id]);
+  const handleDec = useCallback(() => onDec(item.id), [onDec, item.id]);
+  const handleRemove = useCallback(() => onRemove(item.id), [onRemove, item.id]);
 
-  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
+  return (
+    <View style={styles.itemCard}>
+      <View style={styles.itemTop}>
+        <Pressable
+          onPress={handleToggle}
+          hitSlop={10}
+          style={[styles.checkbox, checked ? styles.checkboxChecked : styles.checkboxUnchecked]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked }}
+          accessibilityLabel={checked ? "Item selecionado" : "Item não selecionado"}
+        >
+          {checked ? <Icon name="check" size={14} color="#fff" /> : null}
+        </Pressable>
 
-  // Se o contexto expuser itens, tentamos refletir (sem depender do formato exato)
-  useEffect(() => {
-    const ctxItems = cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null;
-    if (!ctxItems) return;
+        <ProductThumb image={item.image} />
 
-    if (Array.isArray(ctxItems)) {
-      const mapped: Row[] = ctxItems
-        .map((it: any) => {
-          const p = it?.product ?? it;
-          const qty = it?.qty ?? it?.quantity ?? 1;
-          const id = p?.id ?? it?.id ?? it?.productId;
-          if (!id) return null;
+        <View style={styles.itemInfo}>
+          <ThemedText numberOfLines={2} ellipsizeMode="tail" style={styles.itemTitle}>
+            {item.title}
+          </ThemedText>
 
-          return {
-            type: "cart",
-            id: String(id),
-            title: String(p?.title ?? it?.title ?? "Produto"),
-            price: Number(p?.price ?? it?.price ?? 0),
-            oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
-            qty: Math.max(1, Number(qty ?? 1)),
-            image: p?.image ?? it?.image,
-          } as Row;
-        })
-        .filter(Boolean) as Row[];
-
-      if (mapped.length) setLocalRows(mapped);
-      return;
-    }
-
-    if (typeof ctxItems === "object") {
-      const mapped: Row[] = Object.keys(ctxItems).map((id) => {
-        const qty = Number((ctxItems as any)[id] ?? 1);
-        const p = (products as Product[]).find((x) => String(x.id) === String(id));
-        return {
-          type: "cart",
-          id: String(id),
-          title: String(p?.title ?? "Produto"),
-          price: Number(p?.price ?? 0),
-          qty: Math.max(1, qty),
-          image: (p as any)?.image,
-        };
-      });
-      if (mapped.length) setLocalRows(mapped);
-    }
-  }, [cartCtx, seededRows]);
-
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const next: Record<string, boolean> = {};
-    for (const r of localRows) next[r.id] = true;
-    setSelected(next);
-  }, [localRows]);
-
-  function toProduct(row: Row): Product {
-    const p = (products as Product[]).find((x) => x.id === row.id);
-    return (
-      p ?? {
-        id: row.id,
-        title: row.title,
-        price: row.price,
-        category: "",
-        image: row.image ?? "",
-      }
-    );
-  }
-
-  function toggleSelect(id: string) {
-    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
-
-  function safeAdd(product: Product) {
-    const any = cartCtx as any;
-    const fn =
-      any?.addItem?.bind(any) ||
-      any?.add?.bind(any) ||
-      any?.addToCart?.bind(any) ||
-      any?.increase?.bind(any) ||
-      any?.increment?.bind(any);
-
-    if (fn) {
-      fn(product, 1);
-      return;
-    }
-
-    setLocalRows((prev) => prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)));
-  }
-
-  function safeDec(product: Product) {
-    const any = cartCtx as any;
-    const fn =
-      any?.decItem?.bind(any) ||
-      any?.decrease?.bind(any) ||
-      any?.dec?.bind(any) ||
-      any?.decrement?.bind(any) ||
-      any?.removeOne?.bind(any);
-
-    if (fn) {
-      fn(product, 1);
-      return;
-    }
-
-    setLocalRows((prev) =>
-      prev
-        .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
-        .filter((r) => r.qty > 0)
-    );
-  }
-
-  function safeRemove(product: Product) {
-    const any = cartCtx as any;
-    const fn =
-      any?.removeItem?.bind(any) ||
-      any?.remove?.bind(any) ||
-      any?.removeFromCart?.bind(any) ||
-      any?.deleteItem?.bind(any) ||
-      any?.clearItem?.bind(any);
-
-    if (fn) {
-      fn(product.id);
-      return;
-    }
-
-    setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
-  }
-
-  const selectedSubtotal = useMemo(() => {
-    return localRows.reduce((acc, r) => {
-      if (!selected[r.id]) return acc;
-      return acc + r.price * r.qty;
-    }, 0);
-  }, [localRows, selected]);
-
-  const sections: CartSection[] = useMemo(() => {
-    return [
-      {
-        title: "Produtos",
-        data: localRows,
-      },
-    ];
-  }, [localRows]);
-
-  const renderRow = ({ item }: { item: Row }) => {
-    const isChecked = !!selected[item.id];
-    const product = toProduct(item);
-
-    return (
-      <View style={styles.itemCard}>
-        <View style={styles.itemTop}>
-          <Pressable
-            onPress={() => toggleSelect(item.id)}
-            hitSlop={10}
-            style={[styles.checkbox, isChecked ? styles.checkboxChecked : styles.checkboxUnchecked]}
-            accessibilityRole="button"
-            accessibilityLabel={isChecked ? "Desmarcar item" : "Marcar item"}
-          >
-            {isChecked ? <View style={styles.checkboxDot} /> : null}
-          </Pressable>
-
-          <ProductThumb image={item.image} />
-
-          <View style={styles.itemInfo}>
-            <ThemedText numberOfLines={2} style={styles.itemTitle}>
-              {item.title}
+          <View style={styles.priceRow}>
+            <ThemedText numberOfLines={1} ellipsizeMode="tail" style={styles.price}>
+              {formatCurrency(item.price)}
             </ThemedText>
-
-            <View style={styles.priceRow}>
-              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
-              <ThemedText style={styles.unit}> / un</ThemedText>
-            </View>
-
-            {item.oldPrice ? (
-              <ThemedText style={styles.oldPrice}>{formatCurrency(item.oldPrice)}</ThemedText>
-            ) : null}
+            <ThemedText numberOfLines={1} style={styles.unit}>
+              {" "}
+              / un
+            </ThemedText>
           </View>
+
+          {item.oldPrice ? (
+            <ThemedText numberOfLines={1} ellipsizeMode="tail" style={styles.oldPrice}>
+              {formatCurrency(item.oldPrice)}
+            </ThemedText>
+          ) : null}
         </View>
+      </View>
 
-        <View style={styles.qtyRow}>
-          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
-            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
-          </Pressable>
+      <View style={styles.qtyRow}>
+        <Pressable
+          onPress={handleDec}
+          style={styles.qtyBtn}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Diminuir quantidade"
+        >
+          <ThemedText style={styles.qtyBtnText}>−</ThemedText>
+        </Pressable>
 
-          <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+        <ThemedText style={styles.qtyText} numberOfLines={1}>
+          {item.qty}
+        </ThemedText>
 
-          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10} accessibilityRole="button">
-            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
-          </Pressable>
+        <Pressable
+          onPress={handleInc}
+          style={styles.qtyBtn}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Aumentar quantidade"
+        >
+          <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+        </Pressable>
+
+        <View style={styles.rowRight}>
+          <ThemedText style={styles.rowTotal} numberOfLines={1} ellipsizeMode="tail">
+            {formatCurrency(item.price * item.qty)}
+          </ThemedText>
 
           <Pressable
-            onPress={() => safeRemove(product)}
+            onPress={handleRemove}
             hitSlop={10}
             accessibilityRole="button"
-            style={{ marginLeft: "auto" }}
+            accessibilityLabel="Remover item"
+            style={styles.removeBtn}
           >
-            <ThemedText style={styles.remove}>✕</ThemedText>
+            <Icon name="trash" size={16} color={theme.colors.muted} />
           </Pressable>
         </View>
       </View>
-    );
-  };
+    </View>
+  );
+});
 
-  const goCheckout = () => {
+export default function CartTab() {
+  const insets = useSafeAreaInsets();
+
+  const cart = useCart();
+  const ffTracking = Boolean((flags as any).ff_cart_tracking_v21);
+
+  const items = useMemo(() => {
+    const src = (cart as any)?.items ?? [];
+    return Array.isArray(src) ? src : [];
+  }, [cart]);
+
+  // Normaliza em Row, sem mocks (profissional)
+  const rows = useMemo<Row[]>(() => {
+    return items
+      .map((it: any) => {
+        const p = it?.product ?? it;
+        const id = String(it?.id ?? p?.id ?? "");
+        if (!id) return null;
+
+        return {
+          type: "cart",
+          id,
+          title: String(it?.title ?? p?.title ?? "Produto"),
+          price: n(it?.price ?? p?.price ?? 0),
+          oldPrice: p?.oldPrice ? n(p.oldPrice) : undefined,
+          qty: clampQty(it?.qty ?? it?.quantity ?? 1),
+          image: String(it?.image ?? p?.image ?? ""),
+        } as Row;
+      })
+      .filter(Boolean) as Row[];
+  }, [items]);
+
+  const hasCart = rows.length > 0;
+
+  // seleção
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const r of rows) if (next[r.id] == null) next[r.id] = true;
+      for (const k of Object.keys(next)) if (!rows.some((r) => r.id === k)) delete next[k];
+      return next;
+    });
+  }, [rows]);
+
+  const allSelected = useMemo(() => hasCart && rows.every((r) => selected[r.id]), [hasCart, rows, selected]);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected(() => {
+      const next: Record<string, boolean> = {};
+      const to = !allSelected;
+      for (const r of rows) next[r.id] = to;
+      return next;
+    });
+  }, [allSelected, rows]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  // Cupom (mock)
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponMsg, setCouponMsg] = useState<string>("");
+
+  const applyCoupon = useCallback(() => {
+    const code = String(couponInput ?? "").trim().toUpperCase();
+    if (!code) {
+      setCouponMsg("Digite um cupom.");
+      return;
+    }
+    if (code !== COUPON.code) {
+      setAppliedCoupon(null);
+      setCouponMsg("Cupom inválido.");
+      if (ffTracking) trackSafe("cart_coupon_invalid", { code });
+      return;
+    }
+    setAppliedCoupon(COUPON);
+    setCouponMsg(`Cupom aplicado: ${COUPON.code} (${COUPON.label})`);
+    if (ffTracking) trackSafe("cart_apply_coupon", { code: COUPON.code });
+  }, [couponInput, ffTracking]);
+
+  const clearCoupon = useCallback(() => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponMsg("");
+    if (ffTracking) trackSafe("cart_remove_coupon");
+  }, [ffTracking]);
+
+  // pricing (resumo)
+  const pricing = useMemo(() => {
+    return computeCartPricing({
+      rows: rows.map((r) => ({ id: r.id, price: r.price, qty: r.qty })),
+      selectedById: selected,
+      coupon: appliedCoupon as any,
+      shippingMethod: "delivery",
+      cep8: "",
+      freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+      estimateShipping: () => estimateShippingMock(),
+      protectionById: {},
+      buildProtectionPlans: () => [],
+      calcUnitWithProductDiscount: (unit) => unit,
+    });
+  }, [appliedCoupon, rows, selected]);
+
+  // throttle de qty (evita rage tap e rerender excessivo)
+  const lastActRef = useRef<Record<string, number>>({});
+  const canAct = useCallback((key: string, ms = 140) => {
+    const now = Date.now();
+    const last = lastActRef.current[key] ?? 0;
+    if (now - last < ms) return false;
+    lastActRef.current[key] = now;
+    return true;
+  }, []);
+
+  // Toast undo remove
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const undoRef = useRef<null | (() => void)>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hideToast = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = null;
+    setToastVisible(false);
+    undoRef.current = null;
+  }, []);
+
+  const showUndoToast = useCallback((message: string, onUndo: () => void) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    undoRef.current = onUndo;
+    setToastMsg(message);
+    setToastVisible(true);
+    toastTimerRef.current = setTimeout(() => {
+      setToastVisible(false);
+      toastTimerRef.current = null;
+      undoRef.current = null;
+    }, 5200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const onInc = useCallback(
+    (id: string) => {
+      if (!canAct(`inc:${id}`)) return;
+      (cart as any)?.increment?.(id);
+      if (ffTracking) trackSafe("cart_increment_qty", { id });
+    },
+    [canAct, cart, ffTracking]
+  );
+
+  const onDec = useCallback(
+    (id: string) => {
+      if (!canAct(`dec:${id}`)) return;
+      (cart as any)?.decrement?.(id);
+      if (ffTracking) trackSafe("cart_decrement_qty", { id });
+    },
+    [canAct, cart, ffTracking]
+  );
+
+  const onRemove = useCallback(
+    (id: string) => {
+      const snapshot = rows.find((r) => r.id === id);
+      if (!snapshot) return;
+
+      (cart as any)?.remove?.(id);
+      if (ffTracking) trackSafe("cart_remove_item", { id });
+
+      showUndoToast("Item removido.", () => {
+        (cart as any)?.add?.(
+          {
+            id: snapshot.id,
+            title: snapshot.title,
+            price: snapshot.price,
+            qty: snapshot.qty,
+            image: snapshot.image,
+          },
+          snapshot.qty
+        );
+        if (ffTracking) trackSafe("cart_undo_remove", { id });
+        hideToast();
+      });
+    },
+    [cart, ffTracking, hideToast, rows, showUndoToast]
+  );
+
+  const sections: CartSection[] = useMemo(() => [{ title: "Produtos", data: rows }], [rows]);
+
+  const goCheckout = useCallback(() => {
+    if (ffTracking) trackSafe("checkout_start", { from: "cart" });
     router.push("/checkout" as any);
-  };
+  }, [ffTracking]);
+
+  // Empty state (sem mexer no rodapé)
+  const ListHeader = useMemo(() => {
+    if (hasCart) return null;
+    return (
+      <ThemedView style={styles.emptyCard}>
+        <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
+        <ThemedText style={styles.emptySub} numberOfLines={2} ellipsizeMode="tail">
+          Adicione produtos para continuar.
+        </ThemedText>
+        <Pressable
+          onPress={() => router.push("/" as any)}
+          style={styles.emptyCta}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar às compras"
+        >
+          <ThemedText style={styles.emptyCtaText}>Voltar às compras</ThemedText>
+        </Pressable>
+      </ThemedView>
+    );
+  }, [hasCart]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
-            <ThemedText style={styles.backIcon}>←</ThemedText>
+          <View style={styles.headerLeft}>
+            <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+              <Icon name="chevron.left" size={20} color={theme.colors.text} />
+            </Pressable>
+
+            <ThemedText style={styles.title}>Carrinho</ThemedText>
+          </View>
+
+          <Pressable
+            onPress={toggleSelectAll}
+            hitSlop={10}
+            style={styles.selectAllBtn}
+            accessibilityRole="button"
+            accessibilityLabel={allSelected ? "Desmarcar todos" : "Selecionar todos"}
+          >
+            <ThemedText style={styles.selectAllText}>{allSelected ? "Desmarcar" : "Selecionar"}</ThemedText>
           </Pressable>
-
-          <ThemedText style={styles.title}>Carrinho</ThemedText>
-
-          <View style={styles.rightSpacer} />
         </View>
 
         <SectionList
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           sections={sections}
           keyExtractor={(it) => `${it.type}-${it.id}`}
-          renderItem={renderRow}
+          renderItem={({ item }) => (
+            <CartRowItem
+              item={item}
+              checked={Boolean(selected[item.id])}
+              onToggle={toggleSelect}
+              onInc={onInc}
+              onDec={onDec}
+              onRemove={onRemove}
+            />
+          )}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionHeaderText}>{section.title.toUpperCase()}</ThemedText>
@@ -304,20 +446,110 @@ export default function CartTab() {
           )}
           stickySectionHeadersEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 160 }}
+          ListHeaderComponent={ListHeader}
+          contentContainerStyle={{ paddingBottom: 170 + insets.bottom + TABBAR_HEIGHT }}
         />
 
-        {/* Rodapé fixo: TOTAL embaixo + botão */}
-        <View style={styles.footerBar}>
+        {/* Rodapé fixo: progress frete + cupom + resumo + CTA (sem esconder TabBar) */}
+        <View style={[styles.footerBar, { bottom: Math.max(10, insets.bottom + TABBAR_HEIGHT * 0.35) }]}>
+          {hasCart ? (
+            <ThemedView style={styles.nudgeBox}>
+              <ThemedText style={styles.nudgeText} numberOfLines={2} ellipsizeMode="tail">
+                {pricing.freeShippingProgress.reached
+                  ? "Você ganhou frete grátis"
+                  : `Falta ${formatCurrency(pricing.freeShippingProgress.remaining)} para frete grátis`}
+              </ThemedText>
+            </ThemedView>
+          ) : null}
+
+          <ThemedView style={styles.couponBox}>
+            <Pressable
+              onPress={() => setCouponOpen((v) => !v)}
+              style={styles.couponHeader}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir cupom"
+            >
+              <ThemedText style={styles.couponTitle}>Cupom</ThemedText>
+              <Icon name={couponOpen ? "chevron.down" : "chevron.right"} size={16} color={theme.colors.muted} />
+            </Pressable>
+
+            {couponOpen ? (
+              <View style={styles.couponRow}>
+                <TextInput
+                  value={couponInput}
+                  onChangeText={setCouponInput}
+                  placeholder="Ex: PLUGAI10"
+                  placeholderTextColor={theme.colors.muted}
+                  autoCapitalize="characters"
+                  style={styles.couponInput}
+                  returnKeyType="done"
+                />
+
+                {appliedCoupon ? (
+                  <Pressable onPress={clearCoupon} style={styles.couponBtn} accessibilityRole="button">
+                    <ThemedText style={styles.couponBtnText}>Remover</ThemedText>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={applyCoupon} style={styles.couponBtn} accessibilityRole="button">
+                    <ThemedText style={styles.couponBtnText}>Aplicar</ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
+
+            {couponMsg ? (
+              <ThemedText style={styles.couponMsg} numberOfLines={2} ellipsizeMode="tail">
+                {couponMsg}
+              </ThemedText>
+            ) : null}
+          </ThemedView>
+
           <View style={styles.totalBox}>
-            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
-            <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+            <View style={{ flex: 1 }}>
+              <View style={styles.summaryRow}>
+                <ThemedText style={styles.summaryLabel}>Subtotal</ThemedText>
+                <ThemedText style={styles.summaryValue}>{formatCurrency(pricing.subtotalSelected)}</ThemedText>
+              </View>
+              <View style={styles.summaryRow}>
+                <ThemedText style={styles.summaryLabel}>Desconto</ThemedText>
+                <ThemedText style={styles.summaryValue}>
+                  {pricing.discountTotal > 0 ? `- ${formatCurrency(pricing.discountTotal)}` : "—"}
+                </ThemedText>
+              </View>
+              <View style={styles.summaryRow}>
+                <ThemedText style={styles.summaryLabel}>Frete</ThemedText>
+                <ThemedText style={styles.summaryValue}>
+                  {pricing.shippingEstimated === 0 ? "Grátis" : formatCurrency(pricing.shippingEstimated)}
+                </ThemedText>
+              </View>
+
+              <View style={styles.summaryDivider} />
+
+              <View style={styles.summaryTotalRow}>
+                <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+                <ThemedText style={styles.totalValue}>{formatCurrency(pricing.total)}</ThemedText>
+              </View>
+            </View>
           </View>
 
-          <Pressable onPress={goCheckout} style={styles.footerBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goCheckout}
+            style={[styles.footerBtn, !hasCart && styles.footerBtnDisabled]}
+            disabled={!hasCart}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.footerBtnText}>CONTINUAR A COMPRA</ThemedText>
           </Pressable>
         </View>
+
+        <Toast
+          visible={toastVisible}
+          message={toastMsg}
+          actionLabel="Desfazer"
+          onAction={() => undoRef.current?.()}
+          onDismiss={hideToast}
+          bottomOffset={insets.bottom + TABBAR_HEIGHT + 8}
+        />
       </ThemedView>
     </SafeAreaView>
   );
@@ -340,6 +572,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+
   backBtn: {
     width: 40,
     height: 40,
@@ -347,16 +581,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
 
   title: {
     fontSize: 24,
     fontFamily: FONT_TITLE,
     fontWeight: "700",
-    textAlign: "center",
   },
 
-  rightSpacer: { width: 40, height: 40 },
+  selectAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  selectAllText: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
 
   // PRODUTOS fixo (sticky) e sempre visível
   sectionHeader: {
@@ -379,9 +619,9 @@ const styles = StyleSheet.create({
   itemTop: { flexDirection: "row", gap: 10 },
 
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -389,7 +629,6 @@ const styles = StyleSheet.create({
   },
   checkboxUnchecked: { borderColor: theme.colors.divider, backgroundColor: theme.colors.surface },
   checkboxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
-  checkboxDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: "#fff" },
 
   itemImage: {
     borderRadius: 12,
@@ -419,48 +658,126 @@ const styles = StyleSheet.create({
   },
 
   qtyBtn: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.colors.divider,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: theme.colors.background,
   },
-  qtyBtnText: { fontSize: 15, fontFamily: FONT_BODY_BOLD },
+  qtyBtnText: { fontSize: 16, fontFamily: FONT_BODY_BOLD },
 
   qtyText: { fontSize: 11, fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
 
-  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+  rowRight: { marginLeft: "auto", alignItems: "flex-end", gap: 6 },
+  rowTotal: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.95 },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+  },
 
-  // Rodapé: TOTAL + CTA
+  // Empty
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 12,
+    marginBottom: 12,
+  },
+  emptyTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 14, color: theme.colors.text },
+  emptySub: { fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted, marginTop: 6 },
+  emptyCta: {
+    marginTop: 12,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyCtaText: { fontFamily: FONT_BODY_BOLD, fontSize: 13, color: "#fff" },
+
+  // Footer
   footerBar: {
     position: "absolute",
     left: 14,
     right: 14,
-    bottom: 10,
     gap: 8,
   },
 
+  nudgeBox: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  nudgeText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.text },
+
+  couponBox: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 10,
+  },
+  couponHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  couponTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: theme.colors.text },
+  couponRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  couponInput: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.background,
+    color: theme.colors.text,
+    fontFamily: FONT_BODY,
+    fontSize: 12,
+  },
+  couponBtn: {
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  couponBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 12, color: "#fff" },
+  couponMsg: { marginTop: 8, fontFamily: FONT_BODY, fontSize: 12, color: theme.colors.muted },
+
   totalBox: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: TOTAL_ORANGE,
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
   },
+  summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  summaryLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000", opacity: 0.9 },
+  summaryValue: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  summaryDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.18)", marginVertical: 8 },
+  summaryTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
   footerBtn: {
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#3F5A3A",
+    backgroundColor: CTA_GREEN,
     alignItems: "center",
     justifyContent: "center",
   },
+  footerBtnDisabled: { opacity: 0.5 },
   footerBtnText: {
     fontSize: 16,
     fontFamily: FONT_BODY_BOLD,

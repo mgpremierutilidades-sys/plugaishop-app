@@ -1,3 +1,4 @@
+// tsconfig.json
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
@@ -16,10 +17,21 @@
     "node_modules",
     "scripts/ai/_stash_routes/**",
     "scripts/ai/_out/**",
-    "context/**",
     "tools/maxximus-orchestrator/data/**",
     "dist-web/**",
     "android/**",
-    ".expo/**"
+    ".expo/**",
+    "backup_patch_*/**",
+
+    // ✅ Complemento: NÃO compilar arquivos temporários de diagnóstico/diff
+    "_HEAD_*.ts",
+    "_HEAD_*.tsx",
+    "**/_HEAD_*.ts",
+    "**/_HEAD_*.tsx",
+
+    // ✅ Complemento: pastas comuns de build/cache (evita ruído)
+    "dist/**",
+    "build/**",
+    "coverage/**"
   ]
 }
