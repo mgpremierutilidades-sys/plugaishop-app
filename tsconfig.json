@@ -11,5 +11,18 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+<<<<<<< Updated upstream
   "exclude": ["node_modules"]
+=======
+  "exclude": [
+    "node_modules",
+    "scripts/ai/_stash_routes/**",
+    "scripts/ai/_out/**",
+    "tools/maxximus-orchestrator/data/**",
+    "dist-web/**",
+    "android/**",
+    ".expo/**",
+    "backup_patch_*/**"
+  ]
+>>>>>>> Stashed changes
 }
