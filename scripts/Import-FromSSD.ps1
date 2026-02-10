@@ -36,9 +36,11 @@ function Get-Git([string]$repoPath, [string[]]$gitArgs) {
   try {
     $out = & git @gitArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
-      throw "Falha: git $($gitArgs -join ' ')`n$out"
+      $outStr = ($out | Out-String)
+      throw "Falha: git $($gitArgs -join ' ')`n$outStr"
     }
-    return $out
+    # garante string mesmo quando não há saída
+    return ($out | Out-String)
   } finally {
     Pop-Location
   }
@@ -54,7 +56,8 @@ Write-Host "==> Repo SSD:     $ExternalRepoPath"
 Write-Host "==> Repo Notebook:$TargetRepoPath"
 
 # A) Se SSD tem alterações locais, stasha (inclui untracked)
-$extStatus = (Get-Git $ExternalRepoPath @("status","--porcelain")).Trim()
+$extStatus = (Get-Git $ExternalRepoPath @("status","--porcelain"))
+$extStatus = ($extStatus ?? "").Trim()
 if ($extStatus.Length -gt 0) {
   $stashName = "auto-stash-import-" + (Timestamp)
   Write-Host "==> SSD com alterações locais. Criando stash: $stashName"
@@ -72,7 +75,8 @@ Write-Host "==> Gerando bundle: $bundle"
 Run-Git $ExternalRepoPath @("bundle","create",$bundle,"--all") | Out-Null
 
 # C) Garante destino limpo para merge previsível
-$dstStatus = (Get-Git $TargetRepoPath @("status","--porcelain")).Trim()
+$dstStatus = (Get-Git $TargetRepoPath @("status","--porcelain"))
+$dstStatus = ($dstStatus ?? "").Trim()
 if ($dstStatus.Length -gt 0) {
   throw "Repo do notebook NÃO está limpo. Commite/stashe ou limpe antes de importar. (git status)"
 }
@@ -80,7 +84,12 @@ if ($dstStatus.Length -gt 0) {
 Write-Host "==> Fetch do bundle como remote 'ssd/*'..."
 Run-Git $TargetRepoPath @("fetch",$bundle,"refs/*:refs/remotes/ssd/*") | Out-Null
 
-$ssdHead = (Get-Git $TargetRepoPath @("rev-parse","ssd/HEAD")).Trim()
+$ssdHead = (Get-Git $TargetRepoPath @("rev-parse","ssd/HEAD"))
+$ssdHead = ($ssdHead ?? "").Trim()
+if ([string]::IsNullOrWhiteSpace($ssdHead)) {
+  throw "Não consegui resolver ssd/HEAD após fetch. Algo deu errado no fetch do bundle."
+}
+
 $importBranch = "import/ssd-" + (Timestamp)
 
 Write-Host "==> Criando branch de import: $importBranch"
@@ -89,8 +98,11 @@ Run-Git $TargetRepoPath @("checkout","-b",$importBranch,$ssdHead) | Out-Null
 # Detecta branch padrão (origin/HEAD -> main/master)
 $defaultBranch = "main"
 try {
-  $originHead = (Get-Git $TargetRepoPath @("symbolic-ref","refs/remotes/origin/HEAD")).Trim()
-  $defaultBranch = ($originHead -split "/")[-1]
+  $originHead = (Get-Git $TargetRepoPath @("symbolic-ref","refs/remotes/origin/HEAD"))
+  $originHead = ($originHead ?? "").Trim()
+  if ($originHead.Length -gt 0) {
+    $defaultBranch = ($originHead -split "/")[-1]
+  }
 } catch {}
 
 Write-Host "==> Voltando para branch padrão: $defaultBranch"
@@ -113,4 +125,5 @@ try {
 
 Write-Host ""
 Write-Host "✅ Import concluído."
-Write-Host "Se o SSD tinha stash, ele veio junto. Veja com: git stash list"
+Write-Host "Stashes disponíveis (incluindo o do SSD, se existia):"
+Run-Git $TargetRepoPath @("stash","list") | Out-Null
