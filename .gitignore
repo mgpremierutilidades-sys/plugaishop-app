@@ -41,3 +41,24 @@ app-example
 # generated native folders
 /ios
 /android
+<<<<<<< HEAD
+=======
+
+node_modules/
+_backup_*/
+.expo/
+dist/
+build/
+
+# artifacts
+*.zip
+
+# artifacts
+*.zip
+
+# chatgpt automation
+_chatgpt_inbox/
+_chatgpt_outbox/
+scripts/chatgpt/
+*.zip
+>>>>>>> 31c4abd (chore: update gitignore and add isolated structure notes)

@@ -1,0 +1,25 @@
+D:\NEXUS_SANDBOX\                    ← RAÍZ ISOLADA DO PROJETO
+├── TEMPORARY_WORKSPACE\             # Área de trabalho temporária
+│   ├── INBOX\                       # Arquivos recebidos para processamento
+│   ├── PROCESSING\                  # Em processamento (volátil)
+│   └── OUTBOX\                      # Resultados prontos para coleta
+│
+├── CACHE_CONTROL\                   # Controle de cache e logs
+│   ├── PROCESS_LOGS\                # Logs detalhados de execução
+│   ├── METADATA_STORE\              # Metadados dos arquivos processados
+│   └── SESSION_HISTORY\             # Histórico de sessões
+│
+├── CHATGPT_EXPORT\                  # Exclusivo para saída ChatGPT
+│   ├── PACKAGES_READY\              # Pacotes otimizados < 100MB
+│   ├── REPORTS\                     # Relatórios de análise
+│   └── INSTRUCTIONS\                # Instruções específicas
+│
+├── NEXUS_SCRIPTS\                   # Scripts Nexus (somente leitura)
+│   ├── CORE_MODULES\                # Módulos principais
+│   ├── ADAPTATION_ENGINES\          # Motores de adaptação
+│   └── UTILITIES\                   # Utilitários
+│
+└── SECURE_VAULT\                    # Cofre seguro (criptografado)
+    ├── PROJECT_SNAPSHOTS\           # Snapshots de projeto
+    ├── ANALYSIS_RESULTS\            # Resultados de análise
+    └── BACKUP_KEYS\                 # Chaves e configurações
