@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
@@ -15,7 +15,14 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 
+import { track } from "../../utils/analytics";
+
 const FF_HOME_ACHADINHOS = process.env.EXPO_PUBLIC_FF_HOME_ACHADINHOS === "1";
+
+// ✅ Guards definitivos (persistem enquanto o app estiver rodando)
+let HOME_VIEW_TRACKED = false;
+let ACHADINHOS_VIEW_TRACKED = false;
+let ACHADINHOS_SCROLL_TRACKED = false;
 
 export default function HomeScreen() {
   useCheckoutFailSafe();
@@ -25,6 +32,15 @@ export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof categories)[number]>("Todos");
+
+  // throttle de busca (não precisa ser “global”)
+  const lastSearchTrackTs = useRef(0);
+
+  useEffect(() => {
+    if (HOME_VIEW_TRACKED) return;
+    HOME_VIEW_TRACKED = true;
+    track("home_view", { screen: "home" });
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -42,11 +58,41 @@ export default function HomeScreen() {
   }, [query, selectedCategory]);
 
   const achadinhos = useMemo(() => {
-    // seleção determinística (sem random) pra não “piscar” em re-render
     const withBadge = products.filter((p) => Boolean(p.badge));
     const base = withBadge.length > 0 ? withBadge : products;
     return base.slice(0, 10);
   }, []);
+
+  useEffect(() => {
+    if (!FF_HOME_ACHADINHOS) return;
+    if (ACHADINHOS_VIEW_TRACKED) return;
+    if (!achadinhos.length) return;
+
+    ACHADINHOS_VIEW_TRACKED = true;
+    track("home_section_view", { section: "achadinhos", itemsCount: achadinhos.length });
+  }, [achadinhos.length]);
+
+  function onChangeQuery(next: string) {
+    setQuery(next);
+
+    // throttle simples (evita spam)
+    const now = Date.now();
+    if (now - lastSearchTrackTs.current < 900) return;
+    lastSearchTrackTs.current = now;
+
+    const q = next.trim();
+    track("home_search_change", { queryLen: q.length, hasQuery: q.length > 0 });
+  }
+
+  function onSelectCategory(category: (typeof categories)[number]) {
+    setSelectedCategory(category);
+    track("home_category_select", { category });
+  }
+
+  function goProduct(productId: string, origin: "achadinhos" | "grid") {
+    track("home_product_click", { origin, productId });
+    router.push({ pathname: "/product/[id]", params: { id: productId } } as any);
+  }
 
   return (
     <>
@@ -63,8 +109,8 @@ export default function HomeScreen() {
         }
       >
         {/* ✅ DEFINITIVO:
-            - remove bloco "PLUGAISHOP" abaixo do banner
-            - remove segundo banner (heroImage) para não duplicar */}
+            - sem “PLUGAISHOP” abaixo do banner
+            - sem segundo banner duplicado */}
         <ThemedView style={styles.heroCard}>
           <View style={{ gap: 8 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
@@ -88,7 +134,7 @@ export default function HomeScreen() {
             placeholder="Buscar por categoria ou produto"
             placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={onChangeQuery}
             style={[
               styles.searchInput,
               {
@@ -99,18 +145,14 @@ export default function HomeScreen() {
             ]}
           />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
 
               return (
                 <Pressable
                   key={category}
-                  onPress={() => setSelectedCategory(category)}
+                  onPress={() => onSelectCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
                   <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
@@ -122,9 +164,7 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
-        {/* =========================
-            Etapa 2 — Achadinhos do Dia (FLAG)
-           ========================= */}
+        {/* Etapa 2 — Achadinhos (FLAG) + Etapa 3 métricas */}
         {FF_HOME_ACHADINHOS && achadinhos.length > 0 ? (
           <ThemedView style={styles.achadinhosSection}>
             <View style={styles.achadinhosHeader}>
@@ -132,20 +172,23 @@ export default function HomeScreen() {
               <ThemedText style={styles.achadinhosHint}>Toque para ver detalhes</ThemedText>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              onScrollBeginDrag={() => {
+                if (ACHADINHOS_SCROLL_TRACKED) return;
+                ACHADINHOS_SCROLL_TRACKED = true;
+                track("home_achadinhos_scroll", { itemsCount: achadinhos.length });
+              }}
+            >
               {achadinhos.map((product) => (
-                <Link
+                <Pressable
                   key={product.id}
-                  href={{
-                    pathname: "/product/[id]",
-                    params: { id: String(product.id) },
-                  }}
-                  asChild
+                  style={styles.achadinhoItem}
+                  onPress={() => goProduct(String(product.id), "achadinhos")}
                 >
-                  <Pressable style={styles.achadinhoItem}>
-                    <ProductCard product={product} />
-                  </Pressable>
-                </Link>
+                  <ProductCard product={product} />
+                </Pressable>
               ))}
             </ScrollView>
           </ThemedView>
@@ -153,7 +196,9 @@ export default function HomeScreen() {
 
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <Pressable key={product.id} onPress={() => goProduct(String(product.id), "grid")}>
+              <ProductCard product={product} />
+            </Pressable>
           ))}
 
           {filteredProducts.length === 0 ? (
