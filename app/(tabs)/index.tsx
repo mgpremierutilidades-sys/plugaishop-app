@@ -15,11 +15,10 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 
-export default function HomeScreen() {
-  // retoma checkout se existir draft pendente
-  useCheckoutFailSafe();
+const FF_HOME_ACHADINHOS = process.env.EXPO_PUBLIC_FF_HOME_ACHADINHOS === "1";
 
-  // tenta enviar fila quando abrir o app
+export default function HomeScreen() {
+  useCheckoutFailSafe();
   useOutboxAutoFlush();
 
   const colorScheme = useColorScheme() ?? "light";
@@ -42,9 +41,14 @@ export default function HomeScreen() {
     });
   }, [query, selectedCategory]);
 
+  const achadinhos = useMemo(() => {
+    const withBadge = products.filter((p) => Boolean(p.badge));
+    const base = withBadge.length > 0 ? withBadge : products;
+    return base.slice(0, 10);
+  }, []);
+
   return (
     <>
-      {/* ✅ iPhone: horas/bateria brancas sobre o banner */}
       <StatusBar style="light" />
 
       <ParallaxScrollView
@@ -58,7 +62,6 @@ export default function HomeScreen() {
         }
       >
         <ThemedView style={styles.titleContainer}>
-          {/* ✅ nome correto, sem acento */}
           <ThemedText type="title">PLUGAISHOP</ThemedText>
           <ThemedText type="defaultSemiBold">
             Soluções curadas para acelerar a operação e o varejo inteligente.
@@ -80,8 +83,6 @@ export default function HomeScreen() {
             </Link>
           </View>
 
-          {/* ✅ Remove o “banner miniatura” repetido:
-              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
           <Image
             source={require("../../assets/banners/banner-splash.png")}
             style={styles.heroImage}
@@ -106,11 +107,7 @@ export default function HomeScreen() {
             ]}
           />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
 
@@ -128,6 +125,29 @@ export default function HomeScreen() {
             })}
           </ScrollView>
         </ThemedView>
+
+        {FF_HOME_ACHADINHOS && achadinhos.length > 0 ? (
+          <ThemedView style={styles.achadinhosSection}>
+            <View style={styles.achadinhosHeader}>
+              <ThemedText type="subtitle">Achadinhos do Dia</ThemedText>
+              <ThemedText style={styles.achadinhosHint}>Toque para ver detalhes</ThemedText>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {achadinhos.map((product) => (
+                <Link
+                  key={product.id}
+                  href={{ pathname: "/product/[id]", params: { id: product.id } }}
+                  asChild
+                >
+                  <Pressable style={styles.achadinhoItem}>
+                    <ProductCard product={product} />
+                  </Pressable>
+                </Link>
+              ))}
+            </ScrollView>
+          </ThemedView>
+        ) : null}
 
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
@@ -151,11 +171,7 @@ export default function HomeScreen() {
             </Link.Trigger>
             <Link.Preview />
             <Link.Menu>
-              <Link.MenuAction
-                title="Solicitar demo"
-                icon="cube"
-                onPress={() => alert("Demo")}
-              />
+              <Link.MenuAction title="Solicitar demo" icon="cube" onPress={() => alert("Demo")} />
               <Link.MenuAction
                 title="Compartilhar"
                 icon="square.and.arrow.up"
@@ -178,11 +194,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    gap: 8,
-    marginBottom: 12,
-  },
-
+  titleContainer: { gap: 8, marginBottom: 12 },
   heroCard: {
     flexDirection: "row",
     gap: 12,
@@ -191,14 +203,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
   },
-
-  heroImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 18,
-    backgroundColor: "#0E1720",
-  },
-
+  heroImage: { width: 96, height: 96, borderRadius: 18, backgroundColor: "#0E1720" },
   cta: {
     marginTop: 8,
     backgroundColor: "#0a7ea4",
@@ -206,12 +211,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
   },
-
-  searchSection: {
-    gap: 12,
-    marginTop: 16,
-  },
-
+  searchSection: { gap: 12, marginTop: 16 },
   searchInput: {
     width: "100%",
     borderWidth: 1,
@@ -219,11 +219,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
   },
-
-  chipRow: {
-    flexGrow: 0,
-  },
-
+  chipRow: { flexGrow: 0 },
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -232,29 +228,17 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
     marginRight: 8,
   },
-
-  chipSelected: {
-    backgroundColor: "#0a7ea4",
-    borderColor: "#0a7ea4",
+  chipSelected: { backgroundColor: "#0a7ea4", borderColor: "#0a7ea4" },
+  chipSelectedText: { color: "#fff" },
+  grid: { marginTop: 16, gap: 12 },
+  tip: { gap: 8, marginTop: 16 },
+  headerBanner: { width: "100%", height: "100%" },
+  achadinhosSection: { marginTop: 16, gap: 10 },
+  achadinhosHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
   },
-
-  chipSelectedText: {
-    color: "#fff",
-  },
-
-  grid: {
-    marginTop: 16,
-    gap: 12,
-  },
-
-  tip: {
-    gap: 8,
-    marginTop: 16,
-  },
-
-  // ✅ Banner do Parallax: ocupa tudo (sem “quadrado”)
-  headerBanner: {
-    width: "100%",
-    height: "100%",
-  },
+  achadinhosHint: { opacity: 0.7, fontSize: 12 },
+  achadinhoItem: { width: 280, marginRight: 12 },
 });

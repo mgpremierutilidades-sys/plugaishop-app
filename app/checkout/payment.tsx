@@ -1,11 +1,11 @@
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
 
 import theme from "../../constants/theme";
 import type { OrderDraft, Payment } from "../../types/order";
-import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 import { createPayment, createPaymentPayload } from "../../utils/paymentBridge";
 
 type Method = Payment["method"];
@@ -47,9 +47,10 @@ export default function PaymentScreen() {
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [method, setMethod] = useState<Method>("pix");
 
-  // mock card fields
   const [cardNumber, setCardNumber] = useState("");
-  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">("other");
+  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">(
+    "other"
+  );
 
   useEffect(() => {
     (async () => {
@@ -63,7 +64,7 @@ export default function PaymentScreen() {
 
   const canContinue = useMemo(() => {
     if (!draft) return false;
-    if (method === "card") return cardNumber.replace(/\D/g, "").length >= 12; // mock mínimo
+    if (method === "card") return cardNumber.replace(/\D/g, "").length >= 12;
     return true;
   }, [draft, method, cardNumber]);
 
@@ -74,19 +75,17 @@ export default function PaymentScreen() {
 
     // payload mock (útil para log/integração futura)
     const last4 = cardNumber.replace(/\D/g, "").slice(-4);
-    const payload =
+    const paymentPayload =
       method === "card"
         ? createPaymentPayload("card", { last4, brand: cardBrand })
         : createPaymentPayload(method);
 
-    const next = patchOrderDraft(draft, {
-      payment,
-      // opcional: você pode guardar payload em outro lugar depois (Orders/Back-end)
-    });
+    // marca como "usado" sem efeito colateral (satisfaz eslint)
+    void paymentPayload;
+
+    const next = patchOrderDraft(draft, { payment });
 
     await saveOrderDraft(next);
-
-    // segue para revisão
     router.push("/checkout/review");
   }
 
@@ -182,9 +181,7 @@ export default function PaymentScreen() {
           opacity: canContinue ? 1 : 0.5,
         }}
       >
-        <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
-          Continuar
-        </Text>
+        <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>Continuar</Text>
       </Pressable>
     </View>
   );

@@ -4,26 +4,12 @@ import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import IconSymbol from "../../components/ui/icon-symbol";
+import { Collapsible } from "../../components/ui/collapsible";
+import IconSymbolDefault from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
-
-// Collapsible blindado
-const CollapsibleModule = require("../../components/ui/collapsible");
-const CollapsibleComp = CollapsibleModule?.default ?? CollapsibleModule?.Collapsible;
-
-const SafeCollapsible =
-  CollapsibleComp ??
-  function FallbackCollapsible(props: any) {
-    return (
-      <View>
-        {props?.title ? <View style={{ marginBottom: 8 }}>{props.title}</View> : null}
-        <View>{props?.children}</View>
-      </View>
-    );
-  };
 
 type CategoryItem = { id: string; name: string };
 
@@ -53,9 +39,6 @@ function categoryIconName(categoryName: string) {
 }
 
 export default function ExploreScreen() {
-  // ✅ status bar normal (escuro) aqui, porque o topo é claro
-  <StatusBar style="dark" />;
-
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
@@ -120,7 +103,7 @@ export default function ExploreScreen() {
                   onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
                 >
                   <View style={styles.categoryIconWrap}>
-                    <IconSymbol
+                    <IconSymbolDefault
                       name={categoryIconName(c.name)}
                       size={20}
                       color={theme.colors.primary}
@@ -142,18 +125,9 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.section}>
-          <SafeCollapsible
-            title={
-              <View style={styles.collapseTitle}>
-                <Text style={styles.collapseTitleText}>Dicas e novidades</Text>
-              </View>
-            }
-            initiallyExpanded={false}
-          >
-            <Text style={styles.helperText}>
-              Promoções, avisos e conteúdo leve podem ficar aqui.
-            </Text>
-          </SafeCollapsible>
+          <Collapsible title="Dicas e novidades">
+            <Text style={styles.helperText}>Promoções, avisos e conteúdo leve podem ficar aqui.</Text>
+          </Collapsible>
         </View>
 
         <View style={styles.section}>
@@ -185,7 +159,6 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    // ✅ “abaixa só um pouquinho” (SafeArea já faz o grosso)
     paddingTop: 6,
     paddingBottom: 10,
     flexDirection: "row",
@@ -193,7 +166,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  // ✅ mais vistoso (negrito)
   headerTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text },
 
   headerAction: {

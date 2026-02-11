@@ -1,21 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
 import { formatCurrency } from "../../utils/formatCurrency";
 import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { listOrders, getUnreadNotificationsCount } from "../../utils/ordersStore";
+import { getUnreadNotificationsCount, listOrders } from "../../utils/ordersStore";
 
 function dateLabel(isoOrAny: string) {
   if (!isoOrAny) return "";
@@ -24,7 +17,7 @@ function dateLabel(isoOrAny: string) {
   return d;
 }
 
-const FILTERS: Array<{ label: string; value: "ALL" | OrderStatus }> = [
+const FILTERS: { label: string; value: "ALL" | OrderStatus }[] = [
   { label: "Todos", value: "ALL" },
   { label: "Confirmado", value: "Confirmado" },
   { label: "Pago", value: "Pago" },
@@ -88,15 +81,12 @@ export default function OrdersIndexScreen() {
             <ThemedText style={styles.notifBtnText}>Notifs</ThemedText>
             {unread > 0 ? (
               <View style={styles.badge}>
-                <ThemedText style={styles.badgeText}>
-                  {unread > 99 ? "99+" : String(unread)}
-                </ThemedText>
+                <ThemedText style={styles.badgeText}>{unread > 99 ? "99+" : String(unread)}</ThemedText>
               </View>
             ) : null}
           </Pressable>
         </View>
 
-        {/* Busca */}
         <View style={styles.searchWrap}>
           <TextInput
             value={query}
@@ -109,12 +99,7 @@ export default function OrdersIndexScreen() {
           />
         </View>
 
-        {/* Filtros */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           {FILTERS.map((f) => {
             const active = filter === f.value;
             return (
@@ -155,10 +140,7 @@ export default function OrdersIndexScreen() {
               (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
               0
             );
-            const total = Math.max(
-              0,
-              subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0)
-            );
+            const total = Math.max(0, subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0));
             const itemCount = (o.items ?? []).reduce((a, b) => a + Number(b.qty ?? 0), 0);
 
             return (
@@ -276,7 +258,12 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
 
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Spacing.md },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
   divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 8 },
 
   status: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },

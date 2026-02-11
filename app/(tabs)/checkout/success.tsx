@@ -11,12 +11,7 @@ import { useCart } from "../../../context/CartContext";
 import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
 function normalizeCartItems(cartAny: any) {
-  const raw =
-    cartAny?.items ??
-    cartAny?.cartItems ??
-    cartAny?.cart ??
-    cartAny?.products ??
-    [];
+  const raw = cartAny?.items ?? cartAny?.cartItems ?? cartAny?.cart ?? cartAny?.products ?? [];
 
   if (!Array.isArray(raw)) return [];
 
@@ -37,7 +32,7 @@ function normalizeCartItems(cartAny: any) {
         qty: Math.max(1, Number(qty ?? 1)),
       };
     })
-    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+    .filter(Boolean) as { productId: string; qty: number; price: number; title: string }[];
 }
 
 export default function CheckoutSuccessScreen() {
@@ -58,7 +53,6 @@ export default function CheckoutSuccessScreen() {
       const items = normalizeCartItems(cartAny);
       if (!items.length) return null;
 
-      // Importante:
       // status é TÉCNICO (created/paid/...) — label "Confirmado" é só para UI.
       const order = createOrderFromCart({
         items,
@@ -208,5 +202,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
+  ghostBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 });

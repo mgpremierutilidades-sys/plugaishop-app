@@ -1,14 +1,14 @@
+import * as Clipboard from "expo-clipboard";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import * as Clipboard from "expo-clipboard";
-import { router } from "expo-router";
 
 import theme from "../../constants/theme";
-import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
 import type { OrderDraft } from "../../types/order";
-import { makePixCode, pixExpiresAt, msLeft } from "../../utils/pix";
 import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import { makePixCode, msLeft, pixExpiresAt } from "../../utils/pix";
 
 function formatMMSS(ms: number) {
   const total = Math.floor(ms / 1000);
@@ -45,7 +45,7 @@ export default function PixScreen() {
     return () => clearInterval(id);
   }, [expiresAt]);
 
-  const code = useMemo(() => (draft ? makePixCode(draft.id) : ""), [draft]);
+  const code = useMemo(() => (draft?.id ? makePixCode(draft.id) : ""), [draft]);
 
   async function handleCopy() {
     if (!code) return;

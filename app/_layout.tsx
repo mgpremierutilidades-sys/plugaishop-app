@@ -1,22 +1,21 @@
 // app/_layout.tsx
 import { Stack } from "expo-router";
 
-import GlobalChrome from "../components/global-chrome";
+import GlobalChromeDefault from "../components/global-chrome";
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: "slide_from_right",
-      }}
-    >
-      {/* Rotas reais de topo */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="orders" options={{ headerShown: false }} />
-
-      {/* Modal (se existir app/modal.tsx) */}
-      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-    </Stack>
+    <GlobalChromeDefault>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="orders" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+    </GlobalChromeDefault>
   );
 }

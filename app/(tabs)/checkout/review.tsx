@@ -52,7 +52,7 @@ export default function Review() {
 
       <Text style={{ marginTop: 6 }}>Subtotal: R$ {order.subtotal.toFixed(2)}</Text>
 
-      <Text style={{ marginTop: 6 }}>Desconto: R$ {order.discount.toFixed(2)}</Text>
+      <Text style={{ marginTop: 6 }}>Desconto: R$ {(order.discount ?? 0).toFixed(2)}</Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>Total: R$ {order.total.toFixed(2)}</Text>
 
