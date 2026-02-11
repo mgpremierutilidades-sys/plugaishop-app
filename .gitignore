@@ -91,8 +91,8 @@ scripts/ai/_stash_routes/
 
 # =========================
 # Maxximus Orchestrator
-# - Ignore everything by default (local state/reports)
-# - Keep source-of-truth files tracked
+# - Ignore everything by default
+# - Keep source-of-truth files tracked (if you want them in repo)
 # =========================
 tools/maxximus-orchestrator/**
 !tools/maxximus-orchestrator/data/
