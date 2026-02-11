@@ -16,10 +16,7 @@ import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 
 export default function HomeScreen() {
-  // retoma checkout se existir draft pendente
   useCheckoutFailSafe();
-
-  // tenta enviar fila quando abrir o app
   useOutboxAutoFlush();
 
   const colorScheme = useColorScheme() ?? "light";
@@ -33,6 +30,7 @@ export default function HomeScreen() {
     return products.filter((product) => {
       const matchesCategory =
         selectedCategory === "Todos" || product.category === selectedCategory;
+
       const matchesQuery =
         normalizedQuery.length === 0 ||
         product.name.toLowerCase().includes(normalizedQuery) ||
@@ -44,9 +42,9 @@ export default function HomeScreen() {
 
   return (
     <>
-      {/* ✅ iPhone: horas/bateria brancas sobre o banner */}
       <StatusBar style="light" />
 
+      {/* ✅ Banner do topo: intocado */}
       <ParallaxScrollView
         headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
         headerImage={
@@ -57,40 +55,46 @@ export default function HomeScreen() {
           />
         }
       >
+        {/* ✅ REMOVIDO: texto de marca duplicada abaixo do banner */}
         <ThemedView style={styles.titleContainer}>
-          {/* ✅ nome correto, sem acento */}
-          <ThemedText type="title">PLUGAISHOP</ThemedText>
-          <ThemedText type="defaultSemiBold">
+          <ThemedText type="title">Boas-vindas</ThemedText>
+          <ThemedText type="bodySmall">
             Soluções curadas para acelerar a operação e o varejo inteligente.
           </ThemedText>
         </ThemedView>
 
+        {/* ✅ Hero mais compacto e SEM usar banner-splash (evita “imagem no meio”) */}
         <ThemedView style={styles.heroCard}>
-          <View style={{ flex: 1, gap: 8 }}>
+          <View style={{ flex: 1, gap: 6 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
-            <ThemedText>
-              Combine iluminação, organização e sinalização para deixar seu ponto de
-              venda pronto em minutos.
+            <ThemedText type="bodySmall">
+              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em minutos.
             </ThemedText>
 
             <Link href="/explore" asChild>
               <Pressable style={styles.cta}>
-                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
+                <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
+                  Ver recomendações
+                </ThemedText>
               </Pressable>
             </Link>
           </View>
 
-          {/* ✅ Remove o “banner miniatura” repetido:
-              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
-          <Image
-            source={require("../../assets/banners/banner-splash.png")}
-            style={styles.heroImage}
-            contentFit="cover"
-          />
+          {/* ✅ Placeholder neutro: não duplica branding e não vira “quadrado preto” */}
+          <View style={styles.heroPlaceholder}>
+            <View style={styles.heroLine} />
+            <View style={[styles.heroLine, { width: 54 }]} />
+            <View style={[styles.heroLine, { width: 42 }]} />
+          </View>
         </ThemedView>
 
+        {/* ✅ Seção de busca + chips compactos */}
         <ThemedView style={styles.searchSection}>
-          <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="sectionTitle">Catálogo</ThemedText>
+            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
+          </View>
+
           <TextInput
             placeholder="Buscar por categoria ou produto"
             placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
@@ -110,6 +114,7 @@ export default function HomeScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.chipRow}
+            contentContainerStyle={styles.chipRowContent}
           >
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
@@ -120,7 +125,14 @@ export default function HomeScreen() {
                   onPress={() => setSelectedCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
-                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                  {/* ✅ Sem numberOfLines => sem reticências */}
+                  <ThemedText
+                    type="caption"
+                    style={[
+                      styles.chipText,
+                      isSelected ? styles.chipSelectedText : undefined,
+                    ]}
+                  >
                     {category}
                   </ThemedText>
                 </Pressable>
@@ -129,47 +141,30 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
+        {/* ✅ Grid 2 colunas (mais produtos por tela) */}
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <View key={product.id} style={styles.gridItem}>
+              <ProductCard product={product} />
+            </View>
           ))}
 
           {filteredProducts.length === 0 ? (
-            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+            <ThemedText type="bodySmall">Não encontramos itens para sua busca.</ThemedText>
           ) : null}
         </View>
 
+        {/* ✅ Dica compacta (mantém a funcionalidade, menos espaço) */}
         <ThemedView style={styles.tip}>
-          <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
-          <ThemedText>
-            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
+          <ThemedText type="defaultSemiBold">Dica</ThemedText>
+          <ThemedText type="bodySmall">
+            Use o botão abaixo para testar ações rápidas e visualizar opções contextuais.
           </ThemedText>
 
           <Link href="/modal">
             <Link.Trigger>
               <ThemedText type="link">Abrir menu de ações</ThemedText>
             </Link.Trigger>
-            <Link.Preview />
-            <Link.Menu>
-              <Link.MenuAction
-                title="Solicitar demo"
-                icon="cube"
-                onPress={() => alert("Demo")}
-              />
-              <Link.MenuAction
-                title="Compartilhar"
-                icon="square.and.arrow.up"
-                onPress={() => alert("Link copiado")}
-              />
-              <Link.Menu title="Mais" icon="ellipsis">
-                <Link.MenuAction
-                  title="Remover"
-                  icon="trash"
-                  destructive
-                  onPress={() => alert("Item removido")}
-                />
-              </Link.Menu>
-            </Link.Menu>
           </Link>
         </ThemedView>
       </ParallaxScrollView>
@@ -179,58 +174,93 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   titleContainer: {
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    marginBottom: 10,
   },
 
   heroCard: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     alignItems: "center",
     backgroundColor: "#E6F4FE",
-    padding: 16,
+    padding: 12,
     borderRadius: 16,
   },
 
-  heroImage: {
-    width: 96,
-    height: 96,
+  heroPlaceholder: {
+    width: 86,
+    height: 86,
     borderRadius: 18,
-    backgroundColor: "#0E1720",
+    backgroundColor: "rgba(14, 23, 32, 0.06)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(14, 23, 32, 0.12)",
+    padding: 12,
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  heroLine: {
+    height: 10,
+    width: 62,
+    borderRadius: 8,
+    backgroundColor: "rgba(14, 23, 32, 0.14)",
   },
 
   cta: {
-    marginTop: 8,
+    marginTop: 6,
     backgroundColor: "#0a7ea4",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
     borderRadius: 12,
+    alignSelf: "flex-start",
   },
 
   searchSection: {
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 12,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
   },
 
   searchInput: {
     width: "100%",
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
   },
 
   chipRow: {
     flexGrow: 0,
   },
 
+  chipRowContent: {
+    paddingRight: 6,
+  },
+
   chip: {
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#CBD5E1",
     marginRight: 8,
+
+    // ✅ evita “…”: deixa o chip crescer em altura se precisar quebrar linha
+    minHeight: 34,
+    maxWidth: 140,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  chipText: {
+    textAlign: "center",
+    lineHeight: 14,
   },
 
   chipSelected: {
@@ -243,16 +273,24 @@ const styles = StyleSheet.create({
   },
 
   grid: {
-    marginTop: 16,
-    gap: 12,
+    marginTop: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -6,
+  },
+
+  gridItem: {
+    width: "50%",
+    paddingHorizontal: 6,
+    paddingBottom: 12,
   },
 
   tip: {
-    gap: 8,
-    marginTop: 16,
+    gap: 6,
+    marginTop: 8,
+    paddingBottom: 8,
   },
 
-  // ✅ Banner do Parallax: ocupa tudo (sem “quadrado”)
   headerBanner: {
     width: "100%",
     height: "100%",
