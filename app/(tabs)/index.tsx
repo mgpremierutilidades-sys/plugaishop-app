@@ -42,6 +42,7 @@ export default function HomeScreen() {
   }, [query, selectedCategory]);
 
   const achadinhos = useMemo(() => {
+    // seleção determinística (sem random) pra não “piscar” em re-render
     const withBadge = products.filter((p) => Boolean(p.badge));
     const base = withBadge.length > 0 ? withBadge : products;
     return base.slice(0, 10);
@@ -61,15 +62,11 @@ export default function HomeScreen() {
           />
         }
       >
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="title">PLUGAISHOP</ThemedText>
-          <ThemedText type="defaultSemiBold">
-            Soluções curadas para acelerar a operação e o varejo inteligente.
-          </ThemedText>
-        </ThemedView>
-
+        {/* ✅ DEFINITIVO:
+            - remove bloco "PLUGAISHOP" abaixo do banner
+            - remove segundo banner (heroImage) para não duplicar */}
         <ThemedView style={styles.heroCard}>
-          <View style={{ flex: 1, gap: 8 }}>
+          <View style={{ gap: 8 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
             <ThemedText>
               Combine iluminação, organização e sinalização para deixar seu ponto de
@@ -82,16 +79,11 @@ export default function HomeScreen() {
               </Pressable>
             </Link>
           </View>
-
-          <Image
-            source={require("../../assets/banners/banner-splash.png")}
-            style={styles.heroImage}
-            contentFit="cover"
-          />
         </ThemedView>
 
         <ThemedView style={styles.searchSection}>
           <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+
           <TextInput
             placeholder="Buscar por categoria ou produto"
             placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
@@ -107,7 +99,11 @@ export default function HomeScreen() {
             ]}
           />
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipRow}
+          >
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
 
@@ -126,6 +122,9 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
+        {/* =========================
+            Etapa 2 — Achadinhos do Dia (FLAG)
+           ========================= */}
         {FF_HOME_ACHADINHOS && achadinhos.length > 0 ? (
           <ThemedView style={styles.achadinhosSection}>
             <View style={styles.achadinhosHeader}>
@@ -137,7 +136,10 @@ export default function HomeScreen() {
               {achadinhos.map((product) => (
                 <Link
                   key={product.id}
-                  href={{ pathname: "/product/[id]", params: { id: product.id } }}
+                  href={{
+                    pathname: "/product/[id]",
+                    params: { id: String(product.id) },
+                  }}
                   asChild
                 >
                   <Pressable style={styles.achadinhoItem}>
@@ -194,16 +196,14 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  titleContainer: { gap: 8, marginBottom: 12 },
   heroCard: {
-    flexDirection: "row",
     gap: 12,
-    alignItems: "center",
+    marginTop: 12,
     backgroundColor: "#E6F4FE",
     padding: 16,
     borderRadius: 16,
   },
-  heroImage: { width: 96, height: 96, borderRadius: 18, backgroundColor: "#0E1720" },
+
   cta: {
     marginTop: 8,
     backgroundColor: "#0a7ea4",
@@ -211,7 +211,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
   },
-  searchSection: { gap: 12, marginTop: 16 },
+
+  searchSection: {
+    gap: 12,
+    marginTop: 16,
+  },
+
   searchInput: {
     width: "100%",
     borderWidth: 1,
@@ -219,7 +224,11 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
   },
-  chipRow: { flexGrow: 0 },
+
+  chipRow: {
+    flexGrow: 0,
+  },
+
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -228,17 +237,49 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
     marginRight: 8,
   },
-  chipSelected: { backgroundColor: "#0a7ea4", borderColor: "#0a7ea4" },
-  chipSelectedText: { color: "#fff" },
-  grid: { marginTop: 16, gap: 12 },
-  tip: { gap: 8, marginTop: 16 },
-  headerBanner: { width: "100%", height: "100%" },
-  achadinhosSection: { marginTop: 16, gap: 10 },
+
+  chipSelected: {
+    backgroundColor: "#0a7ea4",
+    borderColor: "#0a7ea4",
+  },
+
+  chipSelectedText: {
+    color: "#fff",
+  },
+
+  grid: {
+    marginTop: 16,
+    gap: 12,
+  },
+
+  tip: {
+    gap: 8,
+    marginTop: 16,
+  },
+
+  headerBanner: {
+    width: "100%",
+    height: "100%",
+  },
+
+  achadinhosSection: {
+    marginTop: 16,
+    gap: 10,
+  },
+
   achadinhosHeader: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
   },
-  achadinhosHint: { opacity: 0.7, fontSize: 12 },
-  achadinhoItem: { width: 280, marginRight: 12 },
+
+  achadinhosHint: {
+    opacity: 0.7,
+    fontSize: 12,
+  },
+
+  achadinhoItem: {
+    width: 280,
+    marginRight: 12,
+  },
 });
