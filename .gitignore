@@ -73,3 +73,7 @@ repo-tree.txt
 repo-tree.txt
 *.log
 
+
+# AI exports
+_ai/
+
