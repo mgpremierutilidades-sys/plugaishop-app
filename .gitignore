@@ -90,11 +90,6 @@ repo-tree.txt
 scripts/ai/_stash_routes/
 
 # =========================
-# Maxximus Orchestrator
-# - Ignore everything by default
-# - Keep source-of-truth files tracked (if you want them in repo)
+# Local tooling (do NOT version)
 # =========================
-tools/maxximus-orchestrator/**
-!tools/maxximus-orchestrator/data/
-!tools/maxximus-orchestrator/data/feature-flags.json
-!tools/maxximus-orchestrator/data/metrics.json
+tools/
