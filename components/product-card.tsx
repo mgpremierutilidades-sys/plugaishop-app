@@ -11,40 +11,56 @@ type ProductCardProps = {
   onPress?: () => void; // compat: alguns chamadores passam onPress
 };
 
+/**
+ * ProductCard (ML Density)
+ * - Mais compacto: melhor descoberta e mais itens por viewport.
+ * - Mantém compatibilidade com chamadores antigos.
+ */
 export function ProductCard({ product, onPress }: ProductCardProps) {
-  // não altera UI: mantemos como noop (compatibilidade sem mexer no layout)
   void onPress;
 
-  const background = useThemeColor({ light: "#F7FBFF", dark: "#0F1115" }, "background");
+  const background = useThemeColor({ light: "#FFFFFF", dark: "#0F1115" }, "background");
+  const border = useThemeColor({ light: "#E6E8EC", dark: "#1F2937" }, "background");
   const accent = useThemeColor({ light: "#0a7ea4", dark: "#7AC4FF" }, "tint");
+  const muted = useThemeColor({ light: "#64748B", dark: "#9CA3AF" }, "text");
 
   return (
-    <ThemedView style={[styles.card, { backgroundColor: background }]}>
+    <ThemedView style={[styles.card, { backgroundColor: background, borderColor: border }]}>
       <View style={styles.header}>
-        <ThemedText type="defaultSemiBold">{product.category}</ThemedText>
+        <ThemedText style={styles.category} numberOfLines={1}>
+          {product.category}
+        </ThemedText>
+
         {product.badge ? (
-          <ThemedText style={[styles.badge, { color: accent }]}>{product.badge}</ThemedText>
-        ) : null}
+          <ThemedText style={[styles.badge, { color: accent }]} numberOfLines={1}>
+            {product.badge}
+          </ThemedText>
+        ) : (
+          <View style={{ width: 1 }} />
+        )}
       </View>
 
       <Image
         source={product.image}
         contentFit="cover"
-        transition={150}
+        transition={120}
         style={styles.image}
         accessibilityLabel={product.name}
       />
 
       <View style={styles.info}>
-        <ThemedText type="subtitle" numberOfLines={2}>
+        <ThemedText style={styles.title} numberOfLines={2}>
           {product.name}
         </ThemedText>
-        <ThemedText numberOfLines={3}>{product.description}</ThemedText>
+
+        <ThemedText style={[styles.desc, { color: muted }]} numberOfLines={2}>
+          {product.description}
+        </ThemedText>
       </View>
 
       <View style={styles.footer}>
-        <ThemedText type="defaultSemiBold">R$ {product.price.toFixed(2)}</ThemedText>
-        <ThemedText type="link">Ver detalhes</ThemedText>
+        <ThemedText style={styles.price}>R$ {product.price.toFixed(2)}</ThemedText>
+        <ThemedText style={[styles.link, { color: accent }]}>Ver</ThemedText>
       </View>
     </ThemedView>
   );
@@ -52,35 +68,70 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#D5DDE5",
-    gap: 12,
   },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 8,
   },
+
+  category: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
   badge: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: "700",
   },
+
   image: {
     width: "100%",
-    height: 160,
+    height: 120, // ↓ 160 -> 120 (mais denso)
+    backgroundColor: "#EEF1F5",
   },
+
   info: {
-    gap: 6,
-    paddingHorizontal: 16,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
   },
+
+  title: {
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 16,
+  },
+
+  desc: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   footer: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+
+  price: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  link: {
+    fontSize: 12,
+    fontWeight: "800",
   },
 });

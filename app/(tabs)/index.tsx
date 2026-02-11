@@ -17,9 +17,8 @@ import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
  * HOME BRAND LOCK (definitivo):
  * - A Home pode ter APENAS 1 bloco de marca: o banner do topo.
  * - Não repetir "PLUGAISHOP" como título logo abaixo.
- * - Não usar imagens com logo no meio do conteúdo (ex.: banner-splash na heroCard).
+ * - Não usar imagens com logo no meio do conteúdo.
  */
-
 export default function HomeScreen() {
   useCheckoutFailSafe();
   useOutboxAutoFlush();
@@ -59,6 +58,11 @@ export default function HomeScreen() {
     router.push({ pathname: "/product/[id]", params: { id: productId } } as any);
   }
 
+  const inputColors =
+    colorScheme === "light"
+      ? { bg: "#F3F4F6", border: "#E5E7EB", text: "#111827", placeholder: "#6B7280" }
+      : { bg: "#111315", border: "#2A2F38", text: "#F9FAFB", placeholder: "#9CA3AF" };
+
   return (
     <>
       <StatusBar style="light" />
@@ -68,6 +72,7 @@ export default function HomeScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* ✅ ÚNICO bloco de marca */}
           <View style={styles.header}>
@@ -78,52 +83,56 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* ✅ Começa conteúdo (sem repetir logo/nome) */}
+          {/* ✅ Conteúdo enxuto (ML density) */}
           <ThemedView style={styles.intro}>
-            <ThemedText type="subtitle">Boas-vindas 👋</ThemedText>
-            <ThemedText>
+            <ThemedText style={styles.h2}>Boas-vindas 👋</ThemedText>
+            <ThemedText style={styles.p}>
               Soluções curadas para acelerar a operação e o varejo inteligente.
             </ThemedText>
           </ThemedView>
 
+          {/* Hero compacto (sem logo no meio / sem preto) */}
           <ThemedView style={styles.heroCard}>
-            <View style={{ flex: 1, gap: 8 }}>
-              <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
-              <ThemedText>
-                Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto
-                em minutos.
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.h3}>Kit rápido de vitrine</ThemedText>
+              <ThemedText style={[styles.p, { marginTop: 4 }]} numberOfLines={3}>
+                Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em
+                minutos.
               </ThemedText>
 
               <Link href="/explore" asChild>
                 <Pressable style={styles.cta}>
-                  <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
+                  <ThemedText style={styles.ctaText}>Ver recomendações</ThemedText>
                 </Pressable>
               </Link>
             </View>
 
-            {/* ✅ Sem “banner da empresa no meio”. Mantemos um bloco neutro. */}
-            <View style={styles.heroNeutralBox}>
-              <ThemedText type="defaultSemiBold">Destaque</ThemedText>
-              <ThemedText style={styles.heroNeutralHint}>Conteúdo do dia</ThemedText>
+            {/* ✅ Destaque neutro premium (sem preto chapado, sem logo) */}
+            <View style={styles.heroSpot}>
+              <View style={styles.heroDot} />
+              <ThemedText style={styles.heroSpotTitle}>Destaque</ThemedText>
+              <ThemedText style={styles.heroSpotSub}>Do dia</ThemedText>
             </View>
           </ThemedView>
 
+          {/* Busca + chips compactos */}
           <ThemedView style={styles.searchSection}>
-            <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
+            <ThemedText style={styles.h3}>Catálogo</ThemedText>
 
             <TextInput
               placeholder="Buscar por categoria ou produto"
-              placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+              placeholderTextColor={inputColors.placeholder}
               value={query}
               onChangeText={onChangeQuery}
               style={[
                 styles.searchInput,
                 {
-                  backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
-                  borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
-                  color: colorScheme === "light" ? "#111827" : "#F9FAFB",
+                  backgroundColor: inputColors.bg,
+                  borderColor: inputColors.border,
+                  color: inputColors.text,
                 },
               ]}
+              returnKeyType="search"
             />
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
@@ -136,7 +145,7 @@ export default function HomeScreen() {
                     onPress={() => setSelectedCategory(category)}
                     style={[styles.chip, isSelected && styles.chipSelected]}
                   >
-                    <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                    <ThemedText style={[styles.chipText, isSelected && styles.chipSelectedText]}>
                       {category}
                     </ThemedText>
                   </Pressable>
@@ -145,6 +154,7 @@ export default function HomeScreen() {
             </ScrollView>
           </ThemedView>
 
+          {/* Grid mais denso */}
           <View style={styles.grid}>
             {filteredProducts.map((product) => (
               <Pressable key={product.id} onPress={() => goProduct(String(product.id))}>
@@ -153,22 +163,23 @@ export default function HomeScreen() {
             ))}
 
             {filteredProducts.length === 0 ? (
-              <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+              <ThemedText style={styles.p}>Não encontramos itens para sua busca.</ThemedText>
             ) : null}
           </View>
 
+          {/* Dica enxuta */}
           <ThemedView style={styles.tip}>
-            <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
-            <ThemedText>{`Use o botão abaixo para testar a navegação.`}</ThemedText>
+            <ThemedText style={styles.tipTitle}>Dica</ThemedText>
+            <ThemedText style={styles.p}>Use “Explorar” para achar coleções e atalhos.</ThemedText>
 
             <Link href="/modal" asChild>
-              <Pressable>
-                <ThemedText type="link">Abrir ações</ThemedText>
+              <Pressable style={styles.tipLink}>
+                <ThemedText style={styles.tipLinkText}>Abrir ações</ThemedText>
               </Pressable>
             </Link>
           </ThemedView>
 
-          <View style={{ height: 16 }} />
+          <View style={{ height: 18 }} />
         </ScrollView>
       </View>
     </>
@@ -178,22 +189,22 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
-  content: { paddingBottom: 24 },
+  content: { paddingBottom: 22 },
 
-  header: {
-    height: 220,
-    backgroundColor: "#0E1720",
-  },
-  headerBanner: {
-    width: "100%",
-    height: "100%",
-  },
+  // Header (marca única)
+  header: { height: 210, backgroundColor: "#0E1720" },
+  headerBanner: { width: "100%", height: "100%" },
+
+  // Tipografia ML density (local, sem afetar app inteiro)
+  h2: { fontSize: 18, fontWeight: "900", lineHeight: 22 },
+  h3: { fontSize: 14, fontWeight: "900", lineHeight: 18 },
+  p: { fontSize: 12.5, lineHeight: 17 },
 
   intro: {
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 12,
-    paddingHorizontal: 16,
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 10,
+    paddingHorizontal: 14,
   },
 
   heroCard: {
@@ -201,74 +212,89 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
     backgroundColor: "#E6F4FE",
-    padding: 16,
-    borderRadius: 16,
-    marginHorizontal: 16,
-  },
-
-  heroNeutralBox: {
-    width: 96,
-    height: 96,
-    borderRadius: 18,
-    backgroundColor: "#0E1720",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    paddingHorizontal: 6,
-  },
-  heroNeutralHint: {
-    opacity: 0.75,
-    fontSize: 12,
+    padding: 12, // ↓ 16
+    borderRadius: 14, // ↓ 16
+    marginHorizontal: 14,
   },
 
   cta: {
     marginTop: 8,
     backgroundColor: "#0a7ea4",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
     borderRadius: 12,
     alignSelf: "flex-start",
   },
+  ctaText: { color: "#fff", fontSize: 12.5, fontWeight: "900" },
+
+  // destaque sem “quadrado preto”
+  heroSpot: {
+    width: 92,
+    height: 92,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(15,23,42,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+  },
+  heroDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#0a7ea4",
+    marginBottom: 2,
+  },
+  heroSpotTitle: { fontSize: 12.5, fontWeight: "900" },
+  heroSpotSub: { fontSize: 11.5, fontWeight: "800", opacity: 0.75 },
 
   searchSection: {
-    gap: 12,
-    marginTop: 16,
-    paddingHorizontal: 16,
+    gap: 10,
+    marginTop: 14,
+    paddingHorizontal: 14,
   },
 
   searchInput: {
     width: "100%",
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 13.5, // ↓ 16
   },
 
   chipRow: { flexGrow: 0 },
 
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#CBD5E1",
     marginRight: 8,
+    backgroundColor: "transparent",
   },
   chipSelected: {
     backgroundColor: "#0a7ea4",
     borderColor: "#0a7ea4",
   },
+  chipText: { fontSize: 12, fontWeight: "800" },
   chipSelectedText: { color: "#fff" },
 
   grid: {
-    marginTop: 16,
-    gap: 12,
-    paddingHorizontal: 16,
+    marginTop: 12,
+    gap: 10,
+    paddingHorizontal: 14,
   },
 
   tip: {
-    gap: 8,
-    marginTop: 16,
-    paddingHorizontal: 16,
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 14,
   },
+  tipTitle: { fontSize: 12.5, fontWeight: "900" },
+  tipLink: { paddingVertical: 6, alignSelf: "flex-start" },
+  tipLinkText: { fontSize: 12.5, fontWeight: "900", color: "#0a7ea4" },
 });
