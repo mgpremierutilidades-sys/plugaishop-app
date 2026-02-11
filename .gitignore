@@ -9,10 +9,10 @@ node_modules/
 # Expo / Web build
 # =========================
 .expo/
+.expo-shared/
 dist/
 build/
 web-build/
-.expo-shared/
 
 # Expo environment typings (keep ignored if generated)
 expo-env.d.ts
@@ -20,8 +20,8 @@ expo-env.d.ts
 # =========================
 # Native
 # =========================
-/ios
-/android
+ios/
+android/
 .kotlin/
 *.orig.*
 *.jks
@@ -64,7 +64,7 @@ Thumbs.db
 # =========================
 # Examples / backups
 # =========================
-app-example
+app-example/
 _backup_*/
 
 # =========================
@@ -90,14 +90,11 @@ repo-tree.txt
 scripts/ai/_stash_routes/
 
 # =========================
-# Maxximus Orchestrator (local state/reports only)
+# Maxximus Orchestrator
+# - Ignore everything by default (local state/reports)
+# - Keep source-of-truth files tracked
 # =========================
-tools/maxximus-orchestrator/data/reports/
-tools/maxximus-orchestrator/data/state.json
-tools/maxximus-orchestrator/data/tasks.json
-
-# IMPORTANT:
-# Do NOT ignore:
-# - tools/maxximus-orchestrator/data/feature-flags.json
-# - tools/maxximus-orchestrator/data/metrics.json
-# (these can be source-of-truth files)
+tools/maxximus-orchestrator/**
+!tools/maxximus-orchestrator/data/
+!tools/maxximus-orchestrator/data/feature-flags.json
+!tools/maxximus-orchestrator/data/metrics.json
