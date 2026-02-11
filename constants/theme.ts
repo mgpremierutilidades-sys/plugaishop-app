@@ -47,16 +47,12 @@ const theme = {
     divider: "#E6E8EC",
     border: "#E6E8EC",
 
-    // textos (inclui aliases)
     text: "#0F172A",
     textMuted: "#64748B",
     textPrimary: "#0F172A",
     textSecondary: "#64748B",
 
-    // Alias exigido por alguns componentes (ex.: OrderTimeline)
     muted: "#94A3B8",
-
-    // Alias extra (opcional, mas ajuda compatibilidade sem quebrar nada)
     mutedText: "#64748B",
 
     primary: "#16A34A",
@@ -78,20 +74,22 @@ const theme = {
   spacing: Spacing,
   radius: Radius,
 
+  // ✅ Compacto (ML-like): menor e menos “pesado”
   typography: {
-    h1: { fontSize: 28, lineHeight: 34, fontWeight: "800" as const },
-    h2: { fontSize: 22, lineHeight: 28, fontWeight: "800" as const },
-    h3: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
+    h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" as const },
+    h2: { fontSize: 20, lineHeight: 26, fontWeight: "700" as const },
+    h3: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
 
-    // Alias que o Profile está pedindo:
-    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "800" as const },
+    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
 
-    title: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const },
-    subtitle: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
-    body: { fontSize: 16, lineHeight: 22, fontWeight: "400" as const },
-    bodySmall: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    title: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+    subtitle: { fontSize: 15, lineHeight: 20, fontWeight: "600" as const },
+
+    body: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    bodySmall: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const },
+
     caption: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
-    button: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
+    button: { fontSize: 13, lineHeight: 16, fontWeight: "700" as const },
   },
 } as const;
 
