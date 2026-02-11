@@ -1,31 +1,35 @@
+// app/(tabs)/index.tsx
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
-import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import { categories, products } from "../../constants/products";
 import { useColorScheme } from "../../hooks/use-color-scheme";
-
-// fail-safe + outbox flush
 import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
 
-export default function HomeScreen() {
-  // retoma checkout se existir draft pendente
-  useCheckoutFailSafe();
+/**
+ * HOME BRAND LOCK (definitivo):
+ * - A Home pode ter APENAS 1 bloco de marca: o banner do topo.
+ * - Não repetir "PLUGAISHOP" como título logo abaixo.
+ * - Não usar imagens com logo no meio do conteúdo (ex.: banner-splash na heroCard).
+ */
 
-  // tenta enviar fila quando abrir o app
+export default function HomeScreen() {
+  useCheckoutFailSafe();
   useOutboxAutoFlush();
 
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof categories)[number]>("Todos");
+
+  const lastSearchTrackTs = useRef(0);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -42,145 +46,154 @@ export default function HomeScreen() {
     });
   }, [query, selectedCategory]);
 
+  function onChangeQuery(next: string) {
+    setQuery(next);
+
+    // throttle básico (mantém estável e evita spam)
+    const now = Date.now();
+    if (now - lastSearchTrackTs.current < 900) return;
+    lastSearchTrackTs.current = now;
+  }
+
+  function goProduct(productId: string) {
+    router.push({ pathname: "/product/[id]", params: { id: productId } } as any);
+  }
+
   return (
     <>
-      {/* ✅ iPhone: horas/bateria brancas sobre o banner */}
       <StatusBar style="light" />
 
-      <ParallaxScrollView
-        headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
-        headerImage={
-          <Image
-            source={require("../../assets/banners/banner-home.png")}
-            style={styles.headerBanner}
-            contentFit="cover"
-          />
-        }
-      >
-        <ThemedView style={styles.titleContainer}>
-          {/* ✅ nome correto, sem acento */}
-          <ThemedText type="title">PLUGAISHOP</ThemedText>
-          <ThemedText type="defaultSemiBold">
-            Soluções curadas para acelerar a operação e o varejo inteligente.
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedView style={styles.heroCard}>
-          <View style={{ flex: 1, gap: 8 }}>
-            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
-            <ThemedText>
-              Combine iluminação, organização e sinalização para deixar seu ponto de
-              venda pronto em minutos.
-            </ThemedText>
-
-            <Link href="/explore" asChild>
-              <Pressable style={styles.cta}>
-                <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
-              </Pressable>
-            </Link>
+      <View style={styles.root}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ✅ ÚNICO bloco de marca */}
+          <View style={styles.header}>
+            <Image
+              source={require("../../assets/banners/banner-home.png")}
+              style={styles.headerBanner}
+              contentFit="cover"
+            />
           </View>
 
-          {/* ✅ Remove o “banner miniatura” repetido:
-              em vez de usar o mesmo banner-home aqui, usamos o banner-splash */}
-          <Image
-            source={require("../../assets/banners/banner-splash.png")}
-            style={styles.heroImage}
-            contentFit="cover"
-          />
-        </ThemedView>
+          {/* ✅ Começa conteúdo (sem repetir logo/nome) */}
+          <ThemedView style={styles.intro}>
+            <ThemedText type="subtitle">Boas-vindas 👋</ThemedText>
+            <ThemedText>
+              Soluções curadas para acelerar a operação e o varejo inteligente.
+            </ThemedText>
+          </ThemedView>
 
-        <ThemedView style={styles.searchSection}>
-          <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
-          <TextInput
-            placeholder="Buscar por categoria ou produto"
-            placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
-            value={query}
-            onChangeText={setQuery}
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
-                borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
-                color: colorScheme === "light" ? "#111827" : "#F9FAFB",
-              },
-            ]}
-          />
+          <ThemedView style={styles.heroCard}>
+            <View style={{ flex: 1, gap: 8 }}>
+              <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
+              <ThemedText>
+                Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto
+                em minutos.
+              </ThemedText>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-          >
-            {categories.map((category) => {
-              const isSelected = selectedCategory === category;
-
-              return (
-                <Pressable
-                  key={category}
-                  onPress={() => setSelectedCategory(category)}
-                  style={[styles.chip, isSelected && styles.chipSelected]}
-                >
-                  <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
-                    {category}
-                  </ThemedText>
+              <Link href="/explore" asChild>
+                <Pressable style={styles.cta}>
+                  <ThemedText type="defaultSemiBold">Ver recomendações</ThemedText>
                 </Pressable>
-              );
-            })}
-          </ScrollView>
-        </ThemedView>
+              </Link>
+            </View>
 
-        <View style={styles.grid}>
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+            {/* ✅ Sem “banner da empresa no meio”. Mantemos um bloco neutro. */}
+            <View style={styles.heroNeutralBox}>
+              <ThemedText type="defaultSemiBold">Destaque</ThemedText>
+              <ThemedText style={styles.heroNeutralHint}>Conteúdo do dia</ThemedText>
+            </View>
+          </ThemedView>
 
-          {filteredProducts.length === 0 ? (
-            <ThemedText>Não encontramos itens para sua busca.</ThemedText>
-          ) : null}
-        </View>
+          <ThemedView style={styles.searchSection}>
+            <ThemedText type="subtitle">Catálogo PlugaiShop</ThemedText>
 
-        <ThemedView style={styles.tip}>
-          <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
-          <ThemedText>
-            {`Use o botão abaixo para testar ações rápidas e visualizar a navegação com opções contextuais.`}
-          </ThemedText>
+            <TextInput
+              placeholder="Buscar por categoria ou produto"
+              placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+              value={query}
+              onChangeText={onChangeQuery}
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
+                  borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
+                  color: colorScheme === "light" ? "#111827" : "#F9FAFB",
+                },
+              ]}
+            />
 
-          <Link href="/modal">
-            <Link.Trigger>
-              <ThemedText type="link">Abrir menu de ações</ThemedText>
-            </Link.Trigger>
-            <Link.Preview />
-            <Link.Menu>
-              <Link.MenuAction
-                title="Solicitar demo"
-                icon="cube"
-                onPress={() => alert("Demo")}
-              />
-              <Link.MenuAction
-                title="Compartilhar"
-                icon="square.and.arrow.up"
-                onPress={() => alert("Link copiado")}
-              />
-              <Link.Menu title="Mais" icon="ellipsis">
-                <Link.MenuAction
-                  title="Remover"
-                  icon="trash"
-                  destructive
-                  onPress={() => alert("Item removido")}
-                />
-              </Link.Menu>
-            </Link.Menu>
-          </Link>
-        </ThemedView>
-      </ParallaxScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+              {categories.map((category) => {
+                const isSelected = selectedCategory === category;
+
+                return (
+                  <Pressable
+                    key={category}
+                    onPress={() => setSelectedCategory(category)}
+                    style={[styles.chip, isSelected && styles.chipSelected]}
+                  >
+                    <ThemedText style={isSelected ? styles.chipSelectedText : undefined}>
+                      {category}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </ThemedView>
+
+          <View style={styles.grid}>
+            {filteredProducts.map((product) => (
+              <Pressable key={product.id} onPress={() => goProduct(String(product.id))}>
+                <ProductCard product={product} />
+              </Pressable>
+            ))}
+
+            {filteredProducts.length === 0 ? (
+              <ThemedText>Não encontramos itens para sua busca.</ThemedText>
+            ) : null}
+          </View>
+
+          <ThemedView style={styles.tip}>
+            <ThemedText type="defaultSemiBold">Dica de uso</ThemedText>
+            <ThemedText>{`Use o botão abaixo para testar a navegação.`}</ThemedText>
+
+            <Link href="/modal" asChild>
+              <Pressable>
+                <ThemedText type="link">Abrir ações</ThemedText>
+              </Pressable>
+            </Link>
+          </ThemedView>
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  root: { flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 24 },
+
+  header: {
+    height: 220,
+    backgroundColor: "#0E1720",
+  },
+  headerBanner: {
+    width: "100%",
+    height: "100%",
+  },
+
+  intro: {
     gap: 8,
+    marginTop: 12,
     marginBottom: 12,
+    paddingHorizontal: 16,
   },
 
   heroCard: {
@@ -190,13 +203,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#E6F4FE",
     padding: 16,
     borderRadius: 16,
+    marginHorizontal: 16,
   },
 
-  heroImage: {
+  heroNeutralBox: {
     width: 96,
     height: 96,
     borderRadius: 18,
     backgroundColor: "#0E1720",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 6,
+  },
+  heroNeutralHint: {
+    opacity: 0.75,
+    fontSize: 12,
   },
 
   cta: {
@@ -205,11 +227,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
+    alignSelf: "flex-start",
   },
 
   searchSection: {
     gap: 12,
     marginTop: 16,
+    paddingHorizontal: 16,
   },
 
   searchInput: {
@@ -220,9 +244,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  chipRow: {
-    flexGrow: 0,
-  },
+  chipRow: { flexGrow: 0 },
 
   chip: {
     paddingVertical: 8,
@@ -232,29 +254,21 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
     marginRight: 8,
   },
-
   chipSelected: {
     backgroundColor: "#0a7ea4",
     borderColor: "#0a7ea4",
   },
-
-  chipSelectedText: {
-    color: "#fff",
-  },
+  chipSelectedText: { color: "#fff" },
 
   grid: {
     marginTop: 16,
     gap: 12,
+    paddingHorizontal: 16,
   },
 
   tip: {
     gap: 8,
     marginTop: 16,
-  },
-
-  // ✅ Banner do Parallax: ocupa tudo (sem “quadrado”)
-  headerBanner: {
-    width: "100%",
-    height: "100%",
+    paddingHorizontal: 16,
   },
 });
