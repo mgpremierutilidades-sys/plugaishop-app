@@ -1,86 +1,105 @@
-import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// components/parallax-scroll-view.tsx
+import { PropsWithChildren, ReactElement } from "react";
+import { Platform, StyleSheet, View } from "react-native";
 import Animated, {
   interpolate,
   useAnimatedRef,
   useAnimatedStyle,
-  useScrollOffset,
-} from 'react-native-reanimated';
-
-import { ThemedView } from '@/components/themed-view';
-import { getFooterOffset } from '@/constants/layout';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
-
-const HEADER_HEIGHT = 250;
+  useScrollViewOffset,
+} from "react-native-reanimated";
 
 type Props = PropsWithChildren<{
   headerImage: ReactElement;
   headerBackgroundColor: { dark: string; light: string };
 }>;
 
+const HEADER_HEIGHT = 240;
+
 export default function ParallaxScrollView({
   children,
   headerImage,
   headerBackgroundColor,
 }: Props) {
-  const backgroundColor = useThemeColor({}, 'background');
-  const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const scrollOffset = useScrollOffset(scrollRef);
-  const footerOffset = getFooterOffset(insets.bottom);
+  const scrollOffset = useScrollViewOffset(scrollRef);
+
   const headerAnimatedStyle = useAnimatedStyle(() => {
+    // mais estável em iOS (menos “saltos”)
+    const translateY = interpolate(
+      scrollOffset.value,
+      [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+      [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
+    );
+
+    const scale = interpolate(
+      scrollOffset.value,
+      [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+      [1.6, 1, 1]
+    );
+
     return {
-      transform: [
-        {
-          translateY: interpolate(
-            scrollOffset.value,
-            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
-            [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
-          ),
-        },
-        {
-          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
-        },
-      ],
+      transform: [{ translateY }, { scale }],
     };
   });
 
+  // fallback: se hooks falharem por algum motivo, o header ainda aparece.
+  const bgLight = headerBackgroundColor.light;
+  const bgDark = headerBackgroundColor.dark;
+
   return (
-    <ThemedView style={[styles.screen, { backgroundColor }]}>
+    <View style={styles.container}>
       <Animated.ScrollView
         ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: footerOffset }}
-        scrollEventThrottle={16}>
-        <Animated.View
-          style={[
-            styles.header,
-            { backgroundColor: headerBackgroundColor[colorScheme] },
-            headerAnimatedStyle,
-          ]}>
-          {headerImage}
-        </Animated.View>
-        <ThemedView style={styles.content}>{children}</ThemedView>
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+      >
+        <View style={[styles.header, { backgroundColor: bgLight }]}>
+          <Animated.View style={[styles.headerInner, headerAnimatedStyle]}>
+            {headerImage}
+          </Animated.View>
+
+          {/* camada de segurança para evitar “flash” branco no iOS */}
+          <View
+            pointerEvents="none"
+            style={[
+              styles.headerOverlay,
+              { backgroundColor: Platform.OS === "ios" ? bgDark : "transparent" },
+            ]}
+          />
+        </View>
+
+        <View style={styles.content}>{children}</View>
       </Animated.ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
   },
+
   header: {
     height: HEADER_HEIGHT,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
+
+  headerInner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.08,
+  },
+
+  contentContainer: {
+    paddingBottom: 28,
+  },
+
   content: {
-    flex: 1,
-    padding: 32,
-    gap: 16,
-    overflow: 'hidden',
+    paddingHorizontal: 16,
+    paddingTop: 14,
   },
 });
