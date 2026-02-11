@@ -1,15 +1,27 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# =========================
+# Dependencies
+# =========================
 node_modules/
 
-# Expo
+# =========================
+# Expo / Web build
+# =========================
 .expo/
 dist/
+build/
 web-build/
+.expo-shared/
+
+# Expo environment typings (keep ignored if generated)
 expo-env.d.ts
 
+# =========================
 # Native
+# =========================
+/ios
+/android
 .kotlin/
 *.orig.*
 *.jks
@@ -18,47 +30,74 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# =========================
 # Metro
+# =========================
 .metro-health-check*
 
-# debug
+# =========================
+# Debug logs
+# =========================
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.log*
+tsc.log
 
-# macOS
+# =========================
+# macOS / Windows
+# =========================
 .DS_Store
-*.pem
+Thumbs.db
 
-# local env files
+# =========================
+# Local env files
+# =========================
 .env*.local
+.env.local
 
-# typescript
+# =========================
+# TypeScript
+# =========================
 *.tsbuildinfo
 
+# =========================
+# Examples / backups
+# =========================
 app-example
-
-# generated native folders
-/ios
-/android
-<<<<<<< HEAD
-=======
-
-node_modules/
 _backup_*/
-.expo/
-dist/
-build/
 
-# artifacts
+# =========================
+# Artifacts
+# =========================
 *.zip
 
-# artifacts
-*.zip
-
-# chatgpt automation
+# =========================
+# ChatGPT automation / local scripts
+# =========================
 _chatgpt_inbox/
 _chatgpt_outbox/
 scripts/chatgpt/
-*.zip
->>>>>>> 31c4abd (chore: update gitignore and add isolated structure notes)
+
+# =========================
+# AI / context exports (local only)
+# =========================
+_ai/
+context/
+_project_*.txt
+plugaishop*_dump.txt
+repo-tree.txt
+scripts/ai/_stash_routes/
+
+# =========================
+# Maxximus Orchestrator (local state/reports only)
+# =========================
+tools/maxximus-orchestrator/data/reports/
+tools/maxximus-orchestrator/data/state.json
+tools/maxximus-orchestrator/data/tasks.json
+
+# IMPORTANT:
+# Do NOT ignore:
+# - tools/maxximus-orchestrator/data/feature-flags.json
+# - tools/maxximus-orchestrator/data/metrics.json
+# (these can be source-of-truth files)
