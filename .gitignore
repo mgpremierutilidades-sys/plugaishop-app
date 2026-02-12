@@ -2,13 +2,11 @@
 
 # dependencies
 node_modules/
-
 # Expo
 .expo/
 dist/
 web-build/
 expo-env.d.ts
-
 # Native
 .kotlin/
 *.orig.*
@@ -17,48 +15,30 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-
 # Metro
 .metro-health-check*
-
 # debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-
 # macOS
 .DS_Store
 *.pem
-
 # local env files
 .env*.local
-
 # typescript
 *.tsbuildinfo
-
 app-example
-
 # generated native folders
 /ios
 /android
-<<<<<<< HEAD
-=======
-
-node_modules/
 _backup_*/
-.expo/
-dist/
 build/
-
 # artifacts
 *.zip
-
-# artifacts
-*.zip
-
 # chatgpt automation
 _chatgpt_inbox/
 _chatgpt_outbox/
 scripts/chatgpt/
-*.zip
->>>>>>> 31c4abd (chore: update gitignore and add isolated structure notes)
+*.bak
+*.patch
