@@ -42,3 +42,7 @@ _chatgpt_outbox/
 scripts/chatgpt/
 *.bak
 *.patch
+
+# local powershell helpers
+scripts/ps/
+
