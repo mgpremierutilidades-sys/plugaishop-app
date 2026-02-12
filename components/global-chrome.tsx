@@ -2,7 +2,7 @@
 import type { PropsWithChildren } from "react";
 import { View } from "react-native";
 
-type GlobalChromeProps = PropsWithChildren<Record<string, never>>;
+type GlobalChromeProps = PropsWithChildren<object>;
 
 export function GlobalChrome({ children }: GlobalChromeProps) {
   // Wrapper neutro e seguro: não altera navegação, só garante "children" válido.
