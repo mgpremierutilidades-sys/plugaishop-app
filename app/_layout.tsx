@@ -1,22 +1,28 @@
-// app/_layout.tsx
 import { Stack } from "expo-router";
 
-import GlobalChrome from "../components/global-chrome";
+import Chrome from "../components/global-chrome";
+import { CartProvider } from "../context/CartContext";
+import { DEV_FLAGS } from "../lib/flags.dev";
+
+if (__DEV__) {
+  (globalThis as any).__FLAGS__ = { ...(globalThis as any).__FLAGS__, ...DEV_FLAGS };
+}
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: "slide_from_right",
-      }}
-    >
-      {/* Rotas reais de topo */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="orders" options={{ headerShown: false }} />
-
-      {/* Modal (se existir app/modal.tsx) */}
-      <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-    </Stack>
+    <CartProvider>
+      <Chrome>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="orders" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        </Stack>
+      </Chrome>
+    </CartProvider>
   );
 }

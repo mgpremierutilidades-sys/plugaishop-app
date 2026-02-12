@@ -1,18 +1,16 @@
 // context/CartContext.tsx
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { Product } from "../data/catalog";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
-/**
- * CartItem (COMPATÍVEL COM O cart.tsx + checkout)
- * - cart.tsx usa campos "flat": id, title, price, image, etc.
- * - checkout/review usa it.product.*
- */
+import { isFlagEnabled } from "../constants/flags";
+import type { Product } from "../data/catalog";
+import { products } from "../data/catalog";
+import { track } from "../lib/analytics";
+import { storageGetJSON, storageSetJSON } from "../lib/storage";
+
 export type CartItem = {
-  // checkout
   product: Product;
 
-  // carrinho (compat)
   id: string;
   title: string;
   price: number;
@@ -22,19 +20,44 @@ export type CartItem = {
   unitLabel?: string;
   discountPercent?: number;
 
-  // comum
   qty: number;
 };
 
-/**
- * ESTADO INTERNO
- */
-type CartState = {
+type CartSnapshot = {
   items: CartItem[];
+  ready: boolean;
+  hydrating: boolean;
 };
 
-const state: CartState = { items: [] };
+type PersistedCartV1 = {
+  v: 1;
+  updatedAt: number;
+  items: {
+    id: string;
+    qty: number;
+    title?: string;
+    price?: number;
+    category?: string;
+    image?: string;
+    description?: string;
+    unitLabel?: string;
+    discountPercent?: number;
+  }[];
+};
+
+const KEY = "@plugaishop:cart:v1";
+
+// ===== Store singleton =====
 const listeners = new Set<() => void>();
+
+let ready = false;
+let hydrating = false;
+
+let items: CartItem[] = [];
+let indexById: Record<string, number> = Object.create(null);
+
+let hydrationStarted = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 function emit() {
   listeners.forEach((l) => l());
@@ -42,130 +65,237 @@ function emit() {
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return () => listeners.delete(listener);
 }
 
-function getSnapshot(): CartState {
-  return { items: state.items };
+function rebuildIndex(next: CartItem[]) {
+  const idx: Record<string, number> = Object.create(null);
+  for (let i = 0; i < next.length; i++) idx[next[i].id] = i;
+  indexById = idx;
 }
 
-function setItems(next: CartItem[]) {
-  state.items = next;
-  emit();
+function getSnapshot(): CartSnapshot {
+  return { items, ready, hydrating };
 }
 
-/** Helper: transforma Product -> CartItem flat */
+function findProductById(id: string): Product | null {
+  return products.find((p) => String(p.id) === String(id)) ?? null;
+}
+
 function toCartItem(product: Product, qty: number): CartItem {
-  const price = Number((product as any).price) || 0;
-
+  const q = Math.max(1, Math.floor(Number(qty) || 1));
   return {
     product,
-    id: (product as any).id,
-    title: (product as any).title ?? "",
-    price,
-    category: (product as any).category,
-    image: (product as any).image,
-    description: (product as any).description,
-    unitLabel: (product as any).unitLabel,
-    discountPercent: (product as any).discountPercent,
-    qty,
+    id: String(product.id),
+    title: String(product.title ?? ""),
+    price: Number(product.price ?? 0),
+    category: product.category,
+    image: product.image,
+    description: product.description,
+    unitLabel: product.unitLabel,
+    discountPercent: product.discountPercent,
+    qty: q,
   };
 }
 
-/**
- * REGRAS DE NEGÓCIO
- */
-function upsert(product: Product, qtyDelta: number) {
-  const current = state.items;
-  const pid = (product as any).id;
-  const index = current.findIndex((i) => i.id === pid);
+function schedulePersist() {
+  if (!isFlagEnabled("ff_cart_persist_v1")) return;
 
-  if (index === -1) {
-    setItems([...current, toCartItem(product, Math.max(1, qtyDelta))]);
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(async () => {
+    persistTimer = null;
+
+    const payload: PersistedCartV1 = {
+      v: 1,
+      updatedAt: Date.now(),
+      items: items.map((it) => ({
+        id: it.id,
+        qty: it.qty,
+        title: it.title,
+        price: it.price,
+        category: it.category,
+        image: it.image,
+        description: it.description,
+        unitLabel: it.unitLabel,
+        discountPercent: it.discountPercent,
+      })),
+    };
+
+    const ok = await storageSetJSON(KEY, payload);
+    if (isFlagEnabled("ff_cart_analytics_v1")) {
+      track(ok ? "cart_persist_success" : "cart_persist_fail", { items_count: items.length });
+    }
+  }, 350);
+}
+
+function setItems(next: CartItem[], reason?: string) {
+  items = next;
+  rebuildIndex(next);
+  emit();
+
+  if (reason && isFlagEnabled("ff_cart_analytics_v1")) {
+    track("cart_mutation", { reason, items_count: next.length });
+  }
+
+  schedulePersist();
+}
+
+// ===== O(1) mutations =====
+function addOrInc(product: Product, delta: number) {
+  const id = String(product.id);
+  const idx = indexById[id];
+
+  if (idx === undefined) {
+    setItems([...items, toCartItem(product, Math.max(1, delta))], "add_new");
     return;
   }
 
-  const nextQty = current[index].qty + qtyDelta;
+  const curr = items[idx];
+  const nextQty = curr.qty + delta;
 
   if (nextQty <= 0) {
-    setItems(current.filter((_, i) => i !== index));
+    setItems(items.filter((it) => it.id !== id), "remove_zero");
     return;
   }
 
-  setItems(
-    current.map((it, i) => (i === index ? { ...toCartItem(it.product, nextQty), qty: nextQty } : it))
-  );
+  const next = items.slice();
+  next[idx] = { ...toCartItem(curr.product, nextQty), qty: nextQty };
+  setItems(next, "update_qty");
 }
 
 function setQty(productId: string, qty: number) {
-  const q = Math.max(1, Math.floor(qty));
-  setItems(
-    state.items.map((it) =>
-      it.id === productId ? { ...toCartItem(it.product, q), qty: q } : it
-    )
-  );
+  const id = String(productId);
+  const idx = indexById[id];
+  if (idx === undefined) return;
+
+  const q = Math.max(1, Math.floor(Number(qty) || 1));
+  const curr = items[idx];
+
+  const next = items.slice();
+  next[idx] = { ...toCartItem(curr.product, q), qty: q };
+  setItems(next, "set_qty");
 }
 
 function remove(productId: string) {
-  setItems(state.items.filter((it) => it.id !== productId));
+  const id = String(productId);
+  const idx = indexById[id];
+  if (idx === undefined) return;
+
+  setItems(items.filter((it) => it.id !== id), "remove_item");
 }
 
 function clear() {
-  setItems([]);
+  setItems([], "clear");
 }
 
-/**
- * HOOK PÚBLICO
- * (com aliases para compatibilidade com o cart.tsx)
- */
-export function useCart() {
-  const [snap, setSnap] = useState<CartState>(() => getSnapshot());
+// ===== Hydration determinística =====
+async function hydrateOnce() {
+  if (hydrationStarted) return;
+  hydrationStarted = true;
 
+  if (!isFlagEnabled("ff_cart_rehydration_hardened")) {
+    ready = true;
+    emit();
+    return;
+  }
+
+  hydrating = true;
+  emit();
+
+  try {
+    const data = await storageGetJSON<PersistedCartV1>(KEY);
+
+    if (!data || data.v !== 1 || !Array.isArray(data.items)) {
+      ready = true;
+      hydrating = false;
+      emit();
+      if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: 0 });
+      return;
+    }
+
+    const next: CartItem[] = [];
+    for (const it of data.items) {
+      const id = String(it?.id ?? "");
+      if (!id) continue;
+
+      const qty = Math.max(1, Math.floor(Number(it?.qty ?? 1)));
+      const p = findProductById(id);
+
+      if (p) {
+        next.push(toCartItem(p, qty));
+      } else {
+        const fallback: Product = {
+          id,
+          title: String(it.title ?? "Produto"),
+          price: Number(it.price ?? 0),
+          category: String(it.category ?? ""),
+          image: it.image,
+          description: it.description,
+          unitLabel: it.unitLabel,
+          discountPercent: it.discountPercent,
+        };
+        next.push(toCartItem(fallback, qty));
+      }
+    }
+
+    items = next;
+    rebuildIndex(next);
+
+    ready = true;
+    hydrating = false;
+    emit();
+
+    if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: next.length });
+  } catch (e: any) {
+    ready = true;
+    hydrating = false;
+    emit();
+    if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_fail", { message: String(e?.message ?? e) });
+  }
+}
+
+export function useCart() {
   useEffect(() => {
-    const unsub = subscribe(() => setSnap(getSnapshot()));
-    return unsub;
+    void hydrateOnce();
   }, []);
+
+  const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const totalQty = useMemo(() => snap.items.reduce((acc, it) => acc + it.qty, 0), [snap.items]);
 
   const subtotal = useMemo(() => {
-    return snap.items.reduce((acc, it) => {
-      const price = Number(it.price);
-      return acc + (Number.isFinite(price) ? price * it.qty : 0);
-    }, 0);
+    return snap.items.reduce((acc, it) => acc + (Number(it.price) || 0) * it.qty, 0);
   }, [snap.items]);
 
   const total = subtotal;
 
-  const addItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, qtyDelta), []);
-  const decItem = useCallback((product: Product, qtyDelta: number = 1) => upsert(product, -Math.abs(qtyDelta)), []);
-
-  const removeItem = useCallback((productId: string, _ignored?: any) => remove(productId), []);
-  const setItemQty = useCallback((productId: string, qty: number) => setQty(productId, qty), []);
-  const clearCart = useCallback(() => clear(), []);
-
   return {
     items: snap.items,
+    ready: snap.ready,
+    hydrating: snap.hydrating,
 
     totalQty,
     subtotal,
     total,
 
-    addItem,
-    decItem,
-    removeItem,
-    setItemQty,
-    clearCart,
+    addItem: (product: Product, qtyDelta: number = 1) => addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
+    decItem: (product: Product, qtyDelta: number = 1) => addOrInc(product, -Math.max(1, Math.abs(qtyDelta))),
+    removeItem: (productId: string) => remove(productId),
+    setItemQty: (productId: string, qty: number) => setQty(productId, qty),
+    clearCart: () => clear(),
 
-    setQty: setItemQty,
+    // alias compat
+    setQty: (productId: string, qty: number) => setQty(productId, qty),
   };
 }
 
+// Provider apenas faz bootstrap (store é singleton)
 const DummyCartContext = createContext(true);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    void hydrateOnce();
+  }, []);
   return <DummyCartContext.Provider value={true}>{children}</DummyCartContext.Provider>;
 }
 
