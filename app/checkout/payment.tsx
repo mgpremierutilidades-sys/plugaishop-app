@@ -49,7 +49,9 @@ export default function PaymentScreen() {
 
   // mock card fields
   const [cardNumber, setCardNumber] = useState("");
-  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">("other");
+  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">(
+    "other"
+  );
 
   useEffect(() => {
     (async () => {
@@ -78,6 +80,11 @@ export default function PaymentScreen() {
       method === "card"
         ? createPaymentPayload("card", { last4, brand: cardBrand })
         : createPaymentPayload(method);
+
+    // DEV: manter disponível sem afetar produção/tipagem
+    if (__DEV__) {
+      (globalThis as any).__lastPaymentPayload = payload;
+    }
 
     const next = patchOrderDraft(draft, {
       payment,

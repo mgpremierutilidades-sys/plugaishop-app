@@ -1,10 +1,8 @@
-﻿// components/global-chrome.tsx
+// components/global-chrome.tsx
 import type { PropsWithChildren } from "react";
 import { View } from "react-native";
 
-type GlobalChromeProps = PropsWithChildren<{
-  /** Se você quiser, no futuro podemos adicionar opções aqui sem quebrar imports */
-}>;
+type GlobalChromeProps = PropsWithChildren<Record<string, never>>;
 
 export function GlobalChrome({ children }: GlobalChromeProps) {
   // Wrapper neutro e seguro: não altera navegação, só garante "children" válido.

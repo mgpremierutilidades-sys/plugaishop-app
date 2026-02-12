@@ -4,15 +4,16 @@ import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import IconSymbol from "../../components/ui/icon-symbol";
+import IconSymbolDefault from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { formatCurrency } from "../../utils/formatCurrency";
 
-// Collapsible blindado
-const CollapsibleModule = require("../../components/ui/collapsible");
-const CollapsibleComp = CollapsibleModule?.default ?? CollapsibleModule?.Collapsible;
+// Collapsible blindado (sem require, lint-safe)
+import * as CollapsibleModule from "../../components/ui/collapsible";
+const CollapsibleComp =
+  (CollapsibleModule as any)?.default ?? (CollapsibleModule as any)?.Collapsible;
 
 const SafeCollapsible =
   CollapsibleComp ??
@@ -53,9 +54,6 @@ function categoryIconName(categoryName: string) {
 }
 
 export default function ExploreScreen() {
-  // ✅ status bar normal (escuro) aqui, porque o topo é claro
-  <StatusBar style="dark" />;
-
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
@@ -120,7 +118,7 @@ export default function ExploreScreen() {
                   onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
                 >
                   <View style={styles.categoryIconWrap}>
-                    <IconSymbol
+                    <IconSymbolDefault
                       name={categoryIconName(c.name)}
                       size={20}
                       color={theme.colors.primary}

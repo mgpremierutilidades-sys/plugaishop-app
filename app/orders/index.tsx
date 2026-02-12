@@ -24,7 +24,7 @@ function dateLabel(isoOrAny: string) {
   return d;
 }
 
-const FILTERS: Array<{ label: string; value: "ALL" | OrderStatus }> = [
+const FILTERS: { label: string; value: "ALL" | OrderStatus }[] = [
   { label: "Todos", value: "ALL" },
   { label: "Confirmado", value: "Confirmado" },
   { label: "Pago", value: "Pago" },
@@ -75,7 +75,7 @@ export default function OrdersIndexScreen() {
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <ThemedText style={styles.backArrow}>←</ThemedText>
+            <ThemedText style={styles.backArrow}>â†</ThemedText>
           </Pressable>
 
           <ThemedText style={styles.title}>Pedidos</ThemedText>
@@ -284,3 +284,4 @@ const styles = StyleSheet.create({
   bold: { fontWeight: "700", color: theme.colors.text },
   total: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
 });
+

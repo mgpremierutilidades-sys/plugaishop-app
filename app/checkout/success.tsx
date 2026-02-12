@@ -36,7 +36,7 @@ function normalizeCartItems(cartAny: any) {
         qty: Math.max(1, Number(qty ?? 1)),
       };
     })
-    .filter(Boolean) as Array<{ productId: string; qty: number; price: number; title: string }>;
+    .filter(Boolean) as { productId: string; qty: number; price: number; title: string }[];
 }
 
 export default function CheckoutSuccessScreen() {
@@ -93,10 +93,10 @@ export default function CheckoutSuccessScreen() {
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <ThemedText style={styles.backArrow}>←</ThemedText>
+            <ThemedText style={styles.backArrow}>â†</ThemedText>
           </Pressable>
 
-          <ThemedText style={styles.title}>Compra concluída</ThemedText>
+          <ThemedText style={styles.title}>Compra concluÃ­da</ThemedText>
 
           <View style={{ width: 44 }} />
         </View>
@@ -104,7 +104,7 @@ export default function CheckoutSuccessScreen() {
         <ThemedView style={styles.card}>
           <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
           <ThemedText style={styles.p}>
-            Seu pedido foi registrado com sucesso. Você pode acompanhar em “Pedidos”.
+            Seu pedido foi registrado com sucesso. VocÃª pode acompanhar em â€œPedidosâ€.
           </ThemedText>
 
           <View style={{ height: 6 }} />
@@ -124,7 +124,7 @@ export default function CheckoutSuccessScreen() {
             }}
             style={styles.ghostBtn}
           >
-            <ThemedText style={styles.ghostBtnText}>Voltar ao início</ThemedText>
+            <ThemedText style={styles.ghostBtnText}>Voltar ao inÃ­cio</ThemedText>
           </Pressable>
         </ThemedView>
       </ThemedView>
@@ -198,3 +198,4 @@ const styles = StyleSheet.create({
   },
   ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
 });
+
