@@ -36,7 +36,9 @@ function Field({
 }) {
   return (
     <View style={{ marginTop: 12 }}>
-      <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>{label}</Text>
+      <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+        {label}
+      </Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -124,7 +126,9 @@ export default function AddressScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? HEADER_HEIGHT + insets.top : 0}
+        keyboardVerticalOffset={
+          Platform.OS === "ios" ? HEADER_HEIGHT + insets.top : 0
+        }
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -135,10 +139,18 @@ export default function AddressScreen() {
           }}
         >
           {!draft ? (
-            <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando endereço...</Text>
+            <Text style={{ fontSize: 16, color: theme.colors.text }}>
+              Carregando endereço...
+            </Text>
           ) : (
             <>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.colors.text }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "700",
+                  color: theme.colors.text,
+                }}
+              >
                 Informe seu endereço
               </Text>
 
@@ -170,11 +182,33 @@ export default function AddressScreen() {
                 </View>
               </View>
 
-              <Field label="Rua" value={street} onChangeText={setStreet} placeholder="Nome da rua" />
-              <Field label="Bairro" value={district} onChangeText={setDistrict} placeholder="Seu bairro" />
-              <Field label="Cidade/UF" value={cityUf} onChangeText={setCityUf} placeholder="Goiânia/GO" />
+              <Field
+                label="Rua"
+                value={street}
+                onChangeText={setStreet}
+                placeholder="Nome da rua"
+              />
+              <Field
+                label="Bairro"
+                value={district}
+                onChangeText={setDistrict}
+                placeholder="Seu bairro"
+              />
+              <Field
+                label="Cidade/UF"
+                value={cityUf}
+                onChangeText={setCityUf}
+                placeholder="Goiânia/GO"
+              />
 
-              <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+              <Text
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  opacity: 0.7,
+                  color: theme.colors.text,
+                }}
+              >
                 Preencha CEP, número, rua, bairro e cidade/UF para continuar.
               </Text>
             </>
@@ -203,7 +237,11 @@ export default function AddressScreen() {
               opacity: valid ? 1 : 0.5,
             }}
           >
-            <Text style={{ textAlign: "center", fontWeight: "800", color: "#000" }}>CONTINUAR</Text>
+            <Text
+              style={{ textAlign: "center", fontWeight: "800", color: "#000" }}
+            >
+              CONTINUAR
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

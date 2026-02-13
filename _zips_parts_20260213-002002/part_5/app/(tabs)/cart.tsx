@@ -41,7 +41,9 @@ type CartSection = {
 
 function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   const src: ImageSourcePropType | null =
-    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
+    typeof image === "string" && image.startsWith("http")
+      ? { uri: image }
+      : null;
 
   return (
     <View style={styles.itemImage}>
@@ -72,7 +74,8 @@ export default function CartTab() {
     const last = actionLocksRef.current[key] ?? 0;
 
     if (now - last < ACTION_LOCK_MS) {
-      if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_double_action_prevented", { key });
+      if (isFlagEnabled("ff_cart_analytics_v1"))
+        track("cart_double_action_prevented", { key });
       return;
     }
 
@@ -88,7 +91,8 @@ export default function CartTab() {
       id: p.id,
       title: p.title,
       price: p.price,
-      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      oldPrice:
+        idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
       qty: 1 + (idx % 3),
       image: (p as any).image,
     }));
@@ -102,7 +106,10 @@ export default function CartTab() {
 
   // Normaliza a fonte observada (satisfaz exhaustive-deps sem depender do objeto inteiro)
   const ctxItems = useMemo(() => {
-    return (cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null) as unknown;
+    return (cartCtx?.items ??
+      cartCtx?.cartItems ??
+      cartCtx?.cart ??
+      null) as unknown;
   }, [cartCtx?.items, cartCtx?.cartItems, cartCtx?.cart]);
 
   // Reflete itens reais do carrinho (rehydration/persist)
@@ -179,7 +186,7 @@ export default function CartTab() {
       if (fn) return fn(product, 1);
 
       setLocalRows((prev) =>
-        prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r))
+        prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)),
       );
     });
   }
@@ -202,9 +209,9 @@ export default function CartTab() {
       setLocalRows((prev) =>
         prev
           .map((r) =>
-            r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r
+            r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r,
           )
-          .filter((r) => r.qty > 0)
+          .filter((r) => r.qty > 0),
       );
     });
   }
@@ -274,18 +281,26 @@ export default function CartTab() {
             </ThemedText>
 
             <View style={styles.priceRow}>
-              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+              <ThemedText style={styles.price}>
+                {formatCurrency(item.price)}
+              </ThemedText>
               <ThemedText style={styles.unit}> / un</ThemedText>
             </View>
 
             {item.oldPrice ? (
-              <ThemedText style={styles.old}>{formatCurrency(item.oldPrice)}</ThemedText>
+              <ThemedText style={styles.old}>
+                {formatCurrency(item.oldPrice)}
+              </ThemedText>
             ) : null}
           </View>
         </View>
 
         <View style={styles.rowBottom}>
-          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10}>
+          <Pressable
+            onPress={() => safeDec(product)}
+            style={styles.qtyBtn}
+            hitSlop={10}
+          >
             <ThemedText style={styles.qtyBtnText}>-</ThemedText>
           </Pressable>
 
@@ -293,11 +308,19 @@ export default function CartTab() {
             <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
           </View>
 
-          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10}>
+          <Pressable
+            onPress={() => safeAdd(product)}
+            style={styles.qtyBtn}
+            hitSlop={10}
+          >
             <ThemedText style={styles.qtyBtnText}>+</ThemedText>
           </Pressable>
 
-          <Pressable onPress={() => safeRemove(product)} style={styles.removeBtn} hitSlop={10}>
+          <Pressable
+            onPress={() => safeRemove(product)}
+            style={styles.removeBtn}
+            hitSlop={10}
+          >
             <ThemedText style={styles.remove}>Remover</ThemedText>
           </Pressable>
         </View>
@@ -310,7 +333,13 @@ export default function CartTab() {
       <AppHeader
         title="Carrinho"
         subtitle={`${localRows.length} itens`}
-        leftSlot={<IconSymbolDefault name="cart-outline" size={22} color={theme.colors.textPrimary} />}
+        leftSlot={
+          <IconSymbolDefault
+            name="cart-outline"
+            size={22}
+            color={theme.colors.textPrimary}
+          />
+        }
       />
 
       <SectionList
@@ -325,12 +354,15 @@ export default function CartTab() {
       <View style={styles.footerBar}>
         <View style={styles.totalBox}>
           <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
-          <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+          <ThemedText style={styles.totalValue}>
+            {formatCurrency(selectedSubtotal)}
+          </ThemedText>
         </View>
 
         <Pressable
           onPress={() => {
-            if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_checkout_start");
+            if (isFlagEnabled("ff_cart_analytics_v1"))
+              track("cart_checkout_start");
             router.push("/(tabs)/checkout");
           }}
           style={styles.footerBtn}
@@ -371,15 +403,31 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 4, backgroundColor: "#FFFFFF" },
 
   itemImage: { borderRadius: 12, overflow: "hidden" },
-  itemImagePlaceholder: { width: 72, height: 72, borderRadius: 12, backgroundColor: theme.colors.divider },
+  itemImagePlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: theme.colors.divider,
+  },
 
   title: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
   priceRow: { flexDirection: "row", alignItems: "baseline", marginTop: 6 },
   price: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
   unit: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.7 },
-  old: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.55, textDecorationLine: "line-through", marginTop: 2 },
+  old: {
+    fontFamily: FONT_BODY,
+    fontSize: 12,
+    opacity: 0.55,
+    textDecorationLine: "line-through",
+    marginTop: 2,
+  },
 
-  rowBottom: { flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 },
+  rowBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 10,
+  },
 
   qtyBtn: {
     width: 34,

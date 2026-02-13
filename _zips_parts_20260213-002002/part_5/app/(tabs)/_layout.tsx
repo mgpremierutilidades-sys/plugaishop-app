@@ -69,11 +69,14 @@ export default function TabsLayout() {
         options={{
           title: "Perfil",
           tabBarIcon: ({ color }) => (
-            <IconSymbolDefault name="person-circle-outline" color={color} size={22} />
+            <IconSymbolDefault
+              name="person-circle-outline"
+              color={color}
+              size={22}
+            />
           ),
         }}
       />
     </Tabs>
   );
 }
-

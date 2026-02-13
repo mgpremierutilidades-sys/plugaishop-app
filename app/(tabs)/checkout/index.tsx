@@ -22,7 +22,12 @@ export default function CheckoutIndex() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goBack}
+            hitSlop={12}
+            style={styles.backBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -59,22 +64,42 @@ export default function CheckoutIndex() {
 
         {/* Espaço de banner / conteúdo (ocupa o “vazio” abaixo do botão e do texto) */}
         <View style={styles.promoWrap}>
-          <Pressable onPress={() => ComingSoon("JOGOS")} style={[styles.promoCard, styles.promoCardA]} accessibilityRole="button">
+          <Pressable
+            onPress={() => ComingSoon("JOGOS")}
+            style={[styles.promoCard, styles.promoCardA]}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.promoTitle}>JOGOS</ThemedText>
-            <ThemedText style={styles.promoSubtitle}>Desafios, prêmios e novidades</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>
+              Desafios, prêmios e novidades
+            </ThemedText>
           </Pressable>
 
-          <Pressable onPress={() => ComingSoon("VÍDEOS")} style={[styles.promoCard, styles.promoCardB]} accessibilityRole="button">
+          <Pressable
+            onPress={() => ComingSoon("VÍDEOS")}
+            style={[styles.promoCard, styles.promoCardB]}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.promoTitle}>VÍDEOS</ThemedText>
-            <ThemedText style={styles.promoSubtitle}>Conteúdo rápido e ofertas</ThemedText>
+            <ThemedText style={styles.promoSubtitle}>
+              Conteúdo rápido e ofertas
+            </ThemedText>
           </Pressable>
 
           <View style={styles.promoRow}>
-            <Pressable onPress={() => ComingSoon("FOTOS")} style={[styles.promoMini, styles.promoMiniC]} accessibilityRole="button">
+            <Pressable
+              onPress={() => ComingSoon("FOTOS")}
+              style={[styles.promoMini, styles.promoMiniC]}
+              accessibilityRole="button"
+            >
               <ThemedText style={styles.promoMiniText}>FOTOS</ThemedText>
             </Pressable>
 
-            <Pressable onPress={() => ComingSoon("TEXTOS")} style={[styles.promoMini, styles.promoMiniD]} accessibilityRole="button">
+            <Pressable
+              onPress={() => ComingSoon("TEXTOS")}
+              style={[styles.promoMini, styles.promoMiniD]}
+              accessibilityRole="button"
+            >
               <ThemedText style={styles.promoMiniText}>TEXTOS</ThemedText>
             </Pressable>
           </View>
@@ -93,7 +118,12 @@ export default function CheckoutIndex() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+  container: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    backgroundColor: theme.colors.background,
+  },
 
   header: {
     height: 44,
@@ -102,7 +132,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
   rightSpacer: { width: 40, height: 40 },
   title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
@@ -155,8 +191,17 @@ const styles = StyleSheet.create({
   promoCardA: { backgroundColor: theme.colors.surface },
   promoCardB: { backgroundColor: theme.colors.surface },
 
-  promoTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
-  promoSubtitle: { marginTop: 6, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.9 },
+  promoTitle: {
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    textTransform: "uppercase",
+  },
+  promoSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: FONT_BODY,
+    opacity: 0.9,
+  },
 
   promoRow: { flexDirection: "row", gap: 10 },
   promoMini: {
@@ -171,7 +216,11 @@ const styles = StyleSheet.create({
   },
   promoMiniC: {},
   promoMiniD: {},
-  promoMiniText: { fontSize: 12, fontFamily: FONT_BODY_BOLD, textTransform: "uppercase" },
+  promoMiniText: {
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    textTransform: "uppercase",
+  },
 
   helpCard: {
     marginTop: 12,

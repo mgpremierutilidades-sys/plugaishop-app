@@ -74,7 +74,7 @@ export default function OrderReturnScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const finalReason = useMemo(() => {
@@ -99,7 +99,7 @@ export default function OrderReturnScreen() {
     setOrder(updated);
     Alert.alert(
       "Solicitação criada",
-      `Protocolo: ${updated.returnRequest?.protocol}`
+      `Protocolo: ${updated.returnRequest?.protocol}`,
     );
   };
 
@@ -136,52 +136,79 @@ export default function OrderReturnScreen() {
     Alert.alert("Anexo adicionado", "Foto anexada (mock).");
   };
 
-  const attachmentsCount =
-    order?.returnRequest?.attachments?.length ?? 0;
+  const attachmentsCount = order?.returnRequest?.attachments?.length ?? 0;
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         {/* Topbar */}
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
           <ThemedText style={styles.title}>Troca / Reembolso</ThemedText>
           <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
 
             {order?.returnRequest ? (
               <ThemedView style={styles.infoBox}>
-                <ThemedText style={styles.infoTitle}>Solicitação aberta</ThemedText>
-
-                <ThemedText style={styles.secondary}>
-                  Tipo: <ThemedText style={styles.bold}>{order.returnRequest.type}</ThemedText>
+                <ThemedText style={styles.infoTitle}>
+                  Solicitação aberta
                 </ThemedText>
 
                 <ThemedText style={styles.secondary}>
-                  Status: <ThemedText style={styles.bold}>{order.returnRequest.status}</ThemedText>
+                  Tipo:{" "}
+                  <ThemedText style={styles.bold}>
+                    {order.returnRequest.type}
+                  </ThemedText>
                 </ThemedText>
 
                 <ThemedText style={styles.secondary}>
-                  Protocolo: <ThemedText style={styles.bold}>{order.returnRequest.protocol}</ThemedText>
+                  Status:{" "}
+                  <ThemedText style={styles.bold}>
+                    {order.returnRequest.status}
+                  </ThemedText>
                 </ThemedText>
 
                 <ThemedText style={styles.secondary}>
-                  Anexos: <ThemedText style={styles.bold}>{attachmentsCount}</ThemedText>
+                  Protocolo:{" "}
+                  <ThemedText style={styles.bold}>
+                    {order.returnRequest.protocol}
+                  </ThemedText>
+                </ThemedText>
+
+                <ThemedText style={styles.secondary}>
+                  Anexos:{" "}
+                  <ThemedText style={styles.bold}>
+                    {attachmentsCount}
+                  </ThemedText>
                 </ThemedText>
 
                 <View style={styles.actionRow}>
                   <Pressable onPress={copyProtocol} style={styles.outlineBtn}>
-                    <ThemedText style={styles.outlineBtnText}>Copiar protocolo</ThemedText>
+                    <ThemedText style={styles.outlineBtnText}>
+                      Copiar protocolo
+                    </ThemedText>
                   </Pressable>
 
-                  <Pressable onPress={addMockAttachment} style={styles.outlineBtn}>
-                    <ThemedText style={styles.outlineBtnText}>Adicionar foto</ThemedText>
+                  <Pressable
+                    onPress={addMockAttachment}
+                    style={styles.outlineBtn}
+                  >
+                    <ThemedText style={styles.outlineBtnText}>
+                      Adicionar foto
+                    </ThemedText>
                   </Pressable>
                 </View>
               </ThemedView>
@@ -202,7 +229,10 @@ export default function OrderReturnScreen() {
                   <Pressable
                     key={t}
                     onPress={() => setType(t)}
-                    style={[styles.pill, active ? styles.pillActive : styles.pillIdle]}
+                    style={[
+                      styles.pill,
+                      active ? styles.pillActive : styles.pillIdle,
+                    ]}
                   >
                     <ThemedText
                       style={[
@@ -226,12 +256,17 @@ export default function OrderReturnScreen() {
                   <Pressable
                     key={r}
                     onPress={() => setReasonQuick(r)}
-                    style={[styles.reasonPill, active ? styles.reasonActive : styles.reasonIdle]}
+                    style={[
+                      styles.reasonPill,
+                      active ? styles.reasonActive : styles.reasonIdle,
+                    ]}
                   >
                     <ThemedText
                       style={[
                         styles.reasonText,
-                        active ? styles.reasonTextActive : styles.reasonTextIdle,
+                        active
+                          ? styles.reasonTextActive
+                          : styles.reasonTextIdle,
                       ]}
                     >
                       {r}
@@ -254,7 +289,9 @@ export default function OrderReturnScreen() {
             )}
 
             <Pressable onPress={submit} style={styles.primaryBtn}>
-              <ThemedText style={styles.primaryBtnText}>Abrir solicitação</ThemedText>
+              <ThemedText style={styles.primaryBtnText}>
+                Abrir solicitação
+              </ThemedText>
             </Pressable>
           </ThemedView>
 
@@ -267,7 +304,11 @@ export default function OrderReturnScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -288,8 +329,18 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.divider,
   },
 
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md },
 
@@ -302,28 +353,65 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
 
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   divider: { height: 1, backgroundColor: theme.colors.divider },
 
-  sectionTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  sectionTitle: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
   bold: { fontWeight: "700", color: theme.colors.text },
 
   row: { flexDirection: "row", gap: 10 },
   rowWrap: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
 
-  pill: { flex: 1, paddingVertical: 12, borderRadius: 999, borderWidth: 1, alignItems: "center" },
-  pillIdle: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  pillActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  pill: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  pillIdle: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.divider,
+  },
+  pillActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
 
   pillText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700" },
   pillTextIdle: { color: theme.colors.text },
   pillTextActive: { color: "#FFFFFF" },
 
-  reasonPill: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
-  reasonIdle: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  reasonActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  reasonPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  reasonIdle: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.divider,
+  },
+  reasonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
 
   reasonText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700" },
   reasonTextIdle: { color: theme.colors.text },
@@ -350,7 +438,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
 
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  primaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
   infoBox: {
     backgroundColor: theme.colors.surfaceAlt,
@@ -361,7 +454,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
 
-  infoTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  infoTitle: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   outlineBtn: {
     flex: 1,
@@ -374,7 +472,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
 
-  outlineBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
+  outlineBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
 
   actionRow: { flexDirection: "row", gap: 10 },
 });

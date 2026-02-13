@@ -30,7 +30,10 @@ export function createPayment(method: Payment["method"]): Payment {
   return { method, status: "pending" };
 }
 
-export function createPaymentPayload(method: Payment["method"], args?: { last4?: string; brand?: CardMock["brand"] }): PaymentMockPayload {
+export function createPaymentPayload(
+  method: Payment["method"],
+  args?: { last4?: string; brand?: CardMock["brand"] },
+): PaymentMockPayload {
   if (method === "pix") {
     return {
       type: "pix",

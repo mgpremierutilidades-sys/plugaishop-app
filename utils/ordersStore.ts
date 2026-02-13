@@ -140,7 +140,7 @@ function makeAccessKeyMock() {
 /* ---------------- ORDERS ---------------- */
 
 export function createOrderFromCart(params: {
-  items: Array<{ productId: string; qty: number; price: number; title: string }>;
+  items: { productId: string; qty: number; price: number; title: string }[];
   discount?: number;
   shipping?: number;
   status?: OrderStatus;
@@ -215,7 +215,10 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return orders.find((o) => String(o.id) === String(id)) ?? null;
 }
 
-export async function updateOrderById(id: string, patch: Partial<Order>): Promise<Order | null> {
+export async function updateOrderById(
+  id: string,
+  patch: Partial<Order>,
+): Promise<Order | null> {
   const current = await listOrders();
   const idx = current.findIndex((o) => String(o.id) === String(id));
   if (idx < 0) return null;
@@ -256,9 +259,14 @@ export async function advanceOrderStatus(id: string): Promise<Order | null> {
 
   const history = ensureHistory(order);
   const already = history.some((h) => h.status === newStatus);
-  const nextHistory = already ? history : [...history, { status: newStatus, at }];
+  const nextHistory = already
+    ? history
+    : [...history, { status: newStatus, at }];
 
-  const updated = await updateOrderById(id, { status: newStatus, statusHistory: nextHistory });
+  const updated = await updateOrderById(id, {
+    status: newStatus,
+    statusHistory: nextHistory,
+  });
 
   if (updated) {
     await addNotification({
@@ -272,10 +280,18 @@ export async function advanceOrderStatus(id: string): Promise<Order | null> {
   return updated;
 }
 
-export async function setOrderReview(id: string, stars: number, comment: string): Promise<Order | null> {
+export async function setOrderReview(
+  id: string,
+  stars: number,
+  comment: string,
+): Promise<Order | null> {
   const clamped = Math.max(1, Math.min(5, Number(stars || 0)));
   const updated = await updateOrderById(id, {
-    review: { stars: clamped, comment: String(comment ?? ""), updatedAt: nowISO() },
+    review: {
+      stars: clamped,
+      comment: String(comment ?? ""),
+      updatedAt: nowISO(),
+    },
   });
 
   if (updated) {
@@ -290,7 +306,11 @@ export async function setOrderReview(id: string, stars: number, comment: string)
   return updated;
 }
 
-export async function createReturnRequest(id: string, type: ReturnType, reason: string): Promise<Order | null> {
+export async function createReturnRequest(
+  id: string,
+  type: ReturnType,
+  reason: string,
+): Promise<Order | null> {
   const updated = await updateOrderById(id, {
     returnRequest: {
       protocol: makeProtocol(),
@@ -314,7 +334,10 @@ export async function createReturnRequest(id: string, type: ReturnType, reason: 
   return updated;
 }
 
-export async function addReturnAttachment(orderId: string, uri: string): Promise<Order | null> {
+export async function addReturnAttachment(
+  orderId: string,
+  uri: string,
+): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order || !order.returnRequest) return null;
 
@@ -336,7 +359,10 @@ export async function addReturnAttachment(orderId: string, uri: string): Promise
 
 /* --------- TRACKING / LOGISTICS --------- */
 
-export async function setTrackingCode(orderId: string, trackingCode: string): Promise<Order | null> {
+export async function setTrackingCode(
+  orderId: string,
+  trackingCode: string,
+): Promise<Order | null> {
   const code = String(trackingCode ?? "").trim();
 
   const updated = await updateOrderById(orderId, {
@@ -363,12 +389,14 @@ export async function addLogisticsEvent(
     description?: string;
     location?: string;
     at?: string; // ISO
-  }
+  },
 ): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order) return null;
 
-  const current = Array.isArray(order.logisticsEvents) ? order.logisticsEvents : [];
+  const current = Array.isArray(order.logisticsEvents)
+    ? order.logisticsEvents
+    : [];
   const event: LogisticsEvent = {
     id: makeId(),
     at: params.at ?? nowISO(),
@@ -394,7 +422,9 @@ export async function addLogisticsEvent(
   return updated;
 }
 
-export async function clearLogisticsEvents(orderId: string): Promise<Order | null> {
+export async function clearLogisticsEvents(
+  orderId: string,
+): Promise<Order | null> {
   return updateOrderById(orderId, { logisticsEvents: [] });
 }
 
@@ -495,7 +525,9 @@ export async function addNotification(params: {
 
 export async function markNotificationRead(id: string): Promise<void> {
   const current = await listNotifications();
-  const next = current.map((n) => (String(n.id) === String(id) ? { ...n, read: true } : n));
+  const next = current.map((n) =>
+    String(n.id) === String(id) ? { ...n, read: true } : n,
+  );
   await saveNotifications(next);
 }
 

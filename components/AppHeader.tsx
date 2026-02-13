@@ -64,7 +64,11 @@ export function AppHeader({
           </ThemedText>
 
           {subtitle ? (
-            <ThemedText type="caption" numberOfLines={1} style={styles.subtitle}>
+            <ThemedText
+              type="caption"
+              numberOfLines={1}
+              style={styles.subtitle}
+            >
               {subtitle}
             </ThemedText>
           ) : null}

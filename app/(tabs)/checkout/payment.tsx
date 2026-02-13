@@ -48,7 +48,12 @@ export default function CheckoutPayment() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goBack}
+            hitSlop={12}
+            style={styles.backBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -59,11 +64,28 @@ export default function CheckoutPayment() {
         <View style={styles.card}>
           <ThemedText style={styles.sectionTitle}>Escolha uma forma</ThemedText>
 
-          <Option title="Pix" desc="Aprovação imediata" selected onPress={() => {}} />
-          <Option title="Cartão de crédito" desc="Parcelamento disponível" onPress={() => {}} />
-          <Option title="Boleto" desc="Compensação em até 2 dias úteis" onPress={() => {}} />
+          <Option
+            title="Pix"
+            desc="Aprovação imediata"
+            selected
+            onPress={() => {}}
+          />
+          <Option
+            title="Cartão de crédito"
+            desc="Parcelamento disponível"
+            onPress={() => {}}
+          />
+          <Option
+            title="Boleto"
+            desc="Compensação em até 2 dias úteis"
+            onPress={() => {}}
+          />
 
-          <Pressable onPress={goNext} style={styles.primaryBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goNext}
+            style={styles.primaryBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
           </Pressable>
         </View>
@@ -74,7 +96,12 @@ export default function CheckoutPayment() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+  container: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    backgroundColor: theme.colors.background,
+  },
 
   header: {
     height: 44,
@@ -83,7 +110,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
   rightSpacer: { width: 40, height: 40 },
   title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
@@ -110,8 +143,19 @@ const styles = StyleSheet.create({
   },
   optionSelected: { borderColor: theme.colors.primary },
   optionTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
-  optionDesc: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.85, marginTop: 4 },
-  optionMark: { width: 22, textAlign: "center", fontSize: 16, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+  optionDesc: {
+    fontSize: 12,
+    fontFamily: FONT_BODY,
+    opacity: 0.85,
+    marginTop: 4,
+  },
+  optionMark: {
+    width: 22,
+    textAlign: "center",
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: theme.colors.primary,
+  },
 
   primaryBtn: {
     marginTop: 6,

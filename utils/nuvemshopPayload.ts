@@ -20,13 +20,13 @@ export type NuvemshopOrderPayload = {
     complement?: string;
   };
 
-  items: Array<{
+  items: {
     sku?: string;
     title: string;
     quantity: number;
     price: number;
     discount?: number;
-  }>;
+  }[];
 
   totals: {
     subtotal: number;

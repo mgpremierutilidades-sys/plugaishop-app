@@ -3,7 +3,10 @@ import type { Order } from "../types/order";
 import type { OrderStatus } from "../types/orderStatus";
 
 import { notifyLocal } from "./notifications";
-import { getLastNotifiedStatus, setLastNotifiedStatus } from "./orderNotificationStorage";
+import {
+  getLastNotifiedStatus,
+  setLastNotifiedStatus,
+} from "./orderNotificationStorage";
 
 function statusLabel(status: OrderStatus) {
   switch (status) {

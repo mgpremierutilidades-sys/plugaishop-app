@@ -5,8 +5,10 @@ export type CheckoutStep = "address" | "shipping" | "payment" | "review";
 export function getNextCheckoutStep(draft: OrderDraft | null): CheckoutStep {
   if (!draft) return "address";
 
-  const hasZip = !!draft.address?.zip && String(draft.address?.zip).length === 8;
-  const hasShipping = !!draft.shipping && typeof draft.shipping.price === "number";
+  const hasZip =
+    !!draft.address?.zip && String(draft.address?.zip).length === 8;
+  const hasShipping =
+    !!draft.shipping && typeof draft.shipping.price === "number";
   const hasPayment = !!draft.payment?.method;
 
   if (!hasZip) return "address";

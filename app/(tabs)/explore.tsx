@@ -1,7 +1,14 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import IconSymbolDefault from "../../components/ui/icon-symbol";
@@ -13,14 +20,17 @@ import { formatCurrency } from "../../utils/formatCurrency";
 // Collapsible blindado (sem require, lint-safe)
 import * as CollapsibleModule from "../../components/ui/collapsible";
 const CollapsibleComp =
-  (CollapsibleModule as any)?.default ?? (CollapsibleModule as any)?.Collapsible;
+  (CollapsibleModule as any)?.default ??
+  (CollapsibleModule as any)?.Collapsible;
 
 const SafeCollapsible =
   CollapsibleComp ??
   function FallbackCollapsible(props: any) {
     return (
       <View>
-        {props?.title ? <View style={{ marginBottom: 8 }}>{props.title}</View> : null}
+        {props?.title ? (
+          <View style={{ marginBottom: 8 }}>{props.title}</View>
+        ) : null}
         <View>{props?.children}</View>
       </View>
     );
@@ -89,7 +99,10 @@ export default function ExploreScreen() {
     return Array.from(map.values());
   }, []);
 
-  const featured = useMemo<Product[]>(() => (products as Product[]).slice(0, 12), []);
+  const featured = useMemo<Product[]>(
+    () => (products as Product[]).slice(0, 12),
+    [],
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -103,7 +116,10 @@ export default function ExploreScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Categorias principais</Text>
 
@@ -115,7 +131,9 @@ export default function ExploreScreen() {
                 <Pressable
                   key={c.id}
                   style={styles.categoryCard}
-                  onPress={() => router.push((`/category/${c.id}` as unknown) as any)}
+                  onPress={() =>
+                    router.push(`/category/${c.id}` as unknown as any)
+                  }
                 >
                   <View style={styles.categoryIconWrap}>
                     <IconSymbolDefault
@@ -162,13 +180,20 @@ export default function ExploreScreen() {
               <Pressable
                 key={(p as any).id}
                 style={styles.productCard}
-                onPress={() => router.push((`/product/${(p as any).id}` as unknown) as any)}
+                onPress={() =>
+                  router.push(`/product/${(p as any).id}` as unknown as any)
+                }
               >
-                <Image source={{ uri: (p as any).image }} style={styles.productImage} />
+                <Image
+                  source={{ uri: (p as any).image }}
+                  style={styles.productImage}
+                />
                 <Text style={styles.productTitle} numberOfLines={2}>
                   {(p as any).title}
                 </Text>
-                <Text style={styles.productPrice}>{formatCurrency((p as any).price)}</Text>
+                <Text style={styles.productPrice}>
+                  {formatCurrency((p as any).price)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -202,7 +227,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  headerActionText: { fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  headerActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   content: { padding: 16, paddingBottom: 28 },
 
@@ -235,8 +264,16 @@ const styles = StyleSheet.create({
   },
   categoryName: { fontSize: 12, color: theme.colors.text, textAlign: "center" },
 
-  collapseTitle: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
-  collapseTitleText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
+  collapseTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  collapseTitleText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
   helperText: { fontSize: 12, color: theme.colors.textMuted, marginTop: 8 },
 
   productsGrid: {

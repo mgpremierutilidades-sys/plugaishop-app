@@ -57,7 +57,12 @@ export default function CheckoutAddress() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goBack}
+            hitSlop={12}
+            style={styles.backBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -66,7 +71,9 @@ export default function CheckoutAddress() {
         </View>
 
         <View style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>Informe seu endereço</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            Informe seu endereço
+          </ThemedText>
 
           <ThemedText style={styles.label}>CEP</ThemedText>
           <TextInput
@@ -142,7 +149,10 @@ export default function CheckoutAddress() {
 
           <Pressable
             onPress={() => push("/checkout/shipping")}
-            style={[styles.primaryBtn, !canContinue ? styles.primaryBtnDisabled : null]}
+            style={[
+              styles.primaryBtn,
+              !canContinue ? styles.primaryBtnDisabled : null,
+            ]}
             accessibilityRole="button"
             disabled={!canContinue}
           >
@@ -162,7 +172,12 @@ export default function CheckoutAddress() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+  container: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    backgroundColor: theme.colors.background,
+  },
 
   header: {
     height: 44,
@@ -171,7 +186,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
   rightSpacer: { width: 40, height: 40 },
   title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
@@ -185,7 +206,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 14, fontFamily: FONT_BODY_BOLD, marginBottom: 10 },
 
-  label: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.9, marginTop: 10, marginBottom: 6 },
+  label: {
+    fontSize: 12,
+    fontFamily: FONT_BODY,
+    opacity: 0.9,
+    marginTop: 10,
+    marginBottom: 6,
+  },
   input: {
     height: 44,
     borderRadius: 12,

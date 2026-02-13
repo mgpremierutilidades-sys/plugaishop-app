@@ -1,5 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
@@ -43,7 +50,7 @@ export default function OrderReviewScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const starsLabel = useMemo(() => {
@@ -66,7 +73,11 @@ export default function OrderReviewScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
 
@@ -75,11 +86,16 @@ export default function OrderReviewScreen() {
           <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
             <ThemedText style={styles.secondary}>
-              {order?.review ? "Você já avaliou este pedido. Pode atualizar a qualquer momento." : "Conte como foi sua experiência."}
+              {order?.review
+                ? "Você já avaliou este pedido. Pode atualizar a qualquer momento."
+                : "Conte como foi sua experiência."}
             </ThemedText>
 
             <View style={styles.divider} />
@@ -93,9 +109,17 @@ export default function OrderReviewScreen() {
                   <Pressable
                     key={n}
                     onPress={() => setStars(n)}
-                    style={[styles.starPill, active ? styles.starActive : styles.starIdle]}
+                    style={[
+                      styles.starPill,
+                      active ? styles.starActive : styles.starIdle,
+                    ]}
                   >
-                    <ThemedText style={[styles.starText, active ? styles.starTextActive : styles.starTextIdle]}>
+                    <ThemedText
+                      style={[
+                        styles.starText,
+                        active ? styles.starTextActive : styles.starTextIdle,
+                      ]}
+                    >
                       ★
                     </ThemedText>
                   </Pressable>
@@ -117,7 +141,9 @@ export default function OrderReviewScreen() {
             />
 
             <Pressable onPress={save} style={styles.primaryBtn}>
-              <ThemedText style={styles.primaryBtnText}>Salvar avaliação</ThemedText>
+              <ThemedText style={styles.primaryBtnText}>
+                Salvar avaliação
+              </ThemedText>
             </Pressable>
           </ThemedView>
 
@@ -130,7 +156,11 @@ export default function OrderReviewScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -149,8 +179,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md, paddingBottom: 20 },
 
@@ -162,14 +202,38 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 6,
+  },
 
-  sectionTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  sectionTitle: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
 
-  starsRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  starsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   starPill: {
     width: 38,
     height: 38,
@@ -178,8 +242,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  starIdle: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  starActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  starIdle: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.divider,
+  },
+  starActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
   starText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700" },
   starTextIdle: { color: theme.colors.text },
   starTextActive: { color: "#FFFFFF" },
@@ -205,5 +275,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     marginTop: 6,
   },
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  primaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });

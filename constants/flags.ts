@@ -14,7 +14,9 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {
-  const overrides = (globalThis as any).__FLAGS__ as Partial<Record<FeatureFlag, boolean>> | undefined;
+  const overrides = (globalThis as any).__FLAGS__ as
+    | Partial<Record<FeatureFlag, boolean>>
+    | undefined;
   const v = overrides?.[flag];
   return typeof v === "boolean" ? v : DEFAULT_FLAGS[flag];
 }

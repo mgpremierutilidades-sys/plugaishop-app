@@ -19,9 +19,24 @@ export function getShippingOptions(zipRaw: string): ShippingOption[] {
 
   if (!isValidCEP(zip)) {
     return [
-      { id: "pac", method: "Correios PAC", price: 0, deadline: "Informe o CEP" },
-      { id: "sedex", method: "Correios SEDEX", price: 0, deadline: "Informe o CEP" },
-      { id: "express", method: "Entrega Expressa", price: 0, deadline: "Informe o CEP" },
+      {
+        id: "pac",
+        method: "Correios PAC",
+        price: 0,
+        deadline: "Informe o CEP",
+      },
+      {
+        id: "sedex",
+        method: "Correios SEDEX",
+        price: 0,
+        deadline: "Informe o CEP",
+      },
+      {
+        id: "express",
+        method: "Entrega Expressa",
+        price: 0,
+        deadline: "Informe o CEP",
+      },
     ];
   }
 
@@ -29,9 +44,24 @@ export function getShippingOptions(zipRaw: string): ShippingOption[] {
 
   // Opções mock (mas com cara de real)
   return [
-    { id: "pac", method: "Correios PAC", price: base, deadline: "5 a 7 dias úteis" },
-    { id: "sedex", method: "Correios SEDEX", price: base + 18.0, deadline: "2 a 3 dias úteis" },
-    { id: "express", method: "Entrega Expressa", price: base + 29.0, deadline: "24 a 48 horas" },
+    {
+      id: "pac",
+      method: "Correios PAC",
+      price: base,
+      deadline: "5 a 7 dias úteis",
+    },
+    {
+      id: "sedex",
+      method: "Correios SEDEX",
+      price: base + 18.0,
+      deadline: "2 a 3 dias úteis",
+    },
+    {
+      id: "express",
+      method: "Entrega Expressa",
+      price: base + 29.0,
+      deadline: "24 a 48 horas",
+    },
   ];
 }
 

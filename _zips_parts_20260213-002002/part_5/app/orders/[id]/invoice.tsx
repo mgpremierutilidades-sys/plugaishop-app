@@ -1,5 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
@@ -7,7 +14,11 @@ import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
 import type { Order } from "../../../utils/ordersStore";
-import { getOrderById, setInvoiceMock, clearInvoice } from "../../../utils/ordersStore";
+import {
+  getOrderById,
+  setInvoiceMock,
+  clearInvoice,
+} from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -50,7 +61,7 @@ export default function OrderInvoiceScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const invoice = order?.invoice;
@@ -109,7 +120,11 @@ export default function OrderInvoiceScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
           <ThemedText style={styles.title}>Nota Fiscal</ThemedText>
@@ -118,7 +133,10 @@ export default function OrderInvoiceScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
             <ThemedText style={styles.secondary}>{subtitle}</ThemedText>
@@ -144,30 +162,38 @@ export default function OrderInvoiceScreen() {
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Chave</ThemedText>
-              <ThemedText style={styles.v}>{invoice?.accessKey ? "Disponível" : "-"}</ThemedText>
+              <ThemedText style={styles.v}>
+                {invoice?.accessKey ? "Disponível" : "-"}
+              </ThemedText>
             </View>
 
             <View style={{ height: 10 }} />
 
             {!isIssued ? (
               <Pressable onPress={onEmitMock} style={styles.primaryBtn}>
-                <ThemedText style={styles.primaryBtnText}>Gerar NF (mock)</ThemedText>
+                <ThemedText style={styles.primaryBtnText}>
+                  Gerar NF (mock)
+                </ThemedText>
               </Pressable>
             ) : (
               <View style={styles.actionRow}>
                 <Pressable onPress={onOpenDanfe} style={styles.primaryBtn}>
-                  <ThemedText style={styles.primaryBtnText}>Abrir DANFE</ThemedText>
+                  <ThemedText style={styles.primaryBtnText}>
+                    Abrir DANFE
+                  </ThemedText>
                 </Pressable>
 
                 <Pressable onPress={onCopyAccessKey} style={styles.outlineBtn}>
-                  <ThemedText style={styles.outlineBtnText}>Copiar chave</ThemedText>
+                  <ThemedText style={styles.outlineBtnText}>
+                    Copiar chave
+                  </ThemedText>
                 </Pressable>
               </View>
             )}
 
             <ThemedText style={styles.note}>
-              Integração real: a DANFE será fornecida pelo seu backend consultando a Bling.
-              O app não armazena token da Bling.
+              Integração real: a DANFE será fornecida pelo seu backend
+              consultando a Bling. O app não armazena token da Bling.
             </ThemedText>
           </ThemedView>
 
@@ -180,7 +206,11 @@ export default function OrderInvoiceScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -199,8 +229,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
   rightBtn: {
     minWidth: 70,
     height: 44,
@@ -212,7 +252,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  rightBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  rightBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md, paddingBottom: 20 },
 
@@ -224,14 +269,37 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
 
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 6,
+  },
 
-  kv: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  kv: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   k: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
-  v: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  v: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   actionRow: { flexDirection: "row", gap: 10 },
 
@@ -243,7 +311,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  primaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
   outlineBtn: {
     flex: 1,
@@ -255,7 +328,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primary,
   },
-  outlineBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
+  outlineBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
 
-  note: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)", marginTop: 6 },
+  note: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+    marginTop: 6,
+  },
 });

@@ -23,12 +23,17 @@ async function writeMap(map: Map): Promise<void> {
   }
 }
 
-export async function getLastNotifiedStatus(orderId: string): Promise<OrderStatus | null> {
+export async function getLastNotifiedStatus(
+  orderId: string,
+): Promise<OrderStatus | null> {
   const map = await readMap();
   return map[orderId] ?? null;
 }
 
-export async function setLastNotifiedStatus(orderId: string, status: OrderStatus): Promise<void> {
+export async function setLastNotifiedStatus(
+  orderId: string,
+  status: OrderStatus,
+): Promise<void> {
   const map = await readMap();
   map[orderId] = status;
   await writeMap(map);

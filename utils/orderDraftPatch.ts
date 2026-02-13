@@ -2,11 +2,13 @@ import type { Address, OrderDraft, Payment, Shipping } from "../types/order";
 
 export function patchOrderDraft(
   draft: OrderDraft,
-  patch: Partial<Pick<OrderDraft, "address" | "payment" | "shipping" | "total" | "discount">> & {
+  patch: Partial<
+    Pick<OrderDraft, "address" | "payment" | "shipping" | "total" | "discount">
+  > & {
     address?: Address;
     payment?: Payment;
     shipping?: Shipping;
-  }
+  },
 ): OrderDraft {
   const next: OrderDraft = { ...draft, ...patch };
 

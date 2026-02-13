@@ -31,7 +31,9 @@ export default function ShippingScreen() {
 
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [cep, setCep] = useState("");
-  const [selectedId, setSelectedId] = useState<"pac" | "sedex" | "express">("pac");
+  const [selectedId, setSelectedId] = useState<"pac" | "sedex" | "express">(
+    "pac",
+  );
 
   useEffect(() => {
     (async () => {
@@ -40,15 +42,17 @@ export default function ShippingScreen() {
 
       const initialCep = d?.address?.zip ?? "";
       setCep(formatCEP(initialCep));
-      if (d?.shipping?.method?.toLowerCase().includes("sedex")) setSelectedId("sedex");
-      if (d?.shipping?.method?.toLowerCase().includes("express")) setSelectedId("express");
+      if (d?.shipping?.method?.toLowerCase().includes("sedex"))
+        setSelectedId("sedex");
+      if (d?.shipping?.method?.toLowerCase().includes("express"))
+        setSelectedId("express");
     })();
   }, []);
 
   const options = useMemo(() => getShippingOptions(cep), [cep]);
   const selected = useMemo(
     () => options.find((o) => o.id === selectedId) ?? options[0],
-    [options, selectedId]
+    [options, selectedId],
   );
 
   const zip8 = normalizeCEP(cep);
@@ -60,7 +64,11 @@ export default function ShippingScreen() {
 
     const next = patchOrderDraft(draft, {
       address: { ...(draft.address ?? { id: "addr-1" }), zip: zip8 } as any,
-      shipping: { method: selected.method, price: selected.price, deadline: selected.deadline },
+      shipping: {
+        method: selected.method,
+        price: selected.price,
+        deadline: selected.deadline,
+      },
     });
 
     await saveOrderDraft(next);
@@ -85,10 +93,19 @@ export default function ShippingScreen() {
           }}
         >
           {!draft ? (
-            <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando frete...</Text>
+            <Text style={{ fontSize: 16, color: theme.colors.text }}>
+              Carregando frete...
+            </Text>
           ) : (
             <>
-              <Text style={{ marginTop: 2, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+              <Text
+                style={{
+                  marginTop: 2,
+                  fontSize: 12,
+                  opacity: 0.7,
+                  color: theme.colors.text,
+                }}
+              >
                 Digite seu CEP
               </Text>
 
@@ -121,15 +138,30 @@ export default function ShippingScreen() {
                         padding: 12,
                         borderRadius: 14,
                         borderWidth: 1,
-                        borderColor: active ? theme.colors.primary : theme.colors.divider,
+                        borderColor: active
+                          ? theme.colors.primary
+                          : theme.colors.divider,
                         backgroundColor: theme.colors.surface,
                         marginBottom: 10,
                       }}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.colors.text }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "bold",
+                          color: theme.colors.text,
+                        }}
+                      >
                         {o.method}
                       </Text>
-                      <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4, color: theme.colors.text }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          opacity: 0.7,
+                          marginTop: 4,
+                          color: theme.colors.text,
+                        }}
+                      >
                         {o.deadline} • {o.price > 0 ? formatBRL(o.price) : "—"}
                       </Text>
                     </Pressable>
@@ -137,8 +169,16 @@ export default function ShippingScreen() {
                 })}
               </View>
 
-              <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
-                Integração futura: cálculo real por CEP. Por ora, opções simuladas.
+              <Text
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  opacity: 0.7,
+                  color: theme.colors.text,
+                }}
+              >
+                Integração futura: cálculo real por CEP. Por ora, opções
+                simuladas.
               </Text>
             </>
           )}
@@ -166,7 +206,9 @@ export default function ShippingScreen() {
               opacity: draft && valid ? 1 : 0.5,
             }}
           >
-            <Text style={{ color: "#000", fontWeight: "800", textAlign: "center" }}>
+            <Text
+              style={{ color: "#000", fontWeight: "800", textAlign: "center" }}
+            >
               CONTINUAR
             </Text>
           </Pressable>

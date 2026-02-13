@@ -1,13 +1,29 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
-import type { LogisticsEvent, LogisticsEventType, Order } from "../../../utils/ordersStore";
-import { addLogisticsEvent, clearLogisticsEvents, getOrderById, setTrackingCode } from "../../../utils/ordersStore";
+import type {
+  LogisticsEvent,
+  LogisticsEventType,
+  Order,
+} from "../../../utils/ordersStore";
+import {
+  addLogisticsEvent,
+  clearLogisticsEvents,
+  getOrderById,
+  setTrackingCode,
+} from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
   if (typeof v === "string") return v;
@@ -53,11 +69,13 @@ export default function OrderTrackingScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const events: LogisticsEvent[] = useMemo(() => {
-    const list = Array.isArray(order?.logisticsEvents) ? order!.logisticsEvents! : [];
+    const list = Array.isArray(order?.logisticsEvents)
+      ? order!.logisticsEvents!
+      : [];
     // já vem ordenado desc por inserção; garante fallback
     return list;
   }, [order]);
@@ -109,7 +127,11 @@ export default function OrderTrackingScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
           <ThemedText style={styles.title}>Rastreio</ThemedText>
@@ -118,11 +140,16 @@ export default function OrderTrackingScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
 
-            <ThemedText style={styles.sectionTitle}>Código de rastreio</ThemedText>
+            <ThemedText style={styles.sectionTitle}>
+              Código de rastreio
+            </ThemedText>
             <TextInput
               value={code}
               onChangeText={setCode}
@@ -134,18 +161,42 @@ export default function OrderTrackingScreen() {
             />
 
             <Pressable onPress={saveCode} style={styles.primaryBtn}>
-              <ThemedText style={styles.primaryBtnText}>Salvar código</ThemedText>
+              <ThemedText style={styles.primaryBtnText}>
+                Salvar código
+              </ThemedText>
             </Pressable>
 
             <View style={styles.divider} />
 
             <ThemedText style={styles.sectionTitle}>Eventos (mock)</ThemedText>
             <View style={styles.rowWrap}>
-              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}><ThemedText style={styles.pillText}>Postado</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("IN_TRANSIT")} style={styles.pill}><ThemedText style={styles.pillText}>Trânsito</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("OUT_FOR_DELIVERY")} style={styles.pill}><ThemedText style={styles.pillText}>Saiu</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("DELIVERED")} style={styles.pill}><ThemedText style={styles.pillText}>Entregue</ThemedText></Pressable>
-              <Pressable onPress={() => addMock("EXCEPTION")} style={styles.pill}><ThemedText style={styles.pillText}>Ocorrência</ThemedText></Pressable>
+              <Pressable onPress={() => addMock("POSTED")} style={styles.pill}>
+                <ThemedText style={styles.pillText}>Postado</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => addMock("IN_TRANSIT")}
+                style={styles.pill}
+              >
+                <ThemedText style={styles.pillText}>Trânsito</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => addMock("OUT_FOR_DELIVERY")}
+                style={styles.pill}
+              >
+                <ThemedText style={styles.pillText}>Saiu</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => addMock("DELIVERED")}
+                style={styles.pill}
+              >
+                <ThemedText style={styles.pillText}>Entregue</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => addMock("EXCEPTION")}
+                style={styles.pill}
+              >
+                <ThemedText style={styles.pillText}>Ocorrência</ThemedText>
+              </Pressable>
             </View>
           </ThemedView>
 
@@ -153,7 +204,9 @@ export default function OrderTrackingScreen() {
             <ThemedText style={styles.cardTitle}>Linha do tempo</ThemedText>
 
             {events.length === 0 ? (
-              <ThemedText style={styles.secondary}>Nenhum evento ainda. Use os botões mock acima para testar.</ThemedText>
+              <ThemedText style={styles.secondary}>
+                Nenhum evento ainda. Use os botões mock acima para testar.
+              </ThemedText>
             ) : (
               <View style={{ gap: 12 }}>
                 {events.map((e) => (
@@ -168,7 +221,11 @@ export default function OrderTrackingScreen() {
                         {timeLabel(e.at)}
                         {e.location ? ` • ${e.location}` : ""}
                       </ThemedText>
-                      {e.description ? <ThemedText style={styles.secondary}>{e.description}</ThemedText> : null}
+                      {e.description ? (
+                        <ThemedText style={styles.secondary}>
+                          {e.description}
+                        </ThemedText>
+                      ) : null}
                     </View>
                   </View>
                 ))}
@@ -185,7 +242,11 @@ export default function OrderTrackingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -204,8 +265,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
   rightBtn: {
     minWidth: 70,
     height: 44,
@@ -217,7 +288,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  rightBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  rightBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md, paddingBottom: 20 },
 
@@ -229,9 +305,23 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
-  sectionTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  sectionTitle: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
 
   input: {
     height: 46,
@@ -251,9 +341,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  primaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 4 },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 4,
+  },
 
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   pill: {
@@ -264,9 +364,25 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.divider,
     backgroundColor: theme.colors.surface,
   },
-  pillText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  pillText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   eventRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  dot: { width: 10, height: 10, borderRadius: 99, marginTop: 5, backgroundColor: theme.colors.primary },
-  eventTitle: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 99,
+    marginTop: 5,
+    backgroundColor: theme.colors.primary,
+  },
+  eventTitle: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 });

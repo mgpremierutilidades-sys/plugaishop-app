@@ -16,7 +16,11 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
-export function formatCurrency(value: unknown, locale = "pt-BR", currency = "BRL") {
+export function formatCurrency(
+  value: unknown,
+  locale = "pt-BR",
+  currency = "BRL",
+) {
   const safe = toNumber(value);
   return new Intl.NumberFormat(locale, {
     style: "currency",

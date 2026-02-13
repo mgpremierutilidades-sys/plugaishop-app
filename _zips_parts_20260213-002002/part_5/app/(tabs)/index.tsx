@@ -2,7 +2,13 @@ import { Image } from "expo-image";
 import { Link } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
@@ -68,7 +74,8 @@ export default function HomeScreen() {
           <View style={{ flex: 1, gap: 6 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
             <ThemedText type="bodySmall">
-              Combine iluminação, organização e sinalização para deixar seu ponto de venda pronto em minutos.
+              Combine iluminação, organização e sinalização para deixar seu
+              ponto de venda pronto em minutos.
             </ThemedText>
 
             <Link href="/explore" asChild>
@@ -92,18 +99,23 @@ export default function HomeScreen() {
         <ThemedView style={styles.searchSection}>
           <View style={styles.sectionHeader}>
             <ThemedText type="sectionTitle">Catálogo</ThemedText>
-            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
+            <ThemedText type="caption">
+              {filteredProducts.length} itens
+            </ThemedText>
           </View>
 
           <TextInput
             placeholder="Buscar por categoria ou produto"
-            placeholderTextColor={colorScheme === "light" ? "#6B7280" : "#9CA3AF"}
+            placeholderTextColor={
+              colorScheme === "light" ? "#6B7280" : "#9CA3AF"
+            }
             value={query}
             onChangeText={setQuery}
             style={[
               styles.searchInput,
               {
-                backgroundColor: colorScheme === "light" ? "#F3F4F6" : "#111315",
+                backgroundColor:
+                  colorScheme === "light" ? "#F3F4F6" : "#111315",
                 borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
                 color: colorScheme === "light" ? "#111827" : "#F9FAFB",
               },
@@ -150,7 +162,9 @@ export default function HomeScreen() {
           ))}
 
           {filteredProducts.length === 0 ? (
-            <ThemedText type="bodySmall">Não encontramos itens para sua busca.</ThemedText>
+            <ThemedText type="bodySmall">
+              Não encontramos itens para sua busca.
+            </ThemedText>
           ) : null}
         </View>
 
@@ -158,7 +172,8 @@ export default function HomeScreen() {
         <ThemedView style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica</ThemedText>
           <ThemedText type="bodySmall">
-            Use o botão abaixo para testar ações rápidas e visualizar opções contextuais.
+            Use o botão abaixo para testar ações rápidas e visualizar opções
+            contextuais.
           </ThemedText>
 
           <Link href="/modal">

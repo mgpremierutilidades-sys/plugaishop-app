@@ -1,5 +1,9 @@
 import type { Order } from "../types/order";
-import type { LineItemPayload, OrderPayload, PaymentPayload } from "../types/orderPayload";
+import type {
+  LineItemPayload,
+  OrderPayload,
+  PaymentPayload,
+} from "../types/orderPayload";
 
 function safeNumber(n: unknown, fallback = 0) {
   const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
@@ -11,7 +15,8 @@ function buildPaymentPayload(order: Order): PaymentPayload | undefined {
   const status = order.payment?.status;
 
   if (!status) return undefined;
-  if (method !== "pix" && method !== "card" && method !== "boleto") return undefined;
+  if (method !== "pix" && method !== "card" && method !== "boleto")
+    return undefined;
 
   return { method, status };
 }

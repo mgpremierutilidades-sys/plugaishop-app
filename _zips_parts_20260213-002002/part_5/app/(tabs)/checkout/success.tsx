@@ -37,7 +37,12 @@ function normalizeCartItems(cartAny: any) {
         qty: Math.max(1, Number(qty ?? 1)),
       };
     })
-    .filter(Boolean) as { productId: string; qty: number; price: number; title: string }[];
+    .filter(Boolean) as {
+    productId: string;
+    qty: number;
+    price: number;
+    title: string;
+  }[];
 }
 
 export default function CheckoutSuccessScreen() {
@@ -99,7 +104,11 @@ export default function CheckoutSuccessScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>â†</ThemedText>
           </Pressable>
 
@@ -111,17 +120,22 @@ export default function CheckoutSuccessScreen() {
         <ThemedView style={styles.card}>
           <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
           <ThemedText style={styles.p}>
-            Seu pedido foi registrado com sucesso. VocÃª pode acompanhar em â€œPedidosâ€.
+            Seu pedido foi registrado com sucesso. VocÃª pode acompanhar em
+            â€œPedidosâ€.
           </ThemedText>
 
           <View style={{ height: 6 }} />
 
           <Pressable onPress={goToLatestOrder} style={styles.primaryBtn}>
-            <ThemedText style={styles.primaryBtnText}>Ver pedido agora</ThemedText>
+            <ThemedText style={styles.primaryBtnText}>
+              Ver pedido agora
+            </ThemedText>
           </Pressable>
 
           <Pressable onPress={justGoOrders} style={styles.secondaryBtn}>
-            <ThemedText style={styles.secondaryBtnText}>Ir para Pedidos</ThemedText>
+            <ThemedText style={styles.secondaryBtnText}>
+              Ir para Pedidos
+            </ThemedText>
           </Pressable>
 
           <Pressable
@@ -131,7 +145,9 @@ export default function CheckoutSuccessScreen() {
             }}
             style={styles.ghostBtn}
           >
-            <ThemedText style={styles.ghostBtnText}>Voltar ao inÃ­cio</ThemedText>
+            <ThemedText style={styles.ghostBtnText}>
+              Voltar ao inÃ­cio
+            </ThemedText>
           </Pressable>
         </ThemedView>
       </ThemedView>
@@ -141,7 +157,11 @@ export default function CheckoutSuccessScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -160,8 +180,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   card: {
     backgroundColor: theme.colors.surface,
@@ -171,8 +201,18 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  h1: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
-  p: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)", lineHeight: 16 },
+  h1: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  p: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+    lineHeight: 16,
+  },
 
   primaryBtn: {
     paddingVertical: 12,
@@ -181,7 +221,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
-  primaryBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  primaryBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
   secondaryBtn: {
     paddingVertical: 12,
@@ -208,6 +253,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  ghostBtnText: { fontFamily: "OpenSans", fontSize: 16, fontWeight: "700", color: theme.colors.text },
+  ghostBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 });
-

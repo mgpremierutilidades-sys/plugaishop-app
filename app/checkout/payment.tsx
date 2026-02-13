@@ -25,7 +25,14 @@ type Method = Payment["method"];
 
 function Label({ children }: { children: string }) {
   return (
-    <Text style={{ marginTop: 12, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+    <Text
+      style={{
+        marginTop: 12,
+        fontSize: 12,
+        opacity: 0.7,
+        color: theme.colors.text,
+      }}
+    >
       {children}
     </Text>
   );
@@ -54,8 +61,19 @@ function CardOption({
         marginTop: 10,
       }}
     >
-      <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.colors.text }}>{title}</Text>
-      <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4, color: theme.colors.text }}>
+      <Text
+        style={{ fontSize: 12, fontWeight: "bold", color: theme.colors.text }}
+      >
+        {title}
+      </Text>
+      <Text
+        style={{
+          fontSize: 12,
+          opacity: 0.7,
+          marginTop: 4,
+          color: theme.colors.text,
+        }}
+      >
         {subtitle}
       </Text>
     </Pressable>
@@ -69,9 +87,9 @@ export default function PaymentScreen() {
   const [method, setMethod] = useState<Method>("pix");
 
   const [cardNumber, setCardNumber] = useState("");
-  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">(
-    "other"
-  );
+  const [cardBrand, setCardBrand] = useState<
+    "visa" | "mastercard" | "elo" | "amex" | "other"
+  >("other");
 
   useEffect(() => {
     (async () => {
@@ -126,7 +144,9 @@ export default function PaymentScreen() {
           }}
         >
           {!draft ? (
-            <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando pagamento...</Text>
+            <Text style={{ fontSize: 16, color: theme.colors.text }}>
+              Carregando pagamento...
+            </Text>
           ) : (
             <>
               <Label>Escolha uma forma</Label>
@@ -172,8 +192,17 @@ export default function PaymentScreen() {
                   />
 
                   <Label>Bandeira (mock)</Label>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                    {(["visa", "mastercard", "elo", "amex", "other"] as const).map((b) => {
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      gap: 8,
+                      marginTop: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {(
+                      ["visa", "mastercard", "elo", "amex", "other"] as const
+                    ).map((b) => {
                       const active = cardBrand === b;
                       return (
                         <Pressable
@@ -184,7 +213,9 @@ export default function PaymentScreen() {
                             paddingHorizontal: 10,
                             borderRadius: 999,
                             borderWidth: 1,
-                            borderColor: active ? theme.colors.primary : theme.colors.divider,
+                            borderColor: active
+                              ? theme.colors.primary
+                              : theme.colors.divider,
                             backgroundColor: theme.colors.surface,
                           }}
                         >
@@ -229,7 +260,9 @@ export default function PaymentScreen() {
               opacity: canContinue ? 1 : 0.5,
             }}
           >
-            <Text style={{ color: "#000", fontWeight: "800", textAlign: "center" }}>
+            <Text
+              style={{ color: "#000", fontWeight: "800", textAlign: "center" }}
+            >
               CONTINUAR
             </Text>
           </Pressable>

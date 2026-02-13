@@ -14,9 +14,13 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export async function processOutboxOnce(): Promise<{ sent: number; remaining: number }> {
+export async function processOutboxOnce(): Promise<{
+  sent: number;
+  remaining: number;
+}> {
   const state = await NetInfo.fetch();
-  if (!state.isConnected) return { sent: 0, remaining: (await getOutbox()).length };
+  if (!state.isConnected)
+    return { sent: 0, remaining: (await getOutbox()).length };
 
   const outbox = await getOutbox();
   if (outbox.length === 0) return { sent: 0, remaining: 0 };

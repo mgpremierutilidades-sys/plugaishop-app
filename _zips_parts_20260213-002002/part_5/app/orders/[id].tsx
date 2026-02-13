@@ -68,16 +68,19 @@ export default function OrderDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const historyMap = useMemo(() => {
     const map = new Map<OrderStatus, string>();
-    const hist = Array.isArray(order?.statusHistory) ? order!.statusHistory! : [];
+    const hist = Array.isArray(order?.statusHistory)
+      ? order!.statusHistory!
+      : [];
     for (const h of hist) {
       if (h?.status && h?.at) map.set(h.status, h.at);
     }
-    if (!map.has("Confirmado") && order?.createdAt) map.set("Confirmado", order.createdAt);
+    if (!map.has("Confirmado") && order?.createdAt)
+      map.set("Confirmado", order.createdAt);
     return map;
   }, [order]);
 
@@ -96,25 +99,33 @@ export default function OrderDetailScreen() {
     return [
       {
         title: "Pedido confirmado",
-        subtitle: dConfirmado ? `Recebido em ${dateLabel(dConfirmado)}` : "Recebemos seu pedido com sucesso.",
+        subtitle: dConfirmado
+          ? `Recebido em ${dateLabel(dConfirmado)}`
+          : "Recebemos seu pedido com sucesso.",
         done: true,
         active: status === "confirmado" || !status,
       },
       {
         title: "Pagamento aprovado",
-        subtitle: dPago ? `Aprovado em ${dateLabel(dPago)}` : "Pagamento validado.",
+        subtitle: dPago
+          ? `Aprovado em ${dateLabel(dPago)}`
+          : "Pagamento validado.",
         done: donePago,
         active: status === "pago",
       },
       {
         title: "Pedido enviado",
-        subtitle: dEnviado ? `Enviado em ${dateLabel(dEnviado)}` : "Seu pedido saiu para entrega.",
+        subtitle: dEnviado
+          ? `Enviado em ${dateLabel(dEnviado)}`
+          : "Seu pedido saiu para entrega.",
         done: doneEnviado,
         active: status === "enviado",
       },
       {
         title: "Pedido entregue",
-        subtitle: dEntregue ? `Entregue em ${dateLabel(dEntregue)}` : "Entrega concluída.",
+        subtitle: dEntregue
+          ? `Entregue em ${dateLabel(dEntregue)}`
+          : "Entrega concluída.",
         done: doneEntregue,
         active: status === "entregue",
       },
@@ -123,7 +134,10 @@ export default function OrderDetailScreen() {
 
   const totals = useMemo(() => {
     const items = order?.items ?? [];
-    const subtotal = items.reduce((acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0), 0);
+    const subtotal = items.reduce(
+      (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
+      0,
+    );
     const discount = Number(order?.discount ?? 0);
     const shipping = Number(order?.shipping ?? 0);
     const total = Math.max(0, subtotal - discount + shipping);
@@ -134,7 +148,11 @@ export default function OrderDetailScreen() {
   const onCopyId = async () => {
     if (!orderId) return;
     const ok = await copyToClipboard(orderId);
-    if (ok) Alert.alert("Copiado", "ID do pedido copiado para a área de transferência.");
+    if (ok)
+      Alert.alert(
+        "Copiado",
+        "ID do pedido copiado para a área de transferência.",
+      );
     else Alert.alert("Copiar ID", `Copie manualmente: ${orderId}`);
   };
 
@@ -142,7 +160,10 @@ export default function OrderDetailScreen() {
     const url = `https://example.com/rastreio?pedido=${encodeURIComponent(orderId || "0")}`;
     const supported = await Linking.canOpenURL(url);
     if (!supported) {
-      Alert.alert("Indisponível", "Não foi possível abrir o link de rastreio neste dispositivo.");
+      Alert.alert(
+        "Indisponível",
+        "Não foi possível abrir o link de rastreio neste dispositivo.",
+      );
       return;
     }
     Linking.openURL(url);
@@ -156,15 +177,19 @@ export default function OrderDetailScreen() {
     }
 
     const addOne = (product: any, qty: number) => {
-      if (typeof cartAny?.addItem === "function") return cartAny.addItem(product, qty);
-      if (typeof cartAny?.addToCart === "function") return cartAny.addToCart(product, qty);
+      if (typeof cartAny?.addItem === "function")
+        return cartAny.addItem(product, qty);
+      if (typeof cartAny?.addToCart === "function")
+        return cartAny.addToCart(product, qty);
       if (typeof cartAny?.add === "function") return cartAny.add(product, qty);
       return null;
     };
 
     let added = 0;
     for (const it of items) {
-      const prod = (products as any[])?.find((p) => String(p.id) === String(it.productId));
+      const prod = (products as any[])?.find(
+        (p) => String(p.id) === String(it.productId),
+      );
       if (!prod) continue;
       const qty = Math.max(1, Number(it.qty ?? 1));
       addOne(prod, qty);
@@ -172,13 +197,20 @@ export default function OrderDetailScreen() {
     }
 
     if (!added) {
-      Alert.alert("Não foi possível repetir", "Não encontramos os produtos deste pedido no catálogo atual.");
+      Alert.alert(
+        "Não foi possível repetir",
+        "Não encontramos os produtos deste pedido no catálogo atual.",
+      );
       return;
     }
 
     Alert.alert("Repetir compra", "Itens adicionados ao carrinho.", [
       { text: "Continuar", style: "default" },
-      { text: "Ir para o carrinho", style: "default", onPress: () => router.push("/(tabs)/cart" as any) },
+      {
+        text: "Ir para o carrinho",
+        style: "default",
+        onPress: () => router.push("/(tabs)/cart" as any),
+      },
     ]);
   };
 
@@ -186,7 +218,10 @@ export default function OrderDetailScreen() {
     if (!orderId) return;
     const updated = await advanceOrderStatus(orderId);
     if (!updated) {
-      Alert.alert("Status", "Não foi possível atualizar o status deste pedido.");
+      Alert.alert(
+        "Status",
+        "Não foi possível atualizar o status deste pedido.",
+      );
       return;
     }
     setOrder(updated);
@@ -216,7 +251,11 @@ export default function OrderDetailScreen() {
       <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
         <ThemedView style={styles.container}>
           <View style={styles.topbar}>
-            <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={styles.backBtn}
+            >
               <ThemedText style={styles.backArrow}>←</ThemedText>
             </Pressable>
             <ThemedText style={styles.title}>Pedido detalhe</ThemedText>
@@ -224,9 +263,12 @@ export default function OrderDetailScreen() {
           </View>
 
           <ThemedView style={styles.card}>
-            <ThemedText style={styles.cardTitle}>Pedido não encontrado</ThemedText>
+            <ThemedText style={styles.cardTitle}>
+              Pedido não encontrado
+            </ThemedText>
             <ThemedText style={styles.secondary}>
-              Não localizamos o pedido informado. Volte e selecione um pedido válido.
+              Não localizamos o pedido informado. Volte e selecione um pedido
+              válido.
             </ThemedText>
           </ThemedView>
         </ThemedView>
@@ -238,25 +280,40 @@ export default function OrderDetailScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
           <ThemedText style={styles.title}>Pedido detalhe</ThemedText>
           <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedView style={styles.card}>
             <View style={styles.rowBetween}>
               <View style={{ flex: 1 }}>
-                <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
+                <ThemedText style={styles.cardTitle}>
+                  Pedido #{orderId}
+                </ThemedText>
                 <ThemedText style={styles.secondary}>
-                  Status: <ThemedText style={styles.bold}>{String(order.status ?? "Confirmado")}</ThemedText>
+                  Status:{" "}
+                  <ThemedText style={styles.bold}>
+                    {String(order.status ?? "Confirmado")}
+                  </ThemedText>
                 </ThemedText>
 
                 {order.trackingCode ? (
                   <ThemedText style={styles.secondary}>
-                    Rastreio: <ThemedText style={styles.bold}>{order.trackingCode}</ThemedText>
+                    Rastreio:{" "}
+                    <ThemedText style={styles.bold}>
+                      {order.trackingCode}
+                    </ThemedText>
                   </ThemedText>
                 ) : null}
               </View>
@@ -274,47 +331,74 @@ export default function OrderDetailScreen() {
               </Pressable>
 
               <Pressable onPress={goTracking} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Rastreio (Histórico)</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Rastreio (Histórico)
+                </ThemedText>
               </Pressable>
             </View>
 
             <View style={styles.actionRow}>
-              <Pressable onPress={onRepeatPurchase} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Repetir</ThemedText>
+              <Pressable
+                onPress={onRepeatPurchase}
+                style={styles.actionBtnOutline}
+              >
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Repetir
+                </ThemedText>
               </Pressable>
 
-              <Pressable onPress={onAdvanceStatus} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Avançar status</ThemedText>
+              <Pressable
+                onPress={onAdvanceStatus}
+                style={styles.actionBtnOutline}
+              >
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Avançar status
+                </ThemedText>
               </Pressable>
             </View>
 
             <View style={styles.actionRow}>
               <Pressable onPress={onShare} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Compartilhar</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Compartilhar
+                </ThemedText>
               </Pressable>
 
               <Pressable onPress={goInvoice} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Nota Fiscal</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Nota Fiscal
+                </ThemedText>
               </Pressable>
             </View>
 
             <View style={styles.actionRow}>
               <Pressable onPress={goSupport} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Suporte</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Suporte
+                </ThemedText>
               </Pressable>
 
               <Pressable onPress={goReturn} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Troca/Reembolso</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Troca/Reembolso
+                </ThemedText>
               </Pressable>
             </View>
 
             <View style={styles.actionRow}>
               <Pressable onPress={goReview} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Avaliar</ThemedText>
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Avaliar
+                </ThemedText>
               </Pressable>
 
-              <Pressable onPress={goNotifications} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>Notificações</ThemedText>
+              <Pressable
+                onPress={goNotifications}
+                style={styles.actionBtnOutline}
+              >
+                <ThemedText style={styles.actionBtnOutlineText}>
+                  Notificações
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -329,24 +413,32 @@ export default function OrderDetailScreen() {
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Subtotal</ThemedText>
-              <ThemedText style={styles.v}>{formatCurrency(totals.subtotal)}</ThemedText>
+              <ThemedText style={styles.v}>
+                {formatCurrency(totals.subtotal)}
+              </ThemedText>
             </View>
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Descontos</ThemedText>
-              <ThemedText style={styles.v}>- {formatCurrency(totals.discount)}</ThemedText>
+              <ThemedText style={styles.v}>
+                - {formatCurrency(totals.discount)}
+              </ThemedText>
             </View>
 
             <View style={styles.kv}>
               <ThemedText style={styles.k}>Frete</ThemedText>
-              <ThemedText style={styles.v}>{formatCurrency(totals.shipping)}</ThemedText>
+              <ThemedText style={styles.v}>
+                {formatCurrency(totals.shipping)}
+              </ThemedText>
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.kv}>
               <ThemedText style={[styles.k, styles.bold]}>Total</ThemedText>
-              <ThemedText style={[styles.v, styles.bold]}>{formatCurrency(totals.total)}</ThemedText>
+              <ThemedText style={[styles.v, styles.bold]}>
+                {formatCurrency(totals.total)}
+              </ThemedText>
             </View>
           </ThemedView>
 
@@ -361,7 +453,11 @@ export default function OrderDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -380,8 +476,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md, paddingBottom: 20 },
 
@@ -393,10 +499,25 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Spacing.md },
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 6,
+  },
 
   smallBtn: {
     paddingHorizontal: 12,
@@ -406,7 +527,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  smallBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  smallBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   actionRow: { flexDirection: "row", gap: Spacing.md },
   actionBtn: {
@@ -417,7 +543,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
-  actionBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
+  actionBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
   actionBtnOutline: {
     flex: 1,
     paddingVertical: 12,
@@ -428,12 +559,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primary,
   },
-  actionBtnOutlineText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
+  actionBtnOutlineText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
 
-  kv: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  kv: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   k: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
   v: { fontFamily: "OpenSans", fontSize: 12, color: theme.colors.text },
   bold: { fontWeight: "700", color: theme.colors.text },
 
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
 });

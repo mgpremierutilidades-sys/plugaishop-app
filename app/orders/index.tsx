@@ -15,7 +15,10 @@ import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
 import { formatCurrency } from "../../utils/formatCurrency";
 import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { listOrders, getUnreadNotificationsCount } from "../../utils/ordersStore";
+import {
+  listOrders,
+  getUnreadNotificationsCount,
+} from "../../utils/ordersStore";
 
 function dateLabel(isoOrAny: string) {
   if (!isoOrAny) return "";
@@ -50,7 +53,7 @@ export default function OrdersIndexScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -74,7 +77,11 @@ export default function OrdersIndexScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>â†</ThemedText>
           </Pressable>
 
@@ -121,7 +128,10 @@ export default function OrdersIndexScreen() {
               <Pressable
                 key={String(f.value)}
                 onPress={() => setFilter(f.value)}
-                style={[styles.pill, active ? styles.pillActive : styles.pillIdle]}
+                style={[
+                  styles.pill,
+                  active ? styles.pillActive : styles.pillIdle,
+                ]}
               >
                 <ThemedText
                   style={[
@@ -139,7 +149,9 @@ export default function OrdersIndexScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {filtered.length === 0 ? (
             <ThemedView style={styles.card}>
@@ -153,35 +165,50 @@ export default function OrdersIndexScreen() {
           {filtered.map((o) => {
             const subtotal = (o.items ?? []).reduce(
               (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
-              0
+              0,
             );
             const total = Math.max(
               0,
-              subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0)
+              subtotal - Number(o.discount ?? 0) + Number(o.shipping ?? 0),
             );
-            const itemCount = (o.items ?? []).reduce((a, b) => a + Number(b.qty ?? 0), 0);
+            const itemCount = (o.items ?? []).reduce(
+              (a, b) => a + Number(b.qty ?? 0),
+              0,
+            );
 
             return (
               <Pressable
                 key={String(o.id)}
                 onPress={() => router.push(`/orders/${o.id}` as any)}
-                style={({ pressed }) => [styles.card, pressed ? { opacity: 0.92 } : null]}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed ? { opacity: 0.92 } : null,
+                ]}
               >
                 <View style={styles.rowBetween}>
-                  <ThemedText style={styles.cardTitle}>Pedido #{String(o.id)}</ThemedText>
-                  <ThemedText style={styles.status}>{String(o.status ?? "Confirmado")}</ThemedText>
+                  <ThemedText style={styles.cardTitle}>
+                    Pedido #{String(o.id)}
+                  </ThemedText>
+                  <ThemedText style={styles.status}>
+                    {String(o.status ?? "Confirmado")}
+                  </ThemedText>
                 </View>
 
-                <ThemedText style={styles.secondary}>Data: {dateLabel(String(o.createdAt ?? ""))}</ThemedText>
+                <ThemedText style={styles.secondary}>
+                  Data: {dateLabel(String(o.createdAt ?? ""))}
+                </ThemedText>
 
                 <View style={styles.divider} />
 
                 <View style={styles.rowBetween}>
                   <ThemedText style={styles.secondary}>
-                    Itens: <ThemedText style={styles.bold}>{itemCount}</ThemedText>
+                    Itens:{" "}
+                    <ThemedText style={styles.bold}>{itemCount}</ThemedText>
                   </ThemedText>
 
-                  <ThemedText style={styles.total}>{formatCurrency(total)}</ThemedText>
+                  <ThemedText style={styles.total}>
+                    {formatCurrency(total)}
+                  </ThemedText>
                 </View>
               </Pressable>
             );
@@ -196,7 +223,11 @@ export default function OrdersIndexScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -215,8 +246,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   notifBtn: {
     width: 70,
@@ -228,7 +269,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  notifBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  notifBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
   badge: {
     position: "absolute",
     top: -6,
@@ -241,7 +287,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     paddingHorizontal: 6,
   },
-  badgeText: { fontFamily: "OpenSans", fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
+  badgeText: {
+    fontFamily: "OpenSans",
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 
   searchWrap: { marginBottom: Spacing.md },
   searchInput: {
@@ -257,9 +308,20 @@ const styles = StyleSheet.create({
   },
 
   filters: { gap: 10, paddingBottom: Spacing.md },
-  pill: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 999, borderWidth: 1 },
-  pillIdle: { backgroundColor: theme.colors.surface, borderColor: theme.colors.divider },
-  pillActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillIdle: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.divider,
+  },
+  pillActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
   pillText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700" },
   pillTextIdle: { color: theme.colors.text },
   pillTextActive: { color: "#FFFFFF" },
@@ -274,14 +336,42 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 18, fontWeight: "700", color: theme.colors.text },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: Spacing.md },
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 8 },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 8,
+  },
 
-  status: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.primary },
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  status: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.primary,
+  },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
   bold: { fontWeight: "700", color: theme.colors.text },
-  total: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  total: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 });
-

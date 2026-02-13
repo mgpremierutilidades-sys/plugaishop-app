@@ -18,7 +18,9 @@ export function initNotifications() {
   });
 }
 
-export async function notifyLocal(payload: LocalNotificationPayload): Promise<void> {
+export async function notifyLocal(
+  payload: LocalNotificationPayload,
+): Promise<void> {
   const { title, body, data } = payload;
 
   await Notifications.scheduleNotificationAsync({

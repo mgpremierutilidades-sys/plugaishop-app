@@ -6,7 +6,9 @@ export default function AccountTab() {
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">Conta</ThemedText>
-      <ThemedText style={styles.subtitle}>Tela da conta (rota do Tab).</ThemedText>
+      <ThemedText style={styles.subtitle}>
+        Tela da conta (rota do Tab).
+      </ThemedText>
     </ThemedView>
   );
 }

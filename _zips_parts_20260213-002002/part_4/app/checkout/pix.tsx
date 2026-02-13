@@ -32,7 +32,9 @@ export default function PixScreen() {
       const d = await loadOrderDraft();
       if (!d) return;
 
-      const next = patchOrderDraft(d, { payment: { method: "pix", status: "pending" } });
+      const next = patchOrderDraft(d, {
+        payment: { method: "pix", status: "pending" },
+      });
       await saveOrderDraft(next);
 
       const exp = pixExpiresAt(2);
@@ -59,7 +61,9 @@ export default function PixScreen() {
 
   async function handleMarkPaid() {
     if (!draft) return;
-    await saveOrderDraft(patchOrderDraft(draft, { payment: { method: "pix", status: "paid" } }));
+    await saveOrderDraft(
+      patchOrderDraft(draft, { payment: { method: "pix", status: "paid" } }),
+    );
     router.push("/checkout/review");
   }
 
@@ -69,12 +73,28 @@ export default function PixScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <AppHeader title="Pix" showBack />
 
-      <View style={{ flex: 1, padding: 16, paddingTop: 12, paddingBottom: 16 + insets.bottom }}>
+      <View
+        style={{
+          flex: 1,
+          padding: 16,
+          paddingTop: 12,
+          paddingBottom: 16 + insets.bottom,
+        }}
+      >
         {!draft ? (
-          <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando Pix...</Text>
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>
+            Carregando Pix...
+          </Text>
         ) : (
           <>
-            <Text style={{ marginTop: 8, fontSize: 12, opacity: 0.75, color: theme.colors.text }}>
+            <Text
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                opacity: 0.75,
+                color: theme.colors.text,
+              }}
+            >
               Escaneie o QR Code ou copie o código Pix.
             </Text>
 
@@ -91,7 +111,14 @@ export default function PixScreen() {
               }}
             >
               <QRCode value={code} size={220} />
-              <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.75, color: theme.colors.text }}>
+              <Text
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  opacity: 0.75,
+                  color: theme.colors.text,
+                }}
+              >
                 Expira em: {expired ? "00:00" : formatMMSS(left)}
               </Text>
             </View>
@@ -123,7 +150,13 @@ export default function PixScreen() {
                 opacity: expired ? 0.5 : 1,
               }}
             >
-              <Text style={{ textAlign: "center", fontWeight: "bold", color: "#000" }}>
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontWeight: "bold",
+                  color: "#000",
+                }}
+              >
                 Simular pagamento aprovado
               </Text>
             </Pressable>

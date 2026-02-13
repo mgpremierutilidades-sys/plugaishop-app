@@ -1,6 +1,10 @@
 export type HttpMethod = "POST" | "PUT" | "PATCH";
 
-export async function httpJson<T>(url: string, method: HttpMethod, body: unknown): Promise<T> {
+export async function httpJson<T>(
+  url: string,
+  method: HttpMethod,
+  body: unknown,
+): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json" },

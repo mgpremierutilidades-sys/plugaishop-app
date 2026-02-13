@@ -1,5 +1,11 @@
 import React, { useCallback, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 
@@ -7,7 +13,11 @@ import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import theme, { Radius, Spacing } from "../../constants/theme";
 import type { InAppNotification } from "../../utils/ordersStore";
-import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../utils/ordersStore";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "../../utils/ordersStore";
 
 function dateLabel(isoOrAny: string) {
   if (!isoOrAny) return "";
@@ -28,7 +38,7 @@ export default function OrdersNotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -57,7 +67,11 @@ export default function OrdersNotificationsScreen() {
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
         <View style={styles.topbar}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
             <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
 
@@ -75,7 +89,9 @@ export default function OrdersNotificationsScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {items.length === 0 ? (
             <ThemedView style={styles.card}>
@@ -90,7 +106,10 @@ export default function OrdersNotificationsScreen() {
             <Pressable
               key={n.id}
               onPress={() => open(n)}
-              style={({ pressed }) => [styles.card, pressed ? { opacity: 0.92 } : null]}
+              style={({ pressed }) => [
+                styles.card,
+                pressed ? { opacity: 0.92 } : null,
+              ]}
             >
               <View style={styles.rowBetween}>
                 <ThemedText style={styles.cardTitle}>{n.title}</ThemedText>
@@ -102,7 +121,8 @@ export default function OrdersNotificationsScreen() {
               <View style={styles.divider} />
 
               <ThemedText style={styles.meta}>
-                {dateLabel(n.createdAt)} {n.orderId ? `• Pedido #${n.orderId}` : ""}
+                {dateLabel(n.createdAt)}{" "}
+                {n.orderId ? `• Pedido #${n.orderId}` : ""}
               </ThemedText>
             </Pressable>
           ))}
@@ -116,7 +136,11 @@ export default function OrdersNotificationsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+  },
 
   topbar: {
     height: 54,
@@ -135,9 +159,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  backArrow: { fontFamily: "Arimo", fontSize: 22, fontWeight: "700", color: theme.colors.text },
+  backArrow: {
+    fontFamily: "Arimo",
+    fontSize: 22,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
-  title: { fontFamily: "Arimo", fontSize: 20, fontWeight: "700", color: theme.colors.text },
+  title: {
+    fontFamily: "Arimo",
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   rightBtn: {
     minWidth: 70,
@@ -150,7 +184,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  rightBtnText: { fontFamily: "OpenSans", fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  rightBtnText: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   scroll: { gap: Spacing.md, paddingTop: Spacing.md, paddingBottom: 20 },
 
@@ -162,14 +201,38 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
   },
-  cardTitle: { fontFamily: "Arimo", fontSize: 16, fontWeight: "700", color: theme.colors.text },
+  cardTitle: {
+    fontFamily: "Arimo",
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
-  secondary: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
+  secondary: {
+    fontFamily: "OpenSans",
+    fontSize: 12,
+    color: "rgba(0,0,0,0.65)",
+  },
   meta: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.55)" },
   bold: { fontWeight: "700", color: theme.colors.text },
 
-  divider: { height: 1, backgroundColor: theme.colors.divider, width: "100%", marginVertical: 6 },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.divider,
+    width: "100%",
+    marginVertical: 6,
+  },
 
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  dot: { width: 10, height: 10, borderRadius: 99, backgroundColor: theme.colors.primary },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 99,
+    backgroundColor: theme.colors.primary,
+  },
 });

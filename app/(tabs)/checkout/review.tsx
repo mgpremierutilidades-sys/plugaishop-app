@@ -46,15 +46,23 @@ export default function Review() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold" }}>Revisão do Pedido</Text>
+      <Text style={{ fontSize: 24, fontWeight: "bold" }}>
+        Revisão do Pedido
+      </Text>
 
       <Text style={{ marginTop: 12 }}>Itens: {order.items.length}</Text>
 
-      <Text style={{ marginTop: 6 }}>Subtotal: R$ {order.subtotal.toFixed(2)}</Text>
+      <Text style={{ marginTop: 6 }}>
+        Subtotal: R$ {order.subtotal.toFixed(2)}
+      </Text>
 
-      <Text style={{ marginTop: 6 }}>Desconto: R$ {order.discount.toFixed(2)}</Text>
+      <Text style={{ marginTop: 6 }}>
+        Desconto: R$ {order.discount.toFixed(2)}
+      </Text>
 
-      <Text style={{ marginTop: 6, fontWeight: "bold" }}>Total: R$ {order.total.toFixed(2)}</Text>
+      <Text style={{ marginTop: 6, fontWeight: "bold" }}>
+        Total: R$ {order.total.toFixed(2)}
+      </Text>
 
       <Pressable
         onPress={handleConfirm}
@@ -65,7 +73,9 @@ export default function Review() {
           borderRadius: 8,
         }}
       >
-        <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
+        <Text
+          style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}
+        >
           Confirmar pedido
         </Text>
       </Pressable>

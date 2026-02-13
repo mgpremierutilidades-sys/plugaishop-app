@@ -7,7 +7,10 @@ import IconSymbolDefault from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+export function Collapsible({
+  children,
+  title,
+}: PropsWithChildren & { title: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const scheme = useColorScheme() ?? "light";
 
@@ -29,7 +32,9 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
         <ThemedText type="defaultSemiBold">{title}</ThemedText>
       </TouchableOpacity>
 
-      {isOpen ? <ThemedView style={styles.content}>{children}</ThemedView> : null}
+      {isOpen ? (
+        <ThemedView style={styles.content}>{children}</ThemedView>
+      ) : null}
     </ThemedView>
   );
 }
@@ -45,4 +50,3 @@ const styles = StyleSheet.create({
     marginLeft: 24,
   },
 });
-

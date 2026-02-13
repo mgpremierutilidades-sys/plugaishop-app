@@ -1,6 +1,12 @@
 // context/CartContext.tsx
 import type { ReactNode } from "react";
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 
 import { isFlagEnabled } from "../constants/flags";
 import type { Product } from "../data/catalog";
@@ -148,7 +154,9 @@ function schedulePersist() {
 
     const ok = await storageSetJSON(KEY, payload);
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track(ok ? "cart_persist_success" : "cart_persist_fail", { items_count: items.length });
+      track(ok ? "cart_persist_success" : "cart_persist_fail", {
+        items_count: items.length,
+      });
     }
   }, 350);
 }
@@ -182,7 +190,10 @@ function addOrInc(product: Product, delta: number) {
   const nextQty = curr.qty + delta;
 
   if (nextQty <= 0) {
-    setItems(items.filter((it) => it.id !== id), "remove_zero");
+    setItems(
+      items.filter((it) => it.id !== id),
+      "remove_zero",
+    );
     return;
   }
 
@@ -209,7 +220,10 @@ function remove(productId: string) {
   const idx = indexById[id];
   if (idx === undefined) return;
 
-  setItems(items.filter((it) => it.id !== id), "remove_item");
+  setItems(
+    items.filter((it) => it.id !== id),
+    "remove_item",
+  );
 }
 
 function clear() {
@@ -297,10 +311,16 @@ export function useCart() {
 
   const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const totalQty = useMemo(() => snap.items.reduce((acc, it) => acc + it.qty, 0), [snap.items]);
+  const totalQty = useMemo(
+    () => snap.items.reduce((acc, it) => acc + it.qty, 0),
+    [snap.items],
+  );
 
   const subtotal = useMemo(() => {
-    return snap.items.reduce((acc, it) => acc + (Number(it.price) || 0) * it.qty, 0);
+    return snap.items.reduce(
+      (acc, it) => acc + (Number(it.price) || 0) * it.qty,
+      0,
+    );
   }, [snap.items]);
 
   const total = subtotal;
@@ -335,7 +355,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     void hydrateOnce();
   }, []);
 
-  return <DummyCartContext.Provider value={true}>{children}</DummyCartContext.Provider>;
+  return (
+    <DummyCartContext.Provider value={true}>
+      {children}
+    </DummyCartContext.Provider>
+  );
 }
 
 export function useCartProviderGuard() {

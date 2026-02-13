@@ -35,12 +35,23 @@ export default function Review() {
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <AppHeader title="Revisão" showBack />
 
-      <View style={{ flex: 1, padding: 16, paddingTop: 12, paddingBottom: 16 + insets.bottom }}>
+      <View
+        style={{
+          flex: 1,
+          padding: 16,
+          paddingTop: 12,
+          paddingBottom: 16 + insets.bottom,
+        }}
+      >
         {!order ? (
-          <Text style={{ fontSize: 18, color: theme.colors.text }}>Carregando revisão...</Text>
+          <Text style={{ fontSize: 18, color: theme.colors.text }}>
+            Carregando revisão...
+          </Text>
         ) : (
           <>
-            <Text style={{ marginTop: 12, color: theme.colors.text }}>Itens: {order.items.length}</Text>
+            <Text style={{ marginTop: 12, color: theme.colors.text }}>
+              Itens: {order.items.length}
+            </Text>
 
             <Text style={{ marginTop: 6, color: theme.colors.text }}>
               Subtotal: R$ {order.subtotal.toFixed(2)}
@@ -50,7 +61,13 @@ export default function Review() {
               Desconto: R$ {(order.discount ?? 0).toFixed(2)}
             </Text>
 
-            <Text style={{ marginTop: 6, fontWeight: "bold", color: theme.colors.text }}>
+            <Text
+              style={{
+                marginTop: 6,
+                fontWeight: "bold",
+                color: theme.colors.text,
+              }}
+            >
               Total: R$ {order.total.toFixed(2)}
             </Text>
 
@@ -63,7 +80,13 @@ export default function Review() {
                 borderRadius: 12,
               }}
             >
-              <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
+              <Text
+                style={{
+                  color: "#000",
+                  fontWeight: "bold",
+                  textAlign: "center",
+                }}
+              >
                 Confirmar pedido
               </Text>
             </Pressable>

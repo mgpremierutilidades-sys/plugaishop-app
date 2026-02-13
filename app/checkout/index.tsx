@@ -18,7 +18,11 @@ function Row({ left, right }: { left: string; right: string }) {
       }}
     >
       <Text style={{ fontSize: 14, color: theme.colors.text }}>{left}</Text>
-      <Text style={{ fontSize: 14, color: theme.colors.text, fontWeight: "600" }}>{right}</Text>
+      <Text
+        style={{ fontSize: 14, color: theme.colors.text, fontWeight: "600" }}
+      >
+        {right}
+      </Text>
     </View>
   );
 }
@@ -39,7 +43,13 @@ export default function CheckoutIndexScreen() {
           }}
         >
           <View style={{ padding: 16, paddingBottom: 10 }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.colors.text }}>
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "700",
+                color: theme.colors.text,
+              }}
+            >
               Resumo
             </Text>
           </View>
@@ -59,7 +69,13 @@ export default function CheckoutIndexScreen() {
                 borderRadius: 12,
               }}
             >
-              <Text style={{ textAlign: "center", fontWeight: "800", color: "#000" }}>
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontWeight: "800",
+                  color: "#000",
+                }}
+              >
                 CONTINUAR
               </Text>
             </Pressable>
@@ -76,8 +92,23 @@ export default function CheckoutIndexScreen() {
             padding: 16,
           }}
         >
-          <Text style={{ fontSize: 14, fontWeight: "800", color: theme.colors.text }}>JOGOS</Text>
-          <Text style={{ marginTop: 6, fontSize: 13, opacity: 0.75, color: theme.colors.text }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "800",
+              color: theme.colors.text,
+            }}
+          >
+            JOGOS
+          </Text>
+          <Text
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              opacity: 0.75,
+              color: theme.colors.text,
+            }}
+          >
             Desafios, prêmios e novidades
           </Text>
         </View>
@@ -92,8 +123,23 @@ export default function CheckoutIndexScreen() {
             padding: 16,
           }}
         >
-          <Text style={{ fontSize: 14, fontWeight: "800", color: theme.colors.text }}>VÍDEOS</Text>
-          <Text style={{ marginTop: 6, fontSize: 13, opacity: 0.75, color: theme.colors.text }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "800",
+              color: theme.colors.text,
+            }}
+          >
+            VÍDEOS
+          </Text>
+          <Text
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              opacity: 0.75,
+              color: theme.colors.text,
+            }}
+          >
             Conteúdo rápido e ofertas
           </Text>
         </View>

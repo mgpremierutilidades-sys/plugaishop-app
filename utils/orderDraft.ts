@@ -5,12 +5,12 @@ export type OrderDraft = {
   id: string;
   createdAt: string;
 
-  items: Array<{
+  items: {
     id: string;
     title: string;
     qty: number;
     price: number;
-  }>;
+  }[];
 
   subtotal: number;
   shipping: number;

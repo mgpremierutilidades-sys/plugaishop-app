@@ -52,11 +52,26 @@ export default function CheckoutShipping() {
 
   const options: ShippingOption[] = useMemo(
     () => [
-      { id: "economico", title: "Econômico", desc: "Entrega estimada: 6–10 dias úteis", price: "R$ 19,90" },
-      { id: "normal", title: "Normal", desc: "Entrega estimada: 3–6 dias úteis", price: "R$ 29,90" },
-      { id: "expresso", title: "Expresso", desc: "Entrega estimada: 1–3 dias úteis", price: "R$ 49,90" },
+      {
+        id: "economico",
+        title: "Econômico",
+        desc: "Entrega estimada: 6–10 dias úteis",
+        price: "R$ 19,90",
+      },
+      {
+        id: "normal",
+        title: "Normal",
+        desc: "Entrega estimada: 3–6 dias úteis",
+        price: "R$ 29,90",
+      },
+      {
+        id: "expresso",
+        title: "Expresso",
+        desc: "Entrega estimada: 1–3 dias úteis",
+        price: "R$ 49,90",
+      },
     ],
-    []
+    [],
   );
 
   const [selectedId, setSelectedId] = useState<ShippingOption["id"]>("normal");
@@ -65,7 +80,12 @@ export default function CheckoutShipping() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ThemedView style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
+          <Pressable
+            onPress={goBack}
+            hitSlop={12}
+            style={styles.backBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.backIcon}>←</ThemedText>
           </Pressable>
 
@@ -74,7 +94,9 @@ export default function CheckoutShipping() {
         </View>
 
         <View style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>Escolha a melhor opção</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            Escolha a melhor opção
+          </ThemedText>
 
           {options.map((opt) => (
             <Option
@@ -101,7 +123,8 @@ export default function CheckoutShipping() {
           </Pressable>
 
           <ThemedText style={styles.hint}>
-            Integração futura: cálculo real por CEP via Nuvemshop/Bling (e regras de frete). Por ora, opções simuladas.
+            Integração futura: cálculo real por CEP via Nuvemshop/Bling (e
+            regras de frete). Por ora, opções simuladas.
           </ThemedText>
         </View>
       </ThemedView>
@@ -111,7 +134,12 @@ export default function CheckoutShipping() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: { flex: 1, paddingHorizontal: 14, paddingTop: 6, backgroundColor: theme.colors.background },
+  container: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    backgroundColor: theme.colors.background,
+  },
 
   header: {
     height: 44,
@@ -120,7 +148,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  backBtn: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   backIcon: { fontSize: 22, fontFamily: FONT_BODY_BOLD },
   rightSpacer: { width: 40, height: 40 },
   title: { fontSize: 20, fontFamily: FONT_TITLE, textAlign: "center" },
@@ -146,11 +180,31 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   optionSelected: { borderColor: theme.colors.primary },
-  optionTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  optionTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   optionTitle: { fontSize: 12, fontFamily: FONT_BODY_BOLD },
-  optionPrice: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
-  optionDesc: { fontSize: 12, fontFamily: FONT_BODY, opacity: 0.85, marginTop: 4 },
-  optionMark: { width: 22, textAlign: "center", fontSize: 16, fontFamily: FONT_BODY_BOLD, color: theme.colors.primary },
+  optionPrice: {
+    fontSize: 12,
+    fontFamily: FONT_BODY_BOLD,
+    color: theme.colors.primary,
+  },
+  optionDesc: {
+    fontSize: 12,
+    fontFamily: FONT_BODY,
+    opacity: 0.85,
+    marginTop: 4,
+  },
+  optionMark: {
+    width: 22,
+    textAlign: "center",
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: theme.colors.primary,
+  },
 
   summary: {
     marginTop: 2,

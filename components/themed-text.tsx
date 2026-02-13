@@ -28,7 +28,12 @@ export function ThemedText({
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, "text");
 
-  return <Text {...rest} style={[{ color }, styles.common, typeStyles[type], style]} />;
+  return (
+    <Text
+      {...rest}
+      style={[{ color }, styles.common, typeStyles[type], style]}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

@@ -7,7 +7,9 @@ export default function ProfileTab() {
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title">Perfil</ThemedText>
-      <ThemedText style={styles.subtitle}>Tela de perfil (rota do Tab).</ThemedText>
+      <ThemedText style={styles.subtitle}>
+        Tela de perfil (rota do Tab).
+      </ThemedText>
     </ThemedView>
   );
 }

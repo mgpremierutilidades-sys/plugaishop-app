@@ -36,7 +36,9 @@ export default function OutboxDebug() {
           borderColor: "#E6E8EC",
         }}
       >
-        <Text style={{ textAlign: "center", fontWeight: "bold" }}>Forçar envio agora</Text>
+        <Text style={{ textAlign: "center", fontWeight: "bold" }}>
+          Forçar envio agora
+        </Text>
       </Pressable>
 
       <ScrollView style={{ marginTop: 12 }}>

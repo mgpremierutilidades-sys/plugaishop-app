@@ -10,7 +10,10 @@ export async function storageGetJSON<T>(key: string): Promise<T | null> {
   }
 }
 
-export async function storageSetJSON(key: string, value: unknown): Promise<boolean> {
+export async function storageSetJSON(
+  key: string,
+  value: unknown,
+): Promise<boolean> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
     return true;

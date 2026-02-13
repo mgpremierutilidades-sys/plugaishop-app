@@ -6,7 +6,10 @@ import { CartProvider } from "../context/CartContext";
 import { DEV_FLAGS } from "../lib/flags.dev";
 
 if (__DEV__) {
-  (globalThis as any).__FLAGS__ = { ...(globalThis as any).__FLAGS__, ...DEV_FLAGS };
+  (globalThis as any).__FLAGS__ = {
+    ...(globalThis as any).__FLAGS__,
+    ...DEV_FLAGS,
+  };
 }
 
 export default function RootLayout() {
@@ -17,13 +20,13 @@ export default function RootLayout() {
           <Stack
             screenOptions={{
               headerShown: false,
-        contentStyle: { backgroundColor: "#F5F7FA" },
+              contentStyle: { backgroundColor: "#F5F7FA" },
               animation: "slide_from_right",
             }}
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="orders" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: "card",}} />
+            <Stack.Screen name="modal" options={{ presentation: "card" }} />
           </Stack>
         </Chrome>
       </CartProvider>

@@ -19,14 +19,23 @@ function formatBRL(value: number) {
 export function ProductCard({ product }: ProductCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
 
-  const cardBg = useThemeColor({ light: "#FFFFFF", dark: "#111315" }, "background");
-  const border = useThemeColor({ light: "#E5E7EB", dark: "#2A2F38" }, "background");
-  const imageBg = useThemeColor({ light: "#F1F5F9", dark: "#0B0D10" }, "background");
+  const cardBg = useThemeColor(
+    { light: "#FFFFFF", dark: "#111315" },
+    "background",
+  );
+  const border = useThemeColor(
+    { light: "#E5E7EB", dark: "#2A2F38" },
+    "background",
+  );
+  const imageBg = useThemeColor(
+    { light: "#F1F5F9", dark: "#0B0D10" },
+    "background",
+  );
 
   const accent = useThemeColor({ light: "#0a7ea4", dark: "#7AC4FF" }, "tint");
   const muted = useThemeColor(
     { light: "rgba(15,23,42,0.62)", dark: "rgba(226,232,240,0.70)" },
-    "text"
+    "text",
   );
 
   const initials = useMemo(() => {
@@ -37,7 +46,9 @@ export function ProductCard({ product }: ProductCardProps) {
   }, [product.name]);
 
   return (
-    <ThemedView style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
+    <ThemedView
+      style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
+    >
       <View style={styles.topRow}>
         <ThemedText type="caption" style={[styles.category, { color: muted }]}>
           {product.category}
@@ -65,11 +76,17 @@ export function ProductCard({ product }: ProductCardProps) {
         ) : (
           <View style={styles.fallback}>
             <View style={[styles.fallbackBadge, { borderColor: border }]}>
-              <ThemedText type="defaultSemiBold" style={[styles.fallbackText, { color: muted }]}>
+              <ThemedText
+                type="defaultSemiBold"
+                style={[styles.fallbackText, { color: muted }]}
+              >
                 {initials}
               </ThemedText>
             </View>
-            <ThemedText type="caption" style={[styles.fallbackHint, { color: muted }]}>
+            <ThemedText
+              type="caption"
+              style={[styles.fallbackHint, { color: muted }]}
+            >
               Imagem indisponível
             </ThemedText>
           </View>
@@ -77,11 +94,19 @@ export function ProductCard({ product }: ProductCardProps) {
       </View>
 
       <View style={styles.info}>
-        <ThemedText type="defaultSemiBold" style={styles.title} numberOfLines={2}>
+        <ThemedText
+          type="defaultSemiBold"
+          style={styles.title}
+          numberOfLines={2}
+        >
           {product.name}
         </ThemedText>
 
-        <ThemedText type="caption" style={[styles.desc, { color: muted }]} numberOfLines={2}>
+        <ThemedText
+          type="caption"
+          style={[styles.desc, { color: muted }]}
+          numberOfLines={2}
+        >
           {product.description}
         </ThemedText>
       </View>

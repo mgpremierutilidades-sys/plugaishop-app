@@ -1,6 +1,13 @@
 import theme from "@/constants/theme";
 import React from "react";
-import { ActivityIndicator, Pressable, PressableProps, StyleSheet, Text, ViewStyle } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  PressableProps,
+  StyleSheet,
+  Text,
+  ViewStyle,
+} from "react-native";
 
 type Props = PressableProps & {
   title: string;
@@ -8,7 +15,13 @@ type Props = PressableProps & {
   style?: ViewStyle | ViewStyle[];
 };
 
-export default function ButtonPrimary({ title, loading, disabled, style, ...rest }: Props) {
+export default function ButtonPrimary({
+  title,
+  loading,
+  disabled,
+  style,
+  ...rest
+}: Props) {
   const isDisabled = Boolean(disabled || loading);
 
   return (
