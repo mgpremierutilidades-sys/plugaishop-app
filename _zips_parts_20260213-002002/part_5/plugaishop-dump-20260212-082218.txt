@@ -1,0 +1,2361 @@
+# plugaishop dump - 20260212-082218
+
+
+===== BEGIN FILE: app/_layout.tsx =====
+
+import { Stack } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+import Chrome from "../components/global-chrome";
+import { CartProvider } from "../context/CartContext";
+import { DEV_FLAGS } from "../lib/flags.dev";
+
+if (__DEV__) {
+  (globalThis as any).__FLAGS__ = { ...(globalThis as any).__FLAGS__, ...DEV_FLAGS };
+}
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <CartProvider>
+        <Chrome>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="orders" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+          </Stack>
+        </Chrome>
+      </CartProvider>
+    </SafeAreaProvider>
+  );
+}
+
+
+===== END FILE: app/_layout.tsx =====
+
+
+===== BEGIN FILE: app/(tabs)/_layout.tsx =====
+
+import { Tabs } from "expo-router";
+import IconSymbolDefault from "../../components/ui/icon-symbol";
+import theme from "../../constants/theme";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.colors.tabIconActive,
+        tabBarInactiveTintColor: theme.colors.tabIconInactive,
+        tabBarHideOnKeyboard: false,
+        tabBarStyle: {
+          borderTopColor: theme.colors.divider,
+          backgroundColor: theme.colors.background,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "InÃ­cio",
+          tabBarIcon: ({ color }) => (
+            <IconSymbolDefault name="home-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Explorar",
+          tabBarIcon: ({ color }) => (
+            <IconSymbolDefault name="compass-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: "Carrinho",
+          tabBarIcon: ({ color }) => (
+            <IconSymbolDefault name="cart-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Conta",
+          tabBarIcon: ({ color }) => (
+            <IconSymbolDefault name="receipt-outline" color={color} size={22} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbolDefault name="person-circle-outline" color={color} size={22} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+
+
+
+===== END FILE: app/(tabs)/_layout.tsx =====
+
+
+===== BEGIN FILE: app/(tabs)/cart.tsx =====
+
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  View,
+  type ImageSourcePropType,
+} from "react-native";
+
+import { AppHeader } from "../../components/AppHeader";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import IconSymbolDefault from "../../components/ui/icon-symbol";
+import { isFlagEnabled } from "../../constants/flags";
+import theme from "../../constants/theme";
+import { useCart } from "../../context/CartContext";
+import type { Product } from "../../data/catalog";
+import { products } from "../../data/catalog";
+import { track } from "../../lib/analytics";
+import { formatCurrency } from "../../utils/formatCurrency";
+
+const FONT_BODY = "OpenSans_400Regular";
+const FONT_BODY_BOLD = "OpenSans_700Bold";
+
+type Row = {
+  type: "cart";
+  id: string;
+  title: string;
+  price: number;
+  oldPrice?: number;
+  qty: number;
+  image?: string;
+};
+
+type CartSection = {
+  title: string;
+  data: Row[];
+};
+
+function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
+  const src: ImageSourcePropType | null =
+    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
+
+  return (
+    <View style={styles.itemImage}>
+      {src ? (
+        <Image
+          source={src}
+          style={{ width: size, height: size, borderRadius: 12 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={styles.itemImagePlaceholder} />
+      )}
+    </View>
+  );
+}
+
+export default function CartTab() {
+  const cartCtx = useCart() as any;
+
+  // Lock por ação (anti double tap)
+  const actionLocksRef = useRef<Record<string, number>>({});
+  const ACTION_LOCK_MS = 250;
+
+  const withActionLock = useCallback((key: string, fn: () => void) => {
+    if (!isFlagEnabled("ff_cart_action_lock")) return fn();
+
+    const now = Date.now();
+    const last = actionLocksRef.current[key] ?? 0;
+
+    if (now - last < ACTION_LOCK_MS) {
+      if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_double_action_prevented", { key });
+      return;
+    }
+
+    actionLocksRef.current[key] = now;
+    fn();
+  }, []);
+
+  // Fallback local (se carrinho estiver vazio / sem persistência ainda)
+  const seededRows = useMemo<Row[]>(() => {
+    const base = (products as Product[]).slice(0, 6);
+    return base.map((p, idx) => ({
+      type: "cart",
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      qty: 1 + (idx % 3),
+      image: (p as any).image,
+    }));
+  }, []);
+
+  const [localRows, setLocalRows] = useState<Row[]>(seededRows);
+
+  useEffect(() => {
+    if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_view");
+  }, []);
+
+  // Normaliza a fonte observada (satisfaz exhaustive-deps sem depender do objeto inteiro)
+  const ctxItems = useMemo(() => {
+    return (cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null) as unknown;
+  }, [cartCtx?.items, cartCtx?.cartItems, cartCtx?.cart]);
+
+  // Reflete itens reais do carrinho (rehydration/persist)
+  useEffect(() => {
+    try {
+      if (!ctxItems) return;
+
+      if (Array.isArray(ctxItems)) {
+        const mapped: Row[] = ctxItems
+          .map((it: any) => {
+            const p = it?.product ?? it;
+            const qty = it?.qty ?? it?.quantity ?? 1;
+            const id = p?.id ?? it?.id ?? it?.productId;
+            if (!id) return null;
+
+            return {
+              type: "cart",
+              id: String(id),
+              title: String(p?.title ?? it?.title ?? "Produto"),
+              price: Number(p?.price ?? it?.price ?? 0),
+              oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
+              qty: Math.max(1, Number(qty ?? 1)),
+              image: p?.image ?? it?.image,
+            } as Row;
+          })
+          .filter(Boolean) as Row[];
+
+        if (mapped.length) setLocalRows(mapped);
+      }
+    } catch (e: any) {
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
+        track("cart_rows_map_fail", { message: String(e?.message ?? e) });
+      }
+    }
+  }, [ctxItems, seededRows]);
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  // preservar seleção ao mutar itens (não resetar tudo)
+  useEffect(() => {
+    setSelected((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const r of localRows) next[r.id] = prev[r.id] ?? true;
+      return next;
+    });
+  }, [localRows]);
+
+  function toProduct(row: Row): Product {
+    const p = (products as Product[]).find((x) => x.id === row.id);
+    return (
+      p ?? {
+        id: row.id,
+        title: row.title,
+        price: row.price,
+        category: "",
+        image: row.image ?? "",
+      }
+    );
+  }
+
+  function safeAdd(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.addItem?.bind(any) ||
+      any?.add?.bind(any) ||
+      any?.addToCart?.bind(any) ||
+      any?.increase?.bind(any) ||
+      any?.increment?.bind(any);
+
+    withActionLock(`inc:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1"))
+        track("cart_item_increment", { item_id: String(product.id), delta: 1 });
+
+      if (fn) return fn(product, 1);
+
+      setLocalRows((prev) =>
+        prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r))
+      );
+    });
+  }
+
+  function safeDec(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.decItem?.bind(any) ||
+      any?.decrease?.bind(any) ||
+      any?.dec?.bind(any) ||
+      any?.decrement?.bind(any) ||
+      any?.removeOne?.bind(any);
+
+    withActionLock(`dec:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1"))
+        track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
+
+      if (fn) return fn(product, 1);
+
+      setLocalRows((prev) =>
+        prev
+          .map((r) =>
+            r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r
+          )
+          .filter((r) => r.qty > 0)
+      );
+    });
+  }
+
+  function safeRemove(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.removeItem?.bind(any) ||
+      any?.remove?.bind(any) ||
+      any?.removeFromCart?.bind(any) ||
+      any?.deleteItem?.bind(any) ||
+      any?.clearItem?.bind(any);
+
+    withActionLock(`rm:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1"))
+        track("cart_item_remove", { item_id: String(product.id) });
+
+      if (fn) return fn(product.id);
+
+      setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+    });
+  }
+
+  const selectedSubtotal = useMemo(() => {
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.price * r.qty;
+    }, 0);
+  }, [localRows, selected]);
+
+  const sections: CartSection[] = useMemo(() => {
+    return [{ title: "Produtos", data: localRows }];
+  }, [localRows]);
+
+  const renderRow = ({ item }: { item: Row }) => {
+    const checked = !!selected[item.id];
+    const product = toProduct(item);
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.rowTop}>
+          <Pressable
+            onPress={() =>
+              withActionLock(`sel:${item.id}`, () => {
+                setSelected((prev) => {
+                  const next = { ...prev, [item.id]: !prev[item.id] };
+                  if (isFlagEnabled("ff_cart_analytics_v1"))
+                    track("cart_item_select_toggle", {
+                      item_id: item.id,
+                      selected: !!next[item.id],
+                    });
+                  return next;
+                });
+              })
+            }
+            hitSlop={10}
+            style={[styles.check, checked ? styles.checkOn : styles.checkOff]}
+          >
+            {checked ? <View style={styles.dot} /> : null}
+          </Pressable>
+
+          <ProductThumb image={item.image} />
+
+          <View style={{ flex: 1 }}>
+            <ThemedText style={styles.title} numberOfLines={2}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceRow}>
+              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
+              <ThemedText style={styles.unit}> / un</ThemedText>
+            </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={styles.old}>{formatCurrency(item.oldPrice)}</ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.rowBottom}>
+          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10}>
+            <ThemedText style={styles.qtyBtnText}>-</ThemedText>
+          </Pressable>
+
+          <View style={styles.qtyPill}>
+            <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
+          </View>
+
+          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10}>
+            <ThemedText style={styles.qtyBtnText}>+</ThemedText>
+          </Pressable>
+
+          <Pressable onPress={() => safeRemove(product)} style={styles.removeBtn} hitSlop={10}>
+            <ThemedText style={styles.remove}>Remover</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ThemedView style={styles.container}>
+      <AppHeader
+        title="Carrinho"
+        subtitle={`${localRows.length} itens`}
+        leftSlot={<IconSymbolDefault name="cart-outline" size={22} color={theme.colors.textPrimary} />}
+      />
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(i) => i.id}
+        renderItem={renderRow}
+        renderSectionHeader={() => null}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
+
+      <View style={styles.footerBar}>
+        <View style={styles.totalBox}>
+          <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+          <ThemedText style={styles.totalValue}>{formatCurrency(selectedSubtotal)}</ThemedText>
+        </View>
+
+        <Pressable
+          onPress={() => {
+            if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_checkout_start");
+            router.push("/(tabs)/checkout");
+          }}
+          style={styles.footerBtn}
+        >
+          <ThemedText style={styles.footerBtnText}>CONTINUAR</ThemedText>
+        </Pressable>
+      </View>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
+
+  listContent: { paddingHorizontal: 14, paddingBottom: 140, paddingTop: 12 },
+
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+
+  rowTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkOn: { backgroundColor: "#16A34A" },
+  checkOff: { borderWidth: 1, borderColor: theme.colors.divider },
+
+  dot: { width: 10, height: 10, borderRadius: 4, backgroundColor: "#FFFFFF" },
+
+  itemImage: { borderRadius: 12, overflow: "hidden" },
+  itemImagePlaceholder: { width: 72, height: 72, borderRadius: 12, backgroundColor: theme.colors.divider },
+
+  title: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
+  priceRow: { flexDirection: "row", alignItems: "baseline", marginTop: 6 },
+  price: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
+  unit: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.7 },
+  old: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.55, textDecorationLine: "line-through", marginTop: 2 },
+
+  rowBottom: { flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 },
+
+  qtyBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: theme.colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnText: { fontFamily: FONT_BODY_BOLD, fontSize: 16 },
+
+  qtyPill: {
+    minWidth: 46,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 10,
+  },
+  qtyText: { fontFamily: FONT_BODY_BOLD, minWidth: 18, textAlign: "center" },
+
+  removeBtn: { marginLeft: "auto", paddingHorizontal: 10, paddingVertical: 8 },
+  remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
+
+  footerBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 10,
+    gap: 8,
+  },
+
+  totalBox: {
+    backgroundColor: "#F59E0B",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
+
+  footerBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#3F5A3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerBtnText: {
+    fontSize: 16,
+    fontFamily: FONT_BODY_BOLD,
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
+});
+
+
+===== END FILE: app/(tabs)/cart.tsx =====
+
+
+===== BEGIN FILE: context/CartContext.tsx =====
+
+// context/CartContext.tsx
+import type { ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+
+import { isFlagEnabled } from "../constants/flags";
+import type { Product } from "../data/catalog";
+import { products } from "../data/catalog";
+import { track } from "../lib/analytics";
+import { storageGetJSON, storageSetJSON } from "../lib/storage";
+
+export type CartItem = {
+  product: Product;
+
+  id: string;
+  title: string;
+  price: number;
+  category?: string;
+  image?: string;
+  description?: string;
+  unitLabel?: string;
+  discountPercent?: number;
+
+  qty: number;
+};
+
+type CartSnapshot = {
+  items: CartItem[];
+  ready: boolean;
+  hydrating: boolean;
+};
+
+type PersistedCartV1 = {
+  v: 1;
+  updatedAt: number;
+  items: {
+    id: string;
+    qty: number;
+    title?: string;
+    price?: number;
+    category?: string;
+    image?: string;
+    description?: string;
+    unitLabel?: string;
+    discountPercent?: number;
+  }[];
+};
+
+const KEY = "@plugaishop:cart:v1";
+
+// ===== Store singleton =====
+const listeners = new Set<() => void>();
+
+let ready = false;
+let hydrating = false;
+
+let items: CartItem[] = [];
+let indexById: Record<string, number> = Object.create(null);
+
+let hydrationStarted = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * ✅ REGRA DE OURO (Fabric DEV):
+ * getSnapshot() NUNCA pode criar objeto/array.
+ * Sempre retorna a MESMA referência enquanto nada mudou.
+ */
+let snapshotRef: CartSnapshot = { items, ready, hydrating };
+
+function commit() {
+  // Só troca a referência quando algo mudou de fato.
+  if (
+    snapshotRef.items === items &&
+    snapshotRef.ready === ready &&
+    snapshotRef.hydrating === hydrating
+  ) {
+    return;
+  }
+
+  snapshotRef = { items, ready, hydrating };
+
+  // DEV: evita mutação acidental por algum consumidor
+  if (__DEV__) Object.freeze(snapshotRef);
+}
+
+function getSnapshot(): CartSnapshot {
+  return snapshotRef;
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function emit() {
+  // Blindagem extra: garante snapshot compatível com o estado atual
+  commit();
+  listeners.forEach((l) => l());
+}
+
+function rebuildIndex(next: CartItem[]) {
+  const idx: Record<string, number> = Object.create(null);
+  for (let i = 0; i < next.length; i++) idx[next[i].id] = i;
+  indexById = idx;
+}
+
+function findProductById(id: string): Product | null {
+  return products.find((p) => String(p.id) === String(id)) ?? null;
+}
+
+function toCartItem(product: Product, qty: number): CartItem {
+  const q = Math.max(1, Math.floor(Number(qty) || 1));
+  return {
+    product,
+    id: String(product.id),
+    title: String(product.title ?? ""),
+    price: Number(product.price ?? 0),
+    category: product.category,
+    image: product.image,
+    description: product.description,
+    unitLabel: product.unitLabel,
+    discountPercent: product.discountPercent,
+    qty: q,
+  };
+}
+
+function schedulePersist() {
+  if (!isFlagEnabled("ff_cart_persist_v1")) return;
+
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(async () => {
+    persistTimer = null;
+
+    const payload: PersistedCartV1 = {
+      v: 1,
+      updatedAt: Date.now(),
+      items: items.map((it) => ({
+        id: it.id,
+        qty: it.qty,
+        title: it.title,
+        price: it.price,
+        category: it.category,
+        image: it.image,
+        description: it.description,
+        unitLabel: it.unitLabel,
+        discountPercent: it.discountPercent,
+      })),
+    };
+
+    const ok = await storageSetJSON(KEY, payload);
+    if (isFlagEnabled("ff_cart_analytics_v1")) {
+      track(ok ? "cart_persist_success" : "cart_persist_fail", { items_count: items.length });
+    }
+  }, 350);
+}
+
+function setItems(next: CartItem[], reason?: string) {
+  // Evita churn se alguém passar a mesma referência
+  if (next === items) return;
+
+  items = next;
+  rebuildIndex(next);
+
+  if (reason && isFlagEnabled("ff_cart_analytics_v1")) {
+    track("cart_mutation", { reason, items_count: next.length });
+  }
+
+  emit();
+  schedulePersist();
+}
+
+// ===== O(1) mutations =====
+function addOrInc(product: Product, delta: number) {
+  const id = String(product.id);
+  const idx = indexById[id];
+
+  if (idx === undefined) {
+    setItems([...items, toCartItem(product, Math.max(1, delta))], "add_new");
+    return;
+  }
+
+  const curr = items[idx];
+  const nextQty = curr.qty + delta;
+
+  if (nextQty <= 0) {
+    setItems(items.filter((it) => it.id !== id), "remove_zero");
+    return;
+  }
+
+  const next = items.slice();
+  next[idx] = { ...toCartItem(curr.product, nextQty), qty: nextQty };
+  setItems(next, "update_qty");
+}
+
+function setQty(productId: string, qty: number) {
+  const id = String(productId);
+  const idx = indexById[id];
+  if (idx === undefined) return;
+
+  const q = Math.max(1, Math.floor(Number(qty) || 1));
+  const curr = items[idx];
+
+  const next = items.slice();
+  next[idx] = { ...toCartItem(curr.product, q), qty: q };
+  setItems(next, "set_qty");
+}
+
+function remove(productId: string) {
+  const id = String(productId);
+  const idx = indexById[id];
+  if (idx === undefined) return;
+
+  setItems(items.filter((it) => it.id !== id), "remove_item");
+}
+
+function clear() {
+  setItems([], "clear");
+}
+
+// ===== Hydration determinística =====
+async function hydrateOnce() {
+  if (hydrationStarted) return;
+  hydrationStarted = true;
+
+  if (!isFlagEnabled("ff_cart_rehydration_hardened")) {
+    ready = true;
+    hydrating = false;
+    emit();
+    return;
+  }
+
+  hydrating = true;
+  emit();
+
+  try {
+    const data = await storageGetJSON<PersistedCartV1>(KEY);
+
+    if (!data || data.v !== 1 || !Array.isArray(data.items)) {
+      ready = true;
+      hydrating = false;
+      emit();
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
+        track("cart_rehydration_success", { items_count: 0 });
+      }
+      return;
+    }
+
+    const next: CartItem[] = [];
+    for (const it of data.items) {
+      const id = String(it?.id ?? "");
+      if (!id) continue;
+
+      const qty = Math.max(1, Math.floor(Number(it?.qty ?? 1)));
+      const p = findProductById(id);
+
+      if (p) {
+        next.push(toCartItem(p, qty));
+      } else {
+        const fallback: Product = {
+          id,
+          title: String(it.title ?? "Produto"),
+          price: Number(it.price ?? 0),
+          category: String(it.category ?? ""),
+          image: it.image,
+          description: it.description,
+          unitLabel: it.unitLabel,
+          discountPercent: it.discountPercent,
+        };
+        next.push(toCartItem(fallback, qty));
+      }
+    }
+
+    items = next;
+    rebuildIndex(next);
+
+    ready = true;
+    hydrating = false;
+    emit();
+
+    if (isFlagEnabled("ff_cart_analytics_v1")) {
+      track("cart_rehydration_success", { items_count: next.length });
+    }
+  } catch (e: any) {
+    ready = true;
+    hydrating = false;
+    emit();
+    if (isFlagEnabled("ff_cart_analytics_v1")) {
+      track("cart_rehydration_fail", { message: String(e?.message ?? e) });
+    }
+  }
+}
+
+export function useCart() {
+  // ✅ Garante hydration mesmo se alguém esquecer o Provider (guard impede duplicar)
+  useEffect(() => {
+    void hydrateOnce();
+  }, []);
+
+  const snap = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  const totalQty = useMemo(() => snap.items.reduce((acc, it) => acc + it.qty, 0), [snap.items]);
+
+  const subtotal = useMemo(() => {
+    return snap.items.reduce((acc, it) => acc + (Number(it.price) || 0) * it.qty, 0);
+  }, [snap.items]);
+
+  const total = subtotal;
+
+  return {
+    items: snap.items,
+    ready: snap.ready,
+    hydrating: snap.hydrating,
+
+    totalQty,
+    subtotal,
+    total,
+
+    addItem: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
+    decItem: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, -Math.max(1, Math.abs(qtyDelta))),
+    removeItem: (productId: string) => remove(productId),
+    setItemQty: (productId: string, qty: number) => setQty(productId, qty),
+    clearCart: () => clear(),
+
+    // alias compat
+    setQty: (productId: string, qty: number) => setQty(productId, qty),
+  };
+}
+
+// Provider apenas faz bootstrap (store é singleton)
+const DummyCartContext = createContext(true);
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    void hydrateOnce();
+  }, []);
+
+  return <DummyCartContext.Provider value={true}>{children}</DummyCartContext.Provider>;
+}
+
+export function useCartProviderGuard() {
+  return useContext(DummyCartContext);
+}
+
+
+===== END FILE: context/CartContext.tsx =====
+
+
+===== BEGIN FILE: components/AppHeader.tsx =====
+
+import type { ReactNode } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import theme from "../constants/theme";
+import { ThemedText } from "./themed-text";
+
+type AppHeaderProps = {
+  title: string;
+  subtitle?: string;
+  onBack?: (() => void) | null;
+  leftSlot?: ReactNode;
+  rightSlot?: ReactNode;
+};
+
+export function AppHeader({ title, subtitle, onBack, leftSlot, rightSlot }: AppHeaderProps) {
+  return (
+    <SafeAreaView edges={["top"]} style={styles.safe}>
+      <View style={styles.bar}>
+        <View style={styles.left}>
+          {onBack ? (
+            <Pressable onPress={onBack} hitSlop={12} style={styles.backBtn}>
+              <ThemedText type="defaultSemiBold" style={styles.backText}>
+                {"←"}
+              </ThemedText>
+            </Pressable>
+          ) : null}
+
+          {leftSlot ? <View style={styles.leftSlot}>{leftSlot}</View> : null}
+        </View>
+
+        <View style={styles.center}>
+          <ThemedText type="title" numberOfLines={1} style={styles.title}>
+            {title}
+          </ThemedText>
+          {subtitle ? (
+            <ThemedText type="caption" numberOfLines={1} style={styles.subtitle}>
+              {subtitle}
+            </ThemedText>
+          ) : null}
+        </View>
+
+        <View style={styles.right}>{rightSlot ? rightSlot : null}</View>
+      </View>
+
+      <View style={styles.divider} />
+    </SafeAreaView>
+  );
+}
+
+const HEADER_HEIGHT = 56;
+
+const styles = StyleSheet.create({
+  safe: {
+    backgroundColor: theme.colors.background,
+  },
+  bar: {
+    height: HEADER_HEIGHT,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.colors.divider,
+  },
+
+  left: { minWidth: 64, flexDirection: "row", alignItems: "center", gap: 8 },
+  leftSlot: { alignItems: "center", justifyContent: "center" },
+
+  backBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  backText: { fontSize: 16 },
+
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  title: {
+    // evita “corte” por métricas de fonte em iOS
+    lineHeight: 26,
+  },
+  subtitle: {
+    marginTop: 2,
+    color: theme.colors.textMuted,
+  },
+
+  right: { minWidth: 64, alignItems: "flex-end", justifyContent: "center" },
+});
+
+
+===== END FILE: components/AppHeader.tsx =====
+
+
+===== BEGIN FILE: components/global-chrome.tsx =====
+
+// components/global-chrome.tsx
+import type { PropsWithChildren } from "react";
+import { View } from "react-native";
+
+type GlobalChromeProps = PropsWithChildren<object>;
+
+export function GlobalChrome({ children }: GlobalChromeProps) {
+  // Wrapper neutro e seguro: não altera navegação, só garante "children" válido.
+  return <View style={{ flex: 1 }}>{children}</View>;
+}
+
+// Para compatibilidade total (quem importar default não quebra)
+export default GlobalChrome;
+
+===== END FILE: components/global-chrome.tsx =====
+
+
+===== BEGIN FILE: components/parallax-scroll-view.tsx =====
+
+import type { PropsWithChildren, ReactElement } from 'react';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
+} from 'react-native-reanimated';
+
+import { ThemedView } from '@/components/themed-view';
+import { getFooterOffset } from '@/constants/layout';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+const HEADER_HEIGHT = 250;
+
+type Props = PropsWithChildren<{
+  headerImage: ReactElement;
+  headerBackgroundColor: { dark: string; light: string };
+}>;
+
+export default function ParallaxScrollView({
+  children,
+  headerImage,
+  headerBackgroundColor,
+}: Props) {
+  const backgroundColor = useThemeColor({}, 'background');
+  const colorScheme = useColorScheme() ?? 'light';
+  const insets = useSafeAreaInsets();
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollOffset = useScrollOffset(scrollRef);
+  const footerOffset = getFooterOffset(insets.bottom);
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            scrollOffset.value,
+            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+            [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
+          ),
+        },
+        {
+          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
+        },
+      ],
+    };
+  });
+
+  return (
+    <ThemedView style={[styles.screen, { backgroundColor }]}>
+      <Animated.ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: footerOffset }}
+        scrollEventThrottle={16}>
+        <Animated.View
+          style={[
+            styles.header,
+            { backgroundColor: headerBackgroundColor[colorScheme] },
+            headerAnimatedStyle,
+          ]}>
+          {headerImage}
+        </Animated.View>
+        <ThemedView style={styles.content}>{children}</ThemedView>
+      </Animated.ScrollView>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  header: {
+    height: HEADER_HEIGHT,
+    overflow: 'hidden',
+  },
+  content: {
+    flex: 1,
+    padding: 32,
+    gap: 16,
+    overflow: 'hidden',
+  },
+});
+
+
+===== END FILE: components/parallax-scroll-view.tsx =====
+
+
+===== BEGIN FILE: components/themed-text.tsx =====
+
+import { StyleSheet, Text, type TextProps } from "react-native";
+
+import theme from "@/constants/theme";
+import { useThemeColor } from "@/hooks/use-theme-color";
+
+export type ThemedTextType =
+  | "default"
+  | "title"
+  | "defaultSemiBold"
+  | "subtitle"
+  | "link"
+  | "caption"
+  | "bodySmall"
+  | "sectionTitle";
+
+export type ThemedTextProps = TextProps & {
+  lightColor?: string;
+  darkColor?: string;
+  type?: ThemedTextType;
+};
+
+export function ThemedText({
+  style,
+  lightColor,
+  darkColor,
+  type = "default",
+  ...rest
+}: ThemedTextProps) {
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, "text");
+
+  return <Text {...rest} style={[{ color }, styles.common, typeStyles[type], style]} />;
+}
+
+const styles = StyleSheet.create({
+  common: {
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
+});
+
+const typeStyles = StyleSheet.create({
+  default: {
+    fontSize: theme.typography.bodySmall.fontSize,
+    lineHeight: theme.typography.bodySmall.lineHeight,
+    fontWeight: "400",
+  },
+
+  bodySmall: {
+    fontSize: theme.typography.bodySmall.fontSize,
+    lineHeight: theme.typography.bodySmall.lineHeight,
+    fontWeight: "400",
+  },
+
+  defaultSemiBold: {
+    fontSize: theme.typography.bodySmall.fontSize,
+    lineHeight: theme.typography.bodySmall.lineHeight,
+    fontWeight: "500",
+  },
+
+  title: {
+    fontSize: theme.typography.h2.fontSize,
+    lineHeight: theme.typography.h2.lineHeight,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  },
+
+  subtitle: {
+    fontSize: theme.typography.h3.fontSize,
+    lineHeight: theme.typography.h3.lineHeight,
+    fontWeight: "600",
+    letterSpacing: -0.1,
+  },
+
+  sectionTitle: {
+    fontSize: theme.typography.sectionTitle.fontSize,
+    lineHeight: theme.typography.sectionTitle.lineHeight,
+    fontWeight: "600",
+    letterSpacing: -0.1,
+  },
+
+  link: {
+    fontSize: theme.typography.button.fontSize,
+    lineHeight: theme.typography.button.lineHeight,
+    fontWeight: "600",
+    color: "#0a7ea4",
+  },
+
+  caption: {
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: theme.typography.caption.lineHeight,
+    fontWeight: "400",
+  },
+});
+
+
+===== END FILE: components/themed-text.tsx =====
+
+
+===== BEGIN FILE: components/themed-view.tsx =====
+
+import { View, type ViewProps } from 'react-native';
+
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+export type ThemedViewProps = ViewProps & {
+  lightColor?: string;
+  darkColor?: string;
+};
+
+export function ThemedView({ style, lightColor, darkColor, ...otherProps }: ThemedViewProps) {
+  const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'background');
+
+  return <View style={[{ backgroundColor }, style]} {...otherProps} />;
+}
+
+
+===== END FILE: components/themed-view.tsx =====
+
+
+===== BEGIN FILE: constants/theme.ts =====
+
+// constants/theme.ts
+
+export const Spacing = {
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+} as const;
+
+export const Radius = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  pill: 999,
+} as const;
+
+/**
+ * Mantemos o shape “Colors.light/dark.*” para compatibilidade com arquivos antigos.
+ */
+export const Colors = {
+  light: {
+    text: "#0F172A",
+    background: "#F7F8FA",
+    tint: "#16A34A",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#16A34A",
+  },
+  dark: {
+    text: "#E5E7EB",
+    background: "#0B1220",
+    tint: "#22C55E",
+    icon: "#94A3B8",
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: "#22C55E",
+  },
+} as const;
+
+const theme = {
+  colors: {
+    background: "#F7F8FA",
+    backgroundSoft: "#EEF1F5",
+    surface: "#FFFFFF",
+    surfaceAlt: "#F1F3F6",
+    divider: "#E6E8EC",
+    border: "#E6E8EC",
+
+    text: "#0F172A",
+    textMuted: "#64748B",
+    textPrimary: "#0F172A",
+    textSecondary: "#64748B",
+
+    muted: "#94A3B8",
+    mutedText: "#64748B",
+
+    primary: "#16A34A",
+    primarySoft: "#DCFCE7",
+
+    success: "#16A34A",
+    successSoft: "#DCFCE7",
+
+    warning: "#F59E0B",
+    warningSoft: "#FEF3C7",
+
+    danger: "#EF4444",
+    dangerSoft: "#FEE2E2",
+
+    tabIconActive: "#16A34A",
+    tabIconInactive: "#94A3B8",
+  },
+
+  spacing: Spacing,
+  radius: Radius,
+
+  // ✅ Compacto (ML-like): menor e menos “pesado”
+  typography: {
+    h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" as const },
+    h2: { fontSize: 20, lineHeight: 26, fontWeight: "700" as const },
+    h3: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+
+    sectionTitle: { fontSize: 14, lineHeight: 18, fontWeight: "700" as const },
+
+    title: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+    subtitle: { fontSize: 15, lineHeight: 20, fontWeight: "600" as const },
+
+    body: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+    bodySmall: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const },
+
+    caption: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
+    button: { fontSize: 13, lineHeight: 16, fontWeight: "700" as const },
+  },
+} as const;
+
+export default theme;
+
+
+===== END FILE: constants/theme.ts =====
+
+
+===== BEGIN FILE: constants/layout.ts =====
+
+export const BACK_BUTTON_MARGIN = 12;
+export const FOOTER_HEIGHT = 72;
+export const FOOTER_PADDING = 12;
+
+export const getFooterOffset = (bottomInset: number) => FOOTER_HEIGHT + FOOTER_PADDING + bottomInset;
+
+
+===== END FILE: constants/layout.ts =====
+
+
+===== BEGIN FILE: hooks/use-theme-color.ts =====
+
+/**
+ * Learn more about light and dark modes:
+ * https://docs.expo.dev/guides/color-schemes/
+ */
+
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+export function useThemeColor(
+  props: { light?: string; dark?: string },
+  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+) {
+  const theme = useColorScheme() ?? 'light';
+  const colorFromProps = props[theme];
+
+  if (colorFromProps) {
+    return colorFromProps;
+  } else {
+    return Colors[theme][colorName];
+  }
+}
+
+
+===== END FILE: hooks/use-theme-color.ts =====
+
+
+===== BEGIN FILE: hooks/use-color-scheme.ts =====
+
+export { useColorScheme } from 'react-native';
+
+
+===== END FILE: hooks/use-color-scheme.ts =====
+
+
+===== BEGIN FILE: lib/flags.dev.ts =====
+
+import type { FeatureFlag } from "../constants/flags";
+
+/**
+ * DEV ONLY: Override de flags para rollback rápido sem console.
+ */
+export const DEV_FLAGS: Partial<Record<FeatureFlag, boolean>> = {
+  ff_cart_rehydration_hardened: false,
+  ff_cart_persist_v1: false,
+  ff_cart_action_lock: false,
+  ff_cart_analytics_v1: false,
+};
+
+
+===== END FILE: lib/flags.dev.ts =====
+
+
+===== BEGIN FILE: lib/analytics.ts =====
+
+type TrackProps = Record<string, any>;
+
+export function track(event: string, props?: TrackProps): void {
+  // Adapter mínimo. Trocar depois por provider real.
+  if (__DEV__) {
+     
+    console.log(`[analytics] ${event}`, props ?? {});
+  }
+}
+
+
+===== END FILE: lib/analytics.ts =====
+
+
+===== BEGIN FILE: app/checkout/_layout.tsx =====
+
+// app/checkout/_layout.tsx
+import { Stack } from "expo-router";
+
+export default function CheckoutLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+      }}
+    >
+      {/* Fluxo de checkout */}
+      <Stack.Screen name="index" />
+      <Stack.Screen name="address" />
+      <Stack.Screen name="shipping" />
+      <Stack.Screen name="payment" />
+      <Stack.Screen name="pix" />
+      <Stack.Screen name="review" />
+      <Stack.Screen name="success" />
+    </Stack>
+  );
+}
+
+
+===== END FILE: app/checkout/_layout.tsx =====
+
+
+===== BEGIN FILE: app/checkout/index.tsx =====
+
+// app/checkout/index.tsx
+import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
+
+import theme from "../../constants/theme";
+import AppHeader from "../../components/AppHeader";
+
+function Row({ left, right }: { left: string; right: string }) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-between",
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.divider,
+      }}
+    >
+      <Text style={{ fontSize: 14, color: theme.colors.text }}>{left}</Text>
+      <Text style={{ fontSize: 14, color: theme.colors.text, fontWeight: "600" }}>{right}</Text>
+    </View>
+  );
+}
+
+export default function CheckoutIndexScreen() {
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Finalizar compra" showBack />
+
+      <View style={{ flex: 1, padding: 16 }}>
+        <View
+          style={{
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.colors.text }}>
+              Resumo
+            </Text>
+          </View>
+
+          <View style={{ paddingHorizontal: 16 }}>
+            <Row left="Entrega" right="Endereço + Frete" />
+            <Row left="Pagamento" right="Selecionar forma" />
+            <Row left="Revisão" right="Conferir pedido" />
+          </View>
+
+          <View style={{ padding: 16 }}>
+            <Pressable
+              onPress={() => router.push("/checkout/address")}
+              style={{
+                backgroundColor: theme.colors.success,
+                paddingVertical: 14,
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ textAlign: "center", fontWeight: "800", color: "#000" }}>
+                CONTINUAR
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View
+          style={{
+            marginTop: 14,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            padding: 16,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "800", color: theme.colors.text }}>JOGOS</Text>
+          <Text style={{ marginTop: 6, fontSize: 13, opacity: 0.75, color: theme.colors.text }}>
+            Desafios, prêmios e novidades
+          </Text>
+        </View>
+
+        <View
+          style={{
+            marginTop: 12,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            padding: 16,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "800", color: theme.colors.text }}>VÍDEOS</Text>
+          <Text style={{ marginTop: 6, fontSize: 13, opacity: 0.75, color: theme.colors.text }}>
+            Conteúdo rápido e ofertas
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/index.tsx =====
+
+
+===== BEGIN FILE: app/checkout/address.tsx =====
+
+// app/checkout/address.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import theme from "../../constants/theme";
+import type { OrderDraft } from "../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import { formatCEP, normalizeCEP, isValidCEP } from "../../utils/cep";
+import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import AppHeader from "../../components/AppHeader";
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder?: string;
+  keyboardType?: "default" | "number-pad";
+}) {
+  return (
+    <View style={{ marginTop: 12 }}>
+      <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        keyboardType={keyboardType}
+        placeholderTextColor="rgba(0,0,0,0.35)"
+        style={{
+          marginTop: 8,
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.divider,
+          backgroundColor: theme.colors.surface,
+          color: theme.colors.text,
+        }}
+      />
+    </View>
+  );
+}
+
+export default function AddressScreen() {
+  const insets = useSafeAreaInsets();
+
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+
+  const [cep, setCep] = useState("");
+  const [number, setNumber] = useState("");
+  const [complement, setComplement] = useState("");
+  const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
+  const [cityUf, setCityUf] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const d = await loadOrderDraft();
+      setDraft(d);
+
+      const a: any = d?.address ?? {};
+      setCep(formatCEP(a.zip ?? ""));
+      setNumber(String(a.number ?? ""));
+      setComplement(String(a.complement ?? ""));
+      setStreet(String(a.street ?? ""));
+      setDistrict(String(a.district ?? ""));
+      setCityUf(String(a.cityUf ?? ""));
+    })();
+  }, []);
+
+  const zip8 = useMemo(() => normalizeCEP(cep), [cep]);
+  const valid = useMemo(() => {
+    return (
+      !!draft &&
+      isValidCEP(zip8) &&
+      number.trim().length > 0 &&
+      street.trim().length > 0 &&
+      district.trim().length > 0 &&
+      cityUf.trim().length > 0
+    );
+  }, [draft, zip8, number, street, district, cityUf]);
+
+  async function handleContinue() {
+    if (!draft) return;
+    if (!valid) return;
+
+    const next = patchOrderDraft(draft, {
+      address: {
+        ...(draft.address ?? { id: "addr-1" }),
+        zip: zip8,
+        number: number.trim(),
+        complement: complement.trim(),
+        street: street.trim(),
+        district: district.trim(),
+        cityUf: cityUf.trim(),
+      } as any,
+    });
+
+    await saveOrderDraft(next);
+    router.push("/checkout/shipping");
+  }
+
+  if (!draft) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader title="Endereço" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando endereço...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Endereço" showBack />
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: 16 + insets.bottom + 90, // espaço real pro botão não ficar no teclado
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: theme.colors.text }}>
+            Informe seu endereço
+          </Text>
+
+          <Field
+            label="CEP"
+            value={cep}
+            onChangeText={(t) => setCep(formatCEP(t))}
+            placeholder="00000-000"
+            keyboardType="number-pad"
+          />
+
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field
+                label="Número"
+                value={number}
+                onChangeText={setNumber}
+                placeholder="Nº"
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field
+                label="Complemento"
+                value={complement}
+                onChangeText={setComplement}
+                placeholder="Apto, casa..."
+              />
+            </View>
+          </View>
+
+          <Field label="Rua" value={street} onChangeText={setStreet} placeholder="Nome da rua" />
+          <Field label="Bairro" value={district} onChangeText={setDistrict} placeholder="Seu bairro" />
+          <Field label="Cidade/UF" value={cityUf} onChangeText={setCityUf} placeholder="Goiânia/GO" />
+
+          <Pressable
+            onPress={handleContinue}
+            disabled={!valid}
+            style={{
+              marginTop: 18,
+              backgroundColor: theme.colors.success,
+              paddingVertical: 14,
+              borderRadius: 12,
+              opacity: valid ? 1 : 0.5,
+            }}
+          >
+            <Text style={{ textAlign: "center", fontWeight: "800", color: "#000" }}>
+              CONTINUAR
+            </Text>
+          </Pressable>
+
+          <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+            Preencha CEP, número, rua, bairro e cidade/UF para continuar.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/address.tsx =====
+
+
+===== BEGIN FILE: app/checkout/shipping.tsx =====
+
+// app/checkout/shipping.tsx
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
+
+import theme from "../../constants/theme";
+import type { OrderDraft } from "../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import { formatCEP, normalizeCEP, isValidCEP } from "../../utils/cep";
+import { getShippingOptions } from "../../utils/shippingService";
+import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import AppHeader from "../../components/AppHeader";
+
+function formatBRL(value: number) {
+  return `R$ ${value.toFixed(2)}`.replace(".", ",");
+}
+
+export default function ShippingScreen() {
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [cep, setCep] = useState("");
+  const [selectedId, setSelectedId] = useState<"pac" | "sedex" | "express">("pac");
+
+  useEffect(() => {
+    (async () => {
+      const d = await loadOrderDraft();
+      setDraft(d);
+
+      const initialCep = d?.address?.zip ?? "";
+      setCep(formatCEP(initialCep));
+      if (d?.shipping?.method?.toLowerCase().includes("sedex")) setSelectedId("sedex");
+      if (d?.shipping?.method?.toLowerCase().includes("express")) setSelectedId("express");
+    })();
+  }, []);
+
+  const options = useMemo(() => getShippingOptions(cep), [cep]);
+  const selected = useMemo(
+    () => options.find((o) => o.id === selectedId) ?? options[0],
+    [options, selectedId]
+  );
+
+  async function handleContinue() {
+    if (!draft) return;
+
+    const zip8 = normalizeCEP(cep);
+    if (!isValidCEP(zip8)) return;
+
+    const next = patchOrderDraft(draft, {
+      address: { ...(draft.address ?? { id: "addr-1" }), zip: zip8 } as any,
+      shipping: { method: selected.method, price: selected.price, deadline: selected.deadline },
+    });
+
+    await saveOrderDraft(next);
+    router.push("/checkout/payment");
+  }
+
+  if (!draft) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader title="Frete" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando frete...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const zip8 = normalizeCEP(cep);
+  const valid = isValidCEP(zip8);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Frete" showBack />
+
+      <View style={{ flex: 1, padding: 16 }}>
+        <Text style={{ marginTop: 2, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+          Digite seu CEP
+        </Text>
+
+        <TextInput
+          value={cep}
+          onChangeText={(t) => setCep(formatCEP(t))}
+          keyboardType="number-pad"
+          placeholder="00000-000"
+          placeholderTextColor="rgba(0,0,0,0.35)"
+          style={{
+            marginTop: 8,
+            paddingVertical: 12,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            color: theme.colors.text,
+          }}
+        />
+
+        <View style={{ marginTop: 14 }}>
+          {options.map((o) => {
+            const active = o.id === selectedId;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => setSelectedId(o.id)}
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: active ? theme.colors.primary : theme.colors.divider,
+                  backgroundColor: theme.colors.surface,
+                  marginBottom: 10,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.colors.text }}>
+                  {o.method}
+                </Text>
+                <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4, color: theme.colors.text }}>
+                  {o.deadline} • {o.price > 0 ? formatBRL(o.price) : "—"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable
+          onPress={handleContinue}
+          disabled={!valid}
+          style={{
+            marginTop: 10,
+            backgroundColor: theme.colors.success,
+            padding: 14,
+            borderRadius: 12,
+            opacity: valid ? 1 : 0.5,
+          }}
+        >
+          <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
+            CONTINUAR
+          </Text>
+        </Pressable>
+
+        <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+          Integração futura: cálculo real por CEP via Nuvemshop/Bling (e regras de frete). Por ora,
+          opções simuladas.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/shipping.tsx =====
+
+
+===== BEGIN FILE: app/checkout/payment.tsx =====
+
+// app/checkout/payment.tsx
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
+
+import theme from "../../constants/theme";
+import type { OrderDraft, Payment } from "../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import { patchOrderDraft } from "../../utils/orderDraftPatch";
+import { createPayment, createPaymentPayload } from "../../utils/paymentBridge";
+import AppHeader from "../../components/AppHeader";
+
+type Method = Payment["method"];
+
+function Label({ children }: { children: string }) {
+  return <Text style={{ marginTop: 12, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>{children}</Text>;
+}
+
+function CardOption({
+  title,
+  subtitle,
+  active,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        padding: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: active ? theme.colors.primary : theme.colors.divider,
+        backgroundColor: theme.colors.surface,
+        marginTop: 10,
+      }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.colors.text }}>{title}</Text>
+      <Text style={{ fontSize: 12, opacity: 0.7, marginTop: 4, color: theme.colors.text }}>{subtitle}</Text>
+    </Pressable>
+  );
+}
+
+export default function PaymentScreen() {
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [method, setMethod] = useState<Method>("pix");
+
+  // mock card fields
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "elo" | "amex" | "other">("other");
+
+  useEffect(() => {
+    (async () => {
+      const d = await loadOrderDraft();
+      setDraft(d);
+
+      const m = d?.payment?.method;
+      if (m) setMethod(m);
+    })();
+  }, []);
+
+  const canContinue = useMemo(() => {
+    if (!draft) return false;
+    if (method === "card") return cardNumber.replace(/\D/g, "").length >= 12; // mock mínimo
+    return true;
+  }, [draft, method, cardNumber]);
+
+  async function handleContinue() {
+    if (!draft) return;
+
+    const payment = createPayment(method);
+
+    const last4 = cardNumber.replace(/\D/g, "").slice(-4);
+    const payload =
+      method === "card"
+        ? createPaymentPayload("card", { last4, brand: cardBrand })
+        : createPaymentPayload(method);
+
+    if (__DEV__) {
+      (globalThis as any).__lastPaymentPayload = payload;
+    }
+
+    const next = patchOrderDraft(draft, { payment });
+
+    await saveOrderDraft(next);
+    router.push("/checkout/review");
+  }
+
+  if (!draft) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader title="Pagamento" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>Carregando pagamento...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Pagamento" showBack />
+
+      <View style={{ flex: 1, padding: 16 }}>
+        <Label>Escolha uma forma</Label>
+
+        <CardOption title="Pix" subtitle="Aprovação imediata" active={method === "pix"} onPress={() => setMethod("pix")} />
+        <CardOption title="Cartão de crédito" subtitle="Parcelamento disponível (mock)" active={method === "card"} onPress={() => setMethod("card")} />
+        <CardOption title="Boleto" subtitle="Compensação em até 2 dias úteis (mock)" active={method === "boleto"} onPress={() => setMethod("boleto")} />
+
+        {method === "card" ? (
+          <View style={{ marginTop: 10 }}>
+            <Label>Número do cartão (mock)</Label>
+            <TextInput
+              value={cardNumber}
+              onChangeText={setCardNumber}
+              keyboardType="number-pad"
+              placeholder="0000 0000 0000 0000"
+              placeholderTextColor="rgba(0,0,0,0.35)"
+              style={{
+                marginTop: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.colors.divider,
+                backgroundColor: theme.colors.surface,
+                color: theme.colors.text,
+              }}
+            />
+
+            <Label>Bandeira (mock)</Label>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              {(["visa", "mastercard", "elo", "amex", "other"] as const).map((b) => {
+                const active = cardBrand === b;
+                return (
+                  <Pressable
+                    key={b}
+                    onPress={() => setCardBrand(b)}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: active ? theme.colors.primary : theme.colors.divider,
+                      backgroundColor: theme.colors.surface,
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: active ? "bold" : "normal", color: theme.colors.text }}>
+                      {b.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={handleContinue}
+          disabled={!canContinue}
+          style={{
+            marginTop: 18,
+            backgroundColor: theme.colors.success,
+            padding: 14,
+            borderRadius: 12,
+            opacity: canContinue ? 1 : 0.5,
+          }}
+        >
+          <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
+            CONTINUAR
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/payment.tsx =====
+
+
+===== BEGIN FILE: app/checkout/pix.tsx =====
+
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import * as Clipboard from "expo-clipboard";
+import { router } from "expo-router";
+
+import theme from "../../constants/theme";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import type { OrderDraft } from "../../types/order";
+import { makePixCode, pixExpiresAt, msLeft } from "../../utils/pix";
+import { patchOrderDraft } from "../../utils/orderDraftPatch";
+
+function formatMMSS(ms: number) {
+  const total = Math.floor(ms / 1000);
+  const mm = String(Math.floor(total / 60)).padStart(2, "0");
+  const ss = String(total % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
+export default function PixScreen() {
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string>("");
+  const [left, setLeft] = useState<number>(0);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const d = await loadOrderDraft();
+      if (!d) return;
+
+      // garante payment pix no draft
+      const next = patchOrderDraft(d, { payment: { method: "pix", status: "pending" } });
+      await saveOrderDraft(next);
+
+      const exp = pixExpiresAt(2);
+      setExpiresAt(exp);
+      setDraft(next);
+      setLeft(msLeft(exp));
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setLeft(msLeft(expiresAt)), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  const code = useMemo(() => (draft ? makePixCode(draft.id) : ""), [draft]);
+
+  async function handleCopy() {
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleMarkPaid() {
+    if (!draft) return;
+    await saveOrderDraft(patchOrderDraft(draft, { payment: { method: "pix", status: "paid" } }));
+    router.push("/checkout/review");
+  }
+
+  if (!draft) {
+    return (
+      <View style={{ flex: 1, padding: 16 }}>
+        <Text style={{ fontSize: 16 }}>Carregando Pix...</Text>
+      </View>
+    );
+  }
+
+  const expired = left <= 0;
+
+  return (
+    <View style={{ flex: 1, padding: 16 }}>
+      <Text style={{ fontSize: 24, fontWeight: "bold" }}>Pix</Text>
+
+      <Text style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+        Escaneie o QR Code ou copie o código Pix.
+      </Text>
+
+      <View
+        style={{
+          marginTop: 16,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
+          borderRadius: 16,
+          backgroundColor: theme.colors.surface,
+          borderWidth: 1,
+          borderColor: theme.colors.divider,
+        }}
+      >
+        <QRCode value={code} size={220} />
+        <Text style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+          Expira em: {expired ? "00:00" : formatMMSS(left)}
+        </Text>
+      </View>
+
+      <Pressable
+        onPress={handleCopy}
+        style={{
+          marginTop: 16,
+          backgroundColor: "#EEF1F5",
+          padding: 14,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.divider,
+        }}
+      >
+        <Text style={{ textAlign: "center", fontWeight: "bold" }}>
+          {copied ? "Código copiado" : "Copiar código Pix"}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={handleMarkPaid}
+        disabled={expired}
+        style={{
+          marginTop: 10,
+          backgroundColor: theme.colors.success,
+          padding: 14,
+          borderRadius: 12,
+          opacity: expired ? 0.5 : 1,
+        }}
+      >
+        <Text style={{ textAlign: "center", fontWeight: "bold", color: "#000" }}>
+          Simular pagamento aprovado
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/pix.tsx =====
+
+
+===== BEGIN FILE: app/checkout/review.tsx =====
+
+// app/checkout/review.tsx
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+
+import theme from "../../constants/theme";
+import type { OrderDraft } from "../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import AppHeader from "../../components/AppHeader";
+
+export default function Review() {
+  const [order, setOrder] = useState<OrderDraft | null>(null);
+
+  useEffect(() => {
+    loadOrderDraft().then(setOrder);
+  }, []);
+
+  const discount = useMemo(() => Number(order?.discount ?? 0), [order]);
+
+  async function handleConfirm() {
+    if (!order) return;
+
+    await saveOrderDraft({
+      ...order,
+      discount,
+      payment: order.payment ?? ({ method: "pix", status: "pending" } as any),
+    } as any);
+
+    router.push("/checkout/success" as any);
+  }
+
+  if (!order) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader title="Revisão" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 18, color: theme.colors.text }}>Carregando revisão...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Revisão" showBack />
+
+      <View style={{ flex: 1, padding: 16 }}>
+        <Text style={{ marginTop: 12, color: theme.colors.text }}>Itens: {order.items.length}</Text>
+
+        <Text style={{ marginTop: 6, color: theme.colors.text }}>
+          Subtotal: R$ {order.subtotal.toFixed(2)}
+        </Text>
+
+        <Text style={{ marginTop: 6, color: theme.colors.text }}>
+          Desconto: R$ {(order.discount ?? 0).toFixed(2)}
+        </Text>
+
+        <Text style={{ marginTop: 6, fontWeight: "bold", color: theme.colors.text }}>
+          Total: R$ {order.total.toFixed(2)}
+        </Text>
+
+        <Pressable
+          onPress={handleConfirm}
+          style={{
+            marginTop: 24,
+            backgroundColor: theme.colors.success,
+            padding: 14,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
+            Confirmar pedido
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+
+===== END FILE: app/checkout/review.tsx =====
+

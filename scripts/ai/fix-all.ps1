@@ -1,54 +1,35 @@
-﻿@'
-# scripts/ai/fix-all.ps1
-[CmdletBinding()]
 param(
-  [switch]$SkipTsc,
-  [switch]$FixMojibake
+  [string]$ProjectRoot = "E:\plugaishop-app"
 )
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
-function Say([string]$m) { Write-Host ("[fix-all] " + $m) }
+Push-Location $ProjectRoot
+try {
+  if (!(Test-Path ".\node_modules")) {
+    Write-Host "📦 node_modules missing. Running npm ci..." -ForegroundColor Yellow
+    npm ci
+  }
 
-# UTF-8 best-effort (não quebra se falhar)
-try { chcp 65001 | Out-Null } catch {}
+  Write-Host "🧹 ESLint --fix..." -ForegroundColor Cyan
+  npx eslint . --fix
 
-$root = (Resolve-Path ".").Path
+  Write-Host "🎨 Prettier --write..." -ForegroundColor Cyan
+  npx prettier . --write
 
-$pyRel  = "scripts/ai/patch_repo.py"
-$pyPath = Join-Path $root $pyRel
+  Write-Host "🧠 Typecheck (best-effort)..." -ForegroundColor Cyan
+  $scripts = (npm run -s) 2>$null
+  if ($scripts -match "typecheck") {
+    npm run typecheck
+  } elseif (Test-Path ".\tsconfig.json") {
+    npx tsc -p tsconfig.json --noEmit
+  } else {
+    Write-Host "No typecheck script and no tsconfig.json found." -ForegroundColor Yellow
+  }
 
-if (-not (Test-Path -LiteralPath $pyPath)) {
-  throw "Arquivo Python não encontrado: $pyRel (esperado em: $pyPath)."
+  Write-Host "✅ fix-all finished." -ForegroundColor Green
 }
-
-# Escolhe executável Python (py -3 preferível no Windows)
-$pythonCmd = $null
-if (Get-Command py -ErrorAction SilentlyContinue) {
-  $pythonCmd = @("py", "-3")
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
-  $pythonCmd = @("python")
-} else {
-  throw "Python não encontrado (nem 'py' nem 'python' no PATH)."
+finally {
+  Pop-Location
 }
-
-if ($FixMojibake) {
-  Say ("Running: " + ($pythonCmd -join " ") + " " + $pyRel + " --fix-mojibake")
-  & $pythonCmd[0] @($pythonCmd[1..($pythonCmd.Length-1)] | Where-Object { $_ }) $pyPath --fix-mojibake
-  if ($LASTEXITCODE -ne 0) { throw "Python falhou (fix-mojibake) com exit code $LASTEXITCODE" }
-}
-
-Say ("Running: " + ($pythonCmd -join " ") + " " + $pyRel + " --apply")
-& $pythonCmd[0] @($pythonCmd[1..($pythonCmd.Length-1)] | Where-Object { $_ }) $pyPath --apply
-if ($LASTEXITCODE -ne 0) { throw "Python falhou (apply) com exit code $LASTEXITCODE" }
-
-if (-not $SkipTsc) {
-  Say "Running tsc..."
-  & npx tsc -p . --noEmit
-  if ($LASTEXITCODE -ne 0) { throw "TSC falhou com exit code $LASTEXITCODE" }
-  Say "OK: tsc passou"
-}
-
-Say "Done."
-'@ | Set-Content -LiteralPath .\scripts\ai\fix-all.ps1 -Encoding utf8 -NoNewline

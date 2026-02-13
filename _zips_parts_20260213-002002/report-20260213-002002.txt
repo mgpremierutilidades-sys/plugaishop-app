@@ -1,0 +1,10 @@
+
+Part Zip                                      Files SizeMB Path
+---- ---                                      ----- ------ ----
+   1 plugaishop-app-part1-20260213-002002.zip     1   1,68 E:\plugaishop-app\_zips_parts_20260213-002002\plugaishop-app-part1-20260213-002002.zip
+   2 plugaishop-app-part2-20260213-002002.zip     1   1,25 E:\plugaishop-app\_zips_parts_20260213-002002\plugaishop-app-part2-20260213-002002.zip
+   3 plugaishop-app-part3-20260213-002002.zip    27   0,50 E:\plugaishop-app\_zips_parts_20260213-002002\plugaishop-app-part3-20260213-002002.zip
+   4 plugaishop-app-part4-20260213-002002.zip    59   0,50 E:\plugaishop-app\_zips_parts_20260213-002002\plugaishop-app-part4-20260213-002002.zip
+   5 plugaishop-app-part5-20260213-002002.zip    81   0,50 E:\plugaishop-app\_zips_parts_20260213-002002\plugaishop-app-part5-20260213-002002.zip
+
+
