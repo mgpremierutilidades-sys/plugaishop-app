@@ -7,9 +7,27 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    ".expo",
+    "scripts/ai/_out",
+    "scripts/ai/_state",
+    "_backup_*",
+    "_zips_parts_*",
+    "**/_backup_*",
+    "**/_zips_parts_*"
+  ]
 }

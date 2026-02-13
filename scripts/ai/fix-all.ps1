@@ -17,7 +17,7 @@ try {
   if ($LASTEXITCODE -ne 0) { exit 1 }
 
   Write-Host "Running Prettier --write..."
-  npx prettier . --write
+  npx prettier "app" "components" "context" "hooks" "lib" "utils" --write
   if ($LASTEXITCODE -ne 0) { exit 1 }
 
   Write-Host "Typecheck (best-effort)..."
@@ -38,4 +38,5 @@ try {
 finally {
   Pop-Location
 }
+
 
