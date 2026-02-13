@@ -2,7 +2,7 @@
 scripts/ai/_out/
 scripts/ai/_state/
 
-# Backups e dumps que NAO fazem parte do app
+# Backups e dumps
 _backup_*/
 _zips_parts_*/
 **/_backup_*/
