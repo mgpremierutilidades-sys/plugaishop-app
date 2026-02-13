@@ -1,93 +1,67 @@
-﻿# scripts/ai/export-context.ps1
-[CmdletBinding()]
 param(
-  [string]$OutFile = "scripts/ai/_out/context-bundle.txt",
-  [switch]$IncludeTSCDiagnostics
+  [string]$ProjectRoot = "E:\plugaishop-app",
+  [string]$OutFile = "scripts\ai\_out\context-bundle.txt"
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Say([string]$m) { Write-Host ("[export] " + $m) }
+function Write-Section($title) {
+  Add-Content -Path $OutFile -Value "`n===================="
+  Add-Content -Path $OutFile -Value $title
+  Add-Content -Path $OutFile -Value "====================`n"
+}
 
-# UTF-8 no console/arquivos
+Push-Location $ProjectRoot
 try {
-  chcp 65001 | Out-Null
-  $utf8 = [System.Text.UTF8Encoding]::new($false)
-  [Console]::OutputEncoding = $utf8
-  $OutputEncoding = $utf8
-} catch {}
+  New-Item -ItemType Directory -Force -Path (Split-Path $OutFile) | Out-Null
+  Set-Content -Path $OutFile -Value ("Context Bundle - " + (Get-Date).ToString("s"))
 
-$root = (Resolve-Path ".").Path
-$outPath = Join-Path $root $OutFile
-$outDir = Split-Path $outPath -Parent
-New-Item -ItemType Directory -Force $outDir | Out-Null
+  Write-Section "PATH"
+  Add-Content $OutFile "ProjectRoot: $ProjectRoot"
 
-# Arquivos alvo
-$files = @(
-  "context/CartContext.tsx",
-  "utils/cartPricing.ts",
-  "utils/orderDraftBuilder.ts",
-  "app/(tabs)/cart.tsx",
-  "app/(tabs)/index.tsx",
-  "app/checkout/review.tsx",
-  "app/orders/[id]/review.tsx",
-  "types/order.ts"
-)
+  Write-Section "GIT STATUS"
+  Add-Content $OutFile (git status 2>&1 | Out-String)
 
-# Possíveis "ghost" paths
-$maybeGhost = @(
-  "app/(tabs)/checkout/review.tsx",
-  "app/(tabs)/checkout/review.ts"
-)
+  Write-Section "GIT LOG (-25)"
+  Add-Content $OutFile (git log --oneline -25 2>&1 | Out-String)
 
-$sb = New-Object System.Text.StringBuilder
-$null = $sb.AppendLine("## plugaishop context bundle")
-$null = $sb.AppendLine("repo: " + $root)
-$null = $sb.AppendLine("generatedAt: " + (Get-Date -Format o))
-$null = $sb.AppendLine("")
+  Write-Section "NODE / NPM"
+  Add-Content $OutFile ("node: " + (node -v 2>&1))
+  Add-Content $OutFile ("npm : " + (npm -v 2>&1))
 
-function AppendFile([string]$rel) {
-  $full = Join-Path $root $rel
-
-  $null = $sb.AppendLine("### FILE: " + $rel)
-
-  if (-not (Test-Path -LiteralPath $full)) {
-    $null = $sb.AppendLine("### STATUS: MISSING")
-    $null = $sb.AppendLine("")
-    return
+  Write-Section "PACKAGE.JSON (HEADERS)"
+  if (Test-Path ".\package.json") {
+    $pkg = Get-Content ".\package.json" -Raw
+    Add-Content $OutFile ($pkg.Substring(0, [Math]::Min(6000, $pkg.Length)))
+  } else {
+    Add-Content $OutFile "package.json not found."
   }
 
-  $null = $sb.AppendLine("### STATUS: OK")
-  $null = $sb.AppendLine("-----BEGIN TS-----")
-  $content = Get-Content -LiteralPath $full -Raw
-  $null = $sb.AppendLine($content)
-  $null = $sb.AppendLine("-----END TS-----")
-  $null = $sb.AppendLine("")
-}
-
-Say "Bundling files..."
-foreach ($f in $files) { AppendFile $f }
-
-Say "Checking ghost paths..."
-foreach ($g in $maybeGhost) {
-  $full = Join-Path $root $g
-  if (Test-Path -LiteralPath $full) { AppendFile $g }
-}
-
-if ($IncludeTSCDiagnostics) {
-  Say "Running tsc diagnostics..."
-  $null = $sb.AppendLine("### TSC: START")
-  $null = $sb.AppendLine("-----BEGIN TSC-----")
-  try {
-    $tscOut = (npx tsc -p . --noEmit 2>&1) | Out-String
-    $null = $sb.AppendLine($tscOut)
-  } catch {
-    $null = $sb.AppendLine(($_ | Out-String))
+  Write-Section "TSCONFIG (HEADERS)"
+  if (Test-Path ".\tsconfig.json") {
+    $tsc = Get-Content ".\tsconfig.json" -Raw
+    Add-Content $OutFile ($tsc.Substring(0, [Math]::Min(6000, $tsc.Length)))
+  } else {
+    Add-Content $OutFile "tsconfig.json not found."
   }
-  $null = $sb.AppendLine("-----END TSC-----")
-  $null = $sb.AppendLine("### TSC: END")
-  $null = $sb.AppendLine("")
-}
 
-Set-Content -LiteralPath $outPath -Value $sb.ToString() -Encoding utf8
-Say ("Wrote: " + $OutFile)
+  Write-Section "TREE (TOP LEVEL)"
+  Add-Content $OutFile (Get-ChildItem -Force | Select-Object Name, Mode, Length | Format-Table | Out-String)
+
+  Write-Section "TABS TARGET FILES (EXIST?)"
+  $tabs = @(
+    "app\(tabs)\index.tsx",
+    "app\(tabs)\explore.tsx",
+    "app\(tabs)\cart.tsx"
+  )
+  foreach ($t in $tabs) {
+    $p = Join-Path $ProjectRoot $t
+    Add-Content $OutFile ("- " + $t + " => " + (Test-Path $p))
+  }
+
+  Write-Host "✅ Context bundle generated: $OutFile"
+}
+finally {
+  Pop-Location
+}

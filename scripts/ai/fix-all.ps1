@@ -1,54 +1,59 @@
-﻿@'
-# scripts/ai/fix-all.ps1
-[CmdletBinding()]
 param(
-  [switch]$SkipTsc,
-  [switch]$FixMojibake
+  [string]$ProjectRoot = "E:\plugaishop-app"
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Say([string]$m) { Write-Host ("[fix-all] " + $m) }
+Push-Location $ProjectRoot
+try {
+  if (!(Test-Path ".\node_modules")) {
+    Write-Host "node_modules missing. Running npm ci..."
+    npm ci
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+  }
 
-# UTF-8 best-effort (não quebra se falhar)
-try { chcp 65001 | Out-Null } catch {}
+  # Ensure prettier is installed to avoid npx prompt
+  npm ls prettier --silent 1>$null 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing prettier (devDependency) to avoid interactive prompts..."
+    npm install -D prettier@^3.8.1
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+  }
 
-$root = (Resolve-Path ".").Path
+  Write-Host "Running ESLint --fix (scoped)..."
+  npx eslint "app" "components" "context" "hooks" "lib" "utils" --fix
+  if ($LASTEXITCODE -ne 0) { exit 1 }
 
-$pyRel  = "scripts/ai/patch_repo.py"
-$pyPath = Join-Path $root $pyRel
+  Write-Host "Running Prettier --write (scoped)..."
+  npx prettier --write `
+    "app/**/*.{ts,tsx,js,jsx,json,md}" `
+    "components/**/*.{ts,tsx,js,jsx,json,md}" `
+    "context/**/*.{ts,tsx,js,jsx,json,md}" `
+    "hooks/**/*.{ts,tsx,js,jsx,json,md}" `
+    "lib/**/*.{ts,tsx,js,jsx,json,md}" `
+    "utils/**/*.{ts,tsx,js,jsx,json,md}" `
+    "types/**/*.{ts,tsx}" `
+    "constants/**/*.{ts,tsx,js,jsx,json}" `
+    ".github/**/*.{yml,yaml,md}" `
+    "*.json" "*.js" "*.ts" "*.tsx" "*.md"
+  if ($LASTEXITCODE -ne 0) { exit 1 }
 
-if (-not (Test-Path -LiteralPath $pyPath)) {
-  throw "Arquivo Python não encontrado: $pyRel (esperado em: $pyPath)."
+  Write-Host "Typecheck (best-effort)..."
+  $scripts = (npm run -s) 2>$null
+  if ($scripts -match "typecheck") {
+    npm run typecheck
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+  } elseif (Test-Path ".\tsconfig.json") {
+    npx tsc -p tsconfig.json --noEmit
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+  } else {
+    Write-Host "No typecheck script and no tsconfig.json found."
+  }
+
+  Write-Host "fix-all finished."
+  exit 0
 }
-
-# Escolhe executável Python (py -3 preferível no Windows)
-$pythonCmd = $null
-if (Get-Command py -ErrorAction SilentlyContinue) {
-  $pythonCmd = @("py", "-3")
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
-  $pythonCmd = @("python")
-} else {
-  throw "Python não encontrado (nem 'py' nem 'python' no PATH)."
+finally {
+  Pop-Location
 }
-
-if ($FixMojibake) {
-  Say ("Running: " + ($pythonCmd -join " ") + " " + $pyRel + " --fix-mojibake")
-  & $pythonCmd[0] @($pythonCmd[1..($pythonCmd.Length-1)] | Where-Object { $_ }) $pyPath --fix-mojibake
-  if ($LASTEXITCODE -ne 0) { throw "Python falhou (fix-mojibake) com exit code $LASTEXITCODE" }
-}
-
-Say ("Running: " + ($pythonCmd -join " ") + " " + $pyRel + " --apply")
-& $pythonCmd[0] @($pythonCmd[1..($pythonCmd.Length-1)] | Where-Object { $_ }) $pyPath --apply
-if ($LASTEXITCODE -ne 0) { throw "Python falhou (apply) com exit code $LASTEXITCODE" }
-
-if (-not $SkipTsc) {
-  Say "Running tsc..."
-  & npx tsc -p . --noEmit
-  if ($LASTEXITCODE -ne 0) { throw "TSC falhou com exit code $LASTEXITCODE" }
-  Say "OK: tsc passou"
-}
-
-Say "Done."
-'@ | Set-Content -LiteralPath .\scripts\ai\fix-all.ps1 -Encoding utf8 -NoNewline

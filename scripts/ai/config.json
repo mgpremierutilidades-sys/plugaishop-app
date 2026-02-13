@@ -1,0 +1,24 @@
+{
+  "projectRoot": "E:\\plugaishop-app",
+  "branch": "develop",
+  "checkpointHours": 7,
+  "cycleMinutes": 15,
+  "files": {
+    "contextBundle": "scripts\\ai\\_out\\context-bundle.txt",
+    "report": "scripts\\ai\\_out\\last-report.md",
+    "state": "scripts\\ai\\_state\\state.json"
+  },
+  "tabs": [
+    "app/(tabs)/index.tsx",
+    "app/(tabs)/explore.tsx",
+    "app/(tabs)/cart.tsx"
+  ],
+  "commands": {
+    "lint": "npm run lint",
+    "format": "npm run format",
+    "typecheck": "npm run typecheck",
+    "test": "npm test",
+    "expoDoctor": "npx expo-doctor",
+    "expoStart": "npx expo start --non-interactive"
+  }
+}

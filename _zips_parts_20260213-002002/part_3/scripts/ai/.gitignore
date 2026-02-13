@@ -1,0 +1,5 @@
+﻿__pycache__/
+_out/
+*.pyc
+*.pyo
+CORRECAO_CARRINHO_PERFORMANCE_*.md

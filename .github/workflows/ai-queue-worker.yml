@@ -1,0 +1,62 @@
+name: AI Queue Worker
+
+on:
+  issues:
+    types: [labeled, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ai-queue-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: |
+      github.event_name == 'issues' &&
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'ai:queue') ||
+        (github.event.action == 'edited' && contains(join(github.event.issue.labels.*.name, ','), 'ai:queue'))
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run AI Queue Worker
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 `
+            -IssueNumber $env:ISSUE_NUMBER `
+            -Repo $env:REPO `
+            -Fast
+
+      - name: Upload AI artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-artifacts-issue-${{ github.event.issue.number }}
+          path: |
+            scripts/ai/_out
+            scripts/ai/_state
+          if-no-files-found: ignore
