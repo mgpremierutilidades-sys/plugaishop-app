@@ -203,12 +203,3 @@ while ($true) {
   Start-Sleep -Seconds $LoopSeconds
 }
 
-
-
-
-
-
-
-
-
-

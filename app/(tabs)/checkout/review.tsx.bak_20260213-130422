@@ -57,7 +57,7 @@ export default function Review() {
       </Text>
 
       <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {(order.discount ?? 0).toFixed(2)}
+        Desconto: R$ {order.discount.toFixed(2)}
       </Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>

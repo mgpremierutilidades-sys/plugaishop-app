@@ -22,7 +22,6 @@ jobs:
         (github.event.action == 'edited' && contains(join(github.event.issue.labels.*.name, ','), 'ai:queue'))
       )
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4

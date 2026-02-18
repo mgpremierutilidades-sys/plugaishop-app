@@ -1,0 +1,34 @@
+{
+  "projectRoot": "E:\\plugaishop-app",
+  "branch": "develop",
+  "checkpointHours": 7,
+  "cycleMinutes": 15,
+  "files": {
+    "contextBundle": "scripts\\ai\\_out\\context-bundle.txt",
+    "report": "scripts\\ai\\_out\\last-report.md",
+    "state": "scripts\\ai\\_state\\state.json"
+  },
+  "tabs": [
+    "app/(tabs)/index.tsx",
+    "app/(tabs)/explore.tsx",
+    "app/(tabs)/cart.tsx"
+  ],
+  "commands": {
+    "lint": "npm run lint",
+    "format": "npm run format",
+    "typecheck": "npm run typecheck",
+    "test": "npm test",
+    "expoDoctor": "npx expo-doctor",
+    "expoStart": "npx expo start --non-interactive"
+  },
+  "queue": {
+    "repo": "mgpremierutilidades-sys/plugaishop-app",
+    "label_queue": "ai:queue",
+    "label_done": "ai:done",
+    "label_fail": "ai:fail",
+    "poll_seconds": 30,
+    "max_per_cycle": 1,
+    "label_processing": "ai:processing",
+    "label_failed": "ai:failed"
+  }
+}

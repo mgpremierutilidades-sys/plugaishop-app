@@ -3,18 +3,6 @@ param(
   [int]$LoopSeconds = 30,
   [switch]$Fast
 )
-function GetCfg {
-  param(
-    [Parameter(Mandatory=$true)] $Obj,
-    [Parameter(Mandatory=$true)] [string] $Name,
-    $Default = $null
-  )
-  if ($null -eq $Obj) { return $Default }
-  $p = $Obj.PSObject.Properties[$Name]
-  if ($p) { return $p.Value }
-  return $Default
-}
-
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -84,11 +72,11 @@ $cfg = Load-Config (Join-Path $aiDir "config.json")
 $labelQueue = $cfg.queue.label_queue
 $labelProcessing = $cfg.queue.label_processing
 $labelDone = $cfg.queue.label_done
-$labelFailed = GetCfg $cfg.queue "label_failed" (GetCfg $cfg.queue "label_fail" "ai:failed")
+$labelFailed = $cfg.queue.label_failed
 
-$branchPrefix = GetCfg $cfg.git "branch_prefix" "ai/issue-"
-$commitPrefix = GetCfg $cfg.git "commit_prefix" "ai:"
-$baseBranch = GetCfg $cfg.git "pr_base_branch" (GetCfg $cfg.git "base_branch" "develop")
+$branchPrefix = $cfg.git.branch_prefix
+$commitPrefix = $cfg.git.commit_prefix
+$baseBranch = $cfg.git.pr_base_branch
 
 if ([string]::IsNullOrWhiteSpace($baseBranch)) {
   # detect default branch from origin/HEAD
@@ -202,13 +190,3 @@ while ($true) {
 
   Start-Sleep -Seconds $LoopSeconds
 }
-
-
-
-
-
-
-
-
-
-

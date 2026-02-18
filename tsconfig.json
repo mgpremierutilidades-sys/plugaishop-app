@@ -5,6 +5,12 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+
+    "forceConsistentCasingInFileNames": true,
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
