@@ -15,9 +15,7 @@ export type Address = {
 export type Shipping = {
   method: string;
   price: number;
-  deadline: string;
   deadline?: string;
-
 };
 
 export type Payment = {
