@@ -1,48 +1,24 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
-node_modules/
-# Expo
+# Expo / RN
 .expo/
-dist/
-web-build/
+node_modules/
 expo-env.d.ts
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-# Metro
-.metro-health-check*
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-# macOS
-.DS_Store
-*.pem
-# local env files
-.env*.local
-# typescript
-*.tsbuildinfo
-app-example
-# generated native folders
-/ios
-/android
-_backup_*/
-build/
-# artifacts
-*.zip
-# chatgpt automation
-_chatgpt_inbox/
-_chatgpt_outbox/
-scripts/chatgpt/
+
+# Backups e baks
 *.bak
+_backup_*/
+_zips_parts_*/
 *.patch
 
-# local powershell helpers
-scripts/ps/
+# Zips e dumps
+*.zip
 
+# Autopilot / logs
+ile/
+scripts/ai/_out/*.log
+scripts/ai/_out/*.err.log
+scripts/ai/_out/*.out.log
+scripts/ai/_out/*.md
+
+# Pastas temporárias diversas
+.DS_Store
+Thumbs.db
