@@ -27,7 +27,6 @@ export default function Review() {
   async function handleConfirm() {
     if (!order) return;
 
-    // Bridge de pagamento (mock): marca como pendente e segue
     await saveOrderDraft({
       ...order,
       payment: { method: "pix", status: "pending" },
@@ -44,6 +43,8 @@ export default function Review() {
     );
   }
 
+  const discount = order.discount ?? 0;
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <Text style={{ fontSize: 24, fontWeight: "bold" }}>Revisão do Pedido</Text>
@@ -52,9 +53,7 @@ export default function Review() {
 
       <Text style={{ marginTop: 6 }}>Subtotal: R$ {order.subtotal.toFixed(2)}</Text>
 
-      <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {(order.discount ?? 0).toFixed(2)}
-      </Text>
+      <Text style={{ marginTop: 6 }}>Desconto: R$ {discount.toFixed(2)}</Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>
         Total: R$ {order.total.toFixed(2)}
