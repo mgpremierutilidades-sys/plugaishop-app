@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "gates": {
+    "lint": { "enabled": true },
+    "typecheck": { "enabled": true }
+  },
+  "report": {
+    "out_dir": "tools/autonomy-core/_out",
+    "keep_last": 30
+  },
+  "rollback": {
+    "enabled": true
+  },
+  "cart": {
+    "north_star": "checkout_start_rate",
+    "events": [
+      "cart_view",
+      "cart_qty_change",
+      "cart_remove",
+      "cart_checkout_start",
+      "cart_checkout_success",
+      "cart_abandon"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "queue": [
+    {
+      "id": "AUTONOMY-000",
+      "title": "Bootstrap autonomy core",
+      "status": "done",
+      "type": "meta",
+      "created_utc": "2026-02-20T00:00:00Z",
+      "payload": {
+        "note": "Inicialização do autonomy-core (infra)."
+      }
+    }
+  ]
+}
