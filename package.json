@@ -8,7 +8,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "ci": "npm run lint && npm run typecheck",
+    "autonomy": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/autonomy-core/runner.ps1"
   },
   "dependencies": {
     "@expo-google-fonts/arimo": "^0.4.2",
