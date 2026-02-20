@@ -20,7 +20,6 @@ function Read-Json([string]$Path) {
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
-# Executa via cmd.exe para evitar problemas com npm shims no Windows
 function Run-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
@@ -93,11 +92,10 @@ if ($ok) {
   $state.consecutive_failures = [int]$state.consecutive_failures + 1
 }
 
-# ===== Persist state (INLINE, sem função para evitar bug de binding) =====
-$stateJson = ($state | ConvertTo-Json -Depth 50)
-$stateJson | Out-File -FilePath $StatePath -Encoding UTF8 -Force
+# persist state
+($state | ConvertTo-Json -Depth 50) | Out-File -FilePath $StatePath -Encoding UTF8 -Force
 
-# ===== Report =====
+# ===== Report (via JSON file, não via hashtable param) =====
 $runSummary = @{
   result = $state.last_result
   branch = $branch
@@ -109,7 +107,11 @@ $runSummary = @{
   notes = $notes.ToArray()
 }
 
-& pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") -OutDir $OutDir -RunSummary $runSummary
+$runSummaryPath = Join-Path $OutDir ("runSummary-" + $ts + ".json")
+($runSummary | ConvertTo-Json -Depth 20) | Out-File -FilePath $runSummaryPath -Encoding UTF8 -Force
+
+& pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") `
+  -OutDir $OutDir -RunSummaryPath $runSummaryPath
 
 if (-not $ok) {
   Write-Host "[autonomy] Gates FAILED. See logs in tools/autonomy-core/_out/"
