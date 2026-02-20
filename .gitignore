@@ -12,13 +12,32 @@ _zips_parts_*/
 # Zips e dumps
 *.zip
 
+# Bundles locais (export do repo para análise)
+_bundles/
+_bundles/**/*
+_bundle_*.txt
+_bundle_part*.txt
+_bundle_part*.md
+
 # Autopilot / logs
-ile/
+scripts/ai/_out/
 scripts/ai/_out/*.log
 scripts/ai/_out/*.err.log
 scripts/ai/_out/*.out.log
 scripts/ai/_out/*.md
 
-# Pastas temporárias diversas
+# Logs gerais
+*.log
+*.err
+
+# Cache / build (RN/Expo)
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Sistema / IDE
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
