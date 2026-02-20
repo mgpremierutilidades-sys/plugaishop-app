@@ -26,14 +26,27 @@ scripts/ai/_out/*.err.log
 scripts/ai/_out/*.out.log
 scripts/ai/_out/*.md
 
-# Autonomy Core runtime
+# Autonomy Core runtime (mutable)
 tools/autonomy-core/_out/
 tools/autonomy-core/_out/**/*
-tools/autonomy-core/state.json
+tools/autonomy-core/_state/
+tools/autonomy-core/_state/**/*
+# (não ignorar state.seed.json / tasks.seed.json)
 
 # Local-only (se não for versionar)
 docs/
 scripts/ai/health-monitor.ps1
+
+# Python cache / artifacts
+__pycache__/
+*.pyc
+*.pyo
+
+# Outputs locais genéricos
+_out/
+
+# Relatórios temporários de correção
+CORRECAO_CARRINHO_PERFORMANCE_*.md
 
 # Logs gerais
 *.log
