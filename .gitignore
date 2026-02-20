@@ -1,13 +1,17 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
-# Expo
+
+# Expo / Web build
 .expo/
 dist/
 web-build/
 expo-env.d.ts
-# Native
+
+# Native / Credentials / Signing
+/ios
+/android
 .kotlin/
 *.orig.*
 *.jks
@@ -15,34 +19,82 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.pem
+
 # Metro
 .metro-health-check*
-# debug
+
+# Debug logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-# macOS
+
+# macOS / Windows
 .DS_Store
-*.pem
-# local env files
+Thumbs.db
+
+# Local env files
 .env*.local
-# typescript
+
+# TypeScript build info
 *.tsbuildinfo
+
+# Example app folder (if exists)
 app-example
-# generated native folders
-/ios
-/android
+
+# Backups / patches
 _backup_*/
-build/
-# artifacts
-*.zip
-# chatgpt automation
-_chatgpt_inbox/
-_chatgpt_outbox/
-scripts/chatgpt/
 *.bak
 *.patch
 
-# local powershell helpers
+# Build / coverage
+build/
+coverage/
+
+# Artifacts
+*.zip
+
+# ChatGPT automation (repo-local tooling)
+_chatgpt_inbox/
+_chatgpt_outbox/
+scripts/chatgpt/
+
+# Local PowerShell helpers
 scripts/ps/
 
+# Bundles locais (export do repo para análise)
+_bundles/
+_bundles/**/*
+_bundle_*.txt
+_bundle_part*.txt
+_bundle_part*.md
+
+# Autopilot / logs
+scripts/ai/_out/
+scripts/ai/_out/**
+
+# Autonomy Core runtime (mutable)
+tools/autonomy-core/_out/
+tools/autonomy-core/_out/**/*
+tools/autonomy-core/_state/
+tools/autonomy-core/_state/**/*
+# (não ignorar state.seed.json / tasks.seed.json)
+
+# Local-only (se não for versionar)
+docs/
+scripts/ai/health-monitor.ps1
+
+# Python cache / artifacts
+__pycache__/
+*.pyc
+*.pyo
+
+# Outputs locais genéricos
+_out/
+
+# Relatórios temporários de correção
+CORRECAO_CARRINHO_PERFORMANCE_*.md
+
+# IDE
+.vscode/
+.idea/
