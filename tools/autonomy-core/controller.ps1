@@ -15,7 +15,23 @@ function Write-Json([string]$p, [object]$obj, [int]$Depth = 50) {
 
 $tasks = Read-Json $TasksPath
 if ($null -eq $tasks) { throw "Missing tasks.json (runtime) at: $TasksPath" }
+if ($null -eq $tasks.queue) { throw "tasks.json missing queue array at: $TasksPath" }
 
+# 1) RESUME: se existe uma task "running", retoma ela (não muda status)
+$running = $null
+foreach ($t in $tasks.queue) {
+  if ($t.status -eq "running") { $running = $t; break }
+}
+
+if ($null -ne $running) {
+  Write-Output (@{
+    mode = "execute"
+    task = $running
+  } | ConvertTo-Json -Depth 20)
+  exit 0
+}
+
+# 2) Normal: pega a próxima queued
 $next = $null
 foreach ($t in $tasks.queue) {
   if ($t.status -eq "queued") { $next = $t; break }
@@ -29,7 +45,7 @@ if ($null -eq $next) {
   exit 0
 }
 
-# Marca como running (persistente no runtime tasks)
+# Marca como running
 foreach ($t in $tasks.queue) {
   if ($t.id -eq $next.id) {
     $t.status = "running"

@@ -90,16 +90,25 @@ if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-# ===== Controller (ROBUST JSON BLOCK PARSE) =====
+# ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
 
 $ctrlText = ($ctrlLines | ForEach-Object { $_.ToString() }) -join "`n"
-$m = [regex]::Match($ctrlText, '(?s)\{.*?\}')
-if (-not $m.Success) { throw "controller.ps1 did not emit JSON. Output was:`n$ctrlText" }
 
-$ctrlJson = $m.Value
-try { $ctrl = $ctrlJson | ConvertFrom-Json } catch { throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText" }
+$first = $ctrlText.IndexOf("{")
+$last  = $ctrlText.LastIndexOf("}")
+if ($first -lt 0 -or $last -le $first) {
+  throw "controller.ps1 did not emit JSON. Output was:`n$ctrlText"
+}
+
+$ctrlJson = $ctrlText.Substring($first, $last - $first + 1)
+
+try {
+  $ctrl = $ctrlJson | ConvertFrom-Json
+} catch {
+  throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText"
+}
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
@@ -118,19 +127,23 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
     -RepoRoot $RepoRoot -TaskJson $taskJson -MetricsPath $MetricsPath 2>&1
 
   $execText = ($execLines | ForEach-Object { $_.ToString() }) -join "`n"
-  $mx = [regex]::Match($execText, '(?s)\{.*?\}')
-  if (-not $mx.Success) {
+
+  # ===== Executor JSON parse (ROBUST: first '{' to last '}') =====
+  $firstE = $execText.IndexOf("{")
+  $lastE  = $execText.LastIndexOf("}")
+  if ($firstE -lt 0 -or $lastE -le $firstE) {
     $executorOk = $false
     $notes.Add("executor_parse_fail")
     $notes.Add("executor_output=" + $execText.Replace("`n"," | "))
   } else {
-    $execJson = $mx.Value
+    $execJson = $execText.Substring($firstE, $lastE - $firstE + 1)
     $exec = $execJson | ConvertFrom-Json
     $executorOk = [bool]$exec.ok
 
     foreach ($n in $exec.notes) { $notes.Add("exec:" + [string]$n) }
     if ($exec.committed_sha) { $committedSha = [string]$exec.committed_sha }
   }
+
 } else {
   $notes.Add("executor=skipped")
 }
