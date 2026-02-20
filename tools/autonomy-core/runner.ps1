@@ -90,10 +90,25 @@ if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-# ===== Controller =====
-$ctrlJson = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
-  -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath
-$ctrl = $ctrlJson | ConvertFrom-Json
+# ===== Controller (ROBUST JSON BLOCK PARSE) =====
+$ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
+  -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
+
+$ctrlText = ($ctrlLines | ForEach-Object { $_.ToString() }) -join "`n"
+
+# Extrai o primeiro bloco JSON {...} (multiline)
+$m = [regex]::Match($ctrlText, '(?s)\{.*?\}')
+if (-not $m.Success) {
+  throw "controller.ps1 did not emit JSON. Output was:`n$ctrlText"
+}
+
+$ctrlJson = $m.Value
+
+try {
+  $ctrl = $ctrlJson | ConvertFrom-Json
+} catch {
+  throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText"
+}
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
