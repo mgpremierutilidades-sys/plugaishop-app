@@ -1,6 +1,5 @@
 $ErrorActionPreference = "Stop"
 
-# Sempre rodar relativo ao repo root
 $RepoRoot = (Resolve-Path ".").Path
 [System.IO.Directory]::SetCurrentDirectory($RepoRoot)
 
@@ -16,15 +15,20 @@ $ts = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
 $log = Join-Path $OutDir ("run-" + $ts + ".log")
 $err = Join-Path $OutDir ("run-" + $ts + ".err.log")
 
-function Read-Json($p) {
-  if (!(Test-Path $p)) { return $null }
-  return Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
-}
-function Write-Json($p, $obj) {
-  $obj | ConvertTo-Json -Depth 50 | Out-File -FilePath $p -Encoding UTF8
+function Read-Json([string]$Path) {
+  if (!(Test-Path $Path)) { return $null }
+  return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
-# Executa via cmd.exe para evitar "%1 não é um aplicativo Win32 válido" com npm shims
+function Write-Json {
+  param(
+    [Parameter(Mandatory=$true)][string]$Path,
+    [Parameter(Mandatory=$true)][object]$Value
+  )
+  $json = $Value | ConvertTo-Json -Depth 50
+  $json | Out-File -FilePath $Path -Encoding UTF8
+}
+
 function Run-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
@@ -41,8 +45,8 @@ function Run-CmdLine([string]$commandLine) {
   return $p.ExitCode
 }
 
-# Carrega estado/métricas
-$state = Read-Json $State
+# ===== Load state/metrics =====
+$state = Read-Json -Path $State
 if ($null -eq $state) {
   $state = @{
     v = 1
@@ -54,13 +58,12 @@ if ($null -eq $state) {
   }
 }
 
-$metrics = Read-Json $Metrics
+$metrics = Read-Json -Path $Metrics
 if ($null -eq $metrics) { throw "Missing metrics.json" }
 
-# Descobre branch
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-# Controller (decide se há task)
+# ===== Controller =====
 $ctrlJson = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $Tasks -StatePath $State
 $ctrl = $ctrlJson | ConvertFrom-Json
@@ -68,7 +71,7 @@ $ctrl = $ctrlJson | ConvertFrom-Json
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
 
-# Gates
+# ===== Gates =====
 $lintResult = "skipped"
 $typeResult = "skipped"
 
@@ -86,7 +89,7 @@ if ($metrics.gates.typecheck.enabled -eq $true) {
 
 $ok = ($lintResult -eq "ok" -or $lintResult -eq "skipped") -and ($typeResult -eq "ok" -or $typeResult -eq "skipped")
 
-# Atualiza estado
+# ===== Update state =====
 $state.last_run_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
 $state.last_task_id = ($ctrl.task.id ?? $null)
 
@@ -98,9 +101,9 @@ if ($ok) {
   $state.consecutive_failures = [int]$state.consecutive_failures + 1
 }
 
-Write-Json $State $state
+Write-Json -Path $State -Value $state
 
-# Report
+# ===== Report =====
 $runSummary = @{
   result = $state.last_result
   branch = $branch
