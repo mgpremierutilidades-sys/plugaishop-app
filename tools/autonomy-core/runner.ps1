@@ -24,9 +24,20 @@ function Write-Json($p, $obj) {
   $obj | ConvertTo-Json -Depth 50 | Out-File -FilePath $p -Encoding UTF8
 }
 
-function Run-Cmd([string]$cmd, [string]$args) {
-  Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $cmd + " " + $args)
-  $p = Start-Process -FilePath $cmd -ArgumentList $args -NoNewWindow -PassThru -Wait -RedirectStandardOutput $log -RedirectStandardError $err
+# Executa via cmd.exe para evitar "%1 não é um aplicativo Win32 válido" com npm shims
+function Run-CmdLine([string]$commandLine) {
+  Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
+
+  $exe = "$env:ComSpec"  # cmd.exe
+  $args = "/c " + $commandLine
+
+  $p = Start-Process -FilePath $exe `
+    -ArgumentList $args `
+    -WorkingDirectory $RepoRoot `
+    -NoNewWindow -PassThru -Wait `
+    -RedirectStandardOutput $log `
+    -RedirectStandardError $err
+
   return $p.ExitCode
 }
 
@@ -62,13 +73,13 @@ $lintResult = "skipped"
 $typeResult = "skipped"
 
 if ($metrics.gates.lint.enabled -eq $true) {
-  $code = Run-Cmd "npm" "run lint"
+  $code = Run-CmdLine "npm run lint"
   $lintResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("lint_exit=" + $code)
 }
 
 if ($metrics.gates.typecheck.enabled -eq $true) {
-  $code = Run-Cmd "npm" "run typecheck"
+  $code = Run-CmdLine "npm run typecheck"
   $typeResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("typecheck_exit=" + $code)
 }
