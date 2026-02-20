@@ -23,6 +23,12 @@
     "build",
     ".expo",
 
+    "scripts/**",
+
+    "_bundles/**",
+    "_bundle_*.txt",
+    "docs/**",
+
     "scripts/ai/_out",
     "scripts/ai/_state",
     "**/scripts/ai/_out/**",

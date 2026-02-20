@@ -26,6 +26,15 @@ scripts/ai/_out/*.err.log
 scripts/ai/_out/*.out.log
 scripts/ai/_out/*.md
 
+# Autonomy Core runtime
+tools/autonomy-core/_out/
+tools/autonomy-core/_out/**/*
+tools/autonomy-core/state.json
+
+# Local-only (se não for versionar)
+docs/
+scripts/ai/health-monitor.ps1
+
 # Logs gerais
 *.log
 *.err
