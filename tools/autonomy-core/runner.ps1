@@ -5,11 +5,17 @@ $RepoRoot = (Resolve-Path ".").Path
 
 $CoreDir     = Join-Path $RepoRoot "tools/autonomy-core"
 $OutDir      = Join-Path $CoreDir "_out"
-$StatePath   = Join-Path $CoreDir "state.json"
-$TasksPath   = Join-Path $CoreDir "tasks.json"
+$StateDir    = Join-Path $CoreDir "_state"
+
+$StatePath   = Join-Path $StateDir "state.json"
+$TasksPath   = Join-Path $StateDir "tasks.json"
 $MetricsPath = Join-Path $CoreDir "metrics.json"
 
+$StateSeed   = Join-Path $CoreDir "state.seed.json"
+$TasksSeed   = Join-Path $CoreDir "tasks.seed.json"
+
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
 $ts  = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
 $log = Join-Path $OutDir ("run-" + $ts + ".log")
@@ -20,10 +26,21 @@ function Read-Json([string]$Path) {
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
+function Write-Json([string]$Path, [object]$Value, [int]$Depth = 50) {
+  ($Value | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $Path -Encoding UTF8 -Force
+}
+
+function Ensure-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
+  if (Test-Path $RuntimePath) { return }
+  if (!(Test-Path $SeedPath)) { throw "Missing seed file: $SeedPath" }
+  Copy-Item -LiteralPath $SeedPath -Destination $RuntimePath -Force
+}
+
+# npm via cmd.exe (evita shims Win32)
 function Run-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
-  $exe  = "$env:ComSpec"   # cmd.exe
+  $exe  = "$env:ComSpec"
   $args = "/c " + $commandLine
 
   $p = Start-Process -FilePath $exe `
@@ -36,18 +53,37 @@ function Run-CmdLine([string]$commandLine) {
   return $p.ExitCode
 }
 
+function Finalize-Task([object]$Ctrl, [bool]$Ok) {
+  if ($null -eq $Ctrl) { return }
+  if ($Ctrl.mode -ne "execute") { return }
+  if ($null -eq $Ctrl.task) { return }
+
+  $tasks = Read-Json $TasksPath
+  if ($null -eq $tasks -or $null -eq $tasks.queue) { return }
+
+  foreach ($t in $tasks.queue) {
+    if ($t.id -eq $Ctrl.task.id) {
+      $now = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+      if ($Ok) {
+        $t.status = "done"
+        $t.completed_utc = $now
+      } else {
+        $t.status = "failed"
+        $t.failed_utc = $now
+      }
+    }
+  }
+
+  Write-Json $TasksPath $tasks 50
+}
+
+# ===== Ensure runtime state/tasks exist =====
+Ensure-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
+Ensure-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
+
 # ===== Load state/metrics =====
 $state = Read-Json $StatePath
-if ($null -eq $state) {
-  $state = @{
-    v = 1
-    last_run_utc = $null
-    last_result = $null
-    last_task_id = $null
-    consecutive_failures = 0
-    notes = @()
-  }
-}
+if ($null -eq $state) { throw "Runtime state.json unreadable: $StatePath" }
 
 $metrics = Read-Json $MetricsPath
 if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
@@ -61,6 +97,11 @@ $ctrl = $ctrlJson | ConvertFrom-Json
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
+
+if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
+  $notes.Add("task_id=" + $ctrl.task.id)
+  $notes.Add("task_title=" + $ctrl.task.title)
+}
 
 # ===== Gates =====
 $lintResult = "skipped"
@@ -92,10 +133,19 @@ if ($ok) {
   $state.consecutive_failures = [int]$state.consecutive_failures + 1
 }
 
-# persist state
-($state | ConvertTo-Json -Depth 50) | Out-File -FilePath $StatePath -Encoding UTF8 -Force
+Write-Json $StatePath $state 50
 
-# ===== Report (via JSON file, não via hashtable param) =====
+# ===== Finalize task =====
+try {
+  Finalize-Task -Ctrl $ctrl -Ok:$ok
+  if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
+    $notes.Add("task_finalized=" + ($ok ? "done" : "failed"))
+  }
+} catch {
+  $notes.Add("task_finalize_error=" + $_.Exception.Message)
+}
+
+# ===== Report via JSON =====
 $runSummary = @{
   result = $state.last_result
   branch = $branch
@@ -108,7 +158,7 @@ $runSummary = @{
 }
 
 $runSummaryPath = Join-Path $OutDir ("runSummary-" + $ts + ".json")
-($runSummary | ConvertTo-Json -Depth 20) | Out-File -FilePath $runSummaryPath -Encoding UTF8 -Force
+Write-Json $runSummaryPath $runSummary 20
 
 & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") `
   -OutDir $OutDir -RunSummaryPath $runSummaryPath
