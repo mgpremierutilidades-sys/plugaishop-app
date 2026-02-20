@@ -95,27 +95,44 @@ $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
 
 $ctrlText = ($ctrlLines | ForEach-Object { $_.ToString() }) -join "`n"
-
-# Extrai o primeiro bloco JSON {...} (multiline)
 $m = [regex]::Match($ctrlText, '(?s)\{.*?\}')
-if (-not $m.Success) {
-  throw "controller.ps1 did not emit JSON. Output was:`n$ctrlText"
-}
+if (-not $m.Success) { throw "controller.ps1 did not emit JSON. Output was:`n$ctrlText" }
 
 $ctrlJson = $m.Value
-
-try {
-  $ctrl = $ctrlJson | ConvertFrom-Json
-} catch {
-  throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText"
-}
+try { $ctrl = $ctrlJson | ConvertFrom-Json } catch { throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText" }
 
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
 
+# ===== Executor (aplica ação real da task) =====
+$executorOk = $true
+$committedSha = $null
+
 if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
   $notes.Add("task_id=" + $ctrl.task.id)
   $notes.Add("task_title=" + $ctrl.task.title)
+
+  $taskJson = ($ctrl.task | ConvertTo-Json -Depth 20)
+
+  $execLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "executor.ps1") `
+    -RepoRoot $RepoRoot -TaskJson $taskJson -MetricsPath $MetricsPath 2>&1
+
+  $execText = ($execLines | ForEach-Object { $_.ToString() }) -join "`n"
+  $mx = [regex]::Match($execText, '(?s)\{.*?\}')
+  if (-not $mx.Success) {
+    $executorOk = $false
+    $notes.Add("executor_parse_fail")
+    $notes.Add("executor_output=" + $execText.Replace("`n"," | "))
+  } else {
+    $execJson = $mx.Value
+    $exec = $execJson | ConvertFrom-Json
+    $executorOk = [bool]$exec.ok
+
+    foreach ($n in $exec.notes) { $notes.Add("exec:" + [string]$n) }
+    if ($exec.committed_sha) { $committedSha = [string]$exec.committed_sha }
+  }
+} else {
+  $notes.Add("executor=skipped")
 }
 
 # ===== Gates =====
@@ -134,7 +151,17 @@ if ($metrics.gates.typecheck.enabled -eq $true) {
   $notes.Add("typecheck_exit=" + $code)
 }
 
-$ok = ($lintResult -eq "ok" -or $lintResult -eq "skipped") -and ($typeResult -eq "ok" -or $typeResult -eq "skipped")
+$gatesOk = ($lintResult -eq "ok" -or $lintResult -eq "skipped") -and ($typeResult -eq "ok" -or $typeResult -eq "skipped")
+$ok = $executorOk -and $gatesOk
+
+# ===== Rollback if enabled + commit exists + gates failed =====
+if (-not $ok) {
+  if ($metrics.rollback.enabled -eq $true -and $committedSha) {
+    $notes.Add("rollback_attempt=" + $committedSha)
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "rollback.ps1") -CommitSha $committedSha
+    $notes.Add("rollback_done=" + $committedSha)
+  }
+}
 
 # ===== Update state =====
 $state.last_run_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
@@ -179,9 +206,9 @@ Write-Json $runSummaryPath $runSummary 20
   -OutDir $OutDir -RunSummaryPath $runSummaryPath
 
 if (-not $ok) {
-  Write-Host "[autonomy] Gates FAILED. See logs in tools/autonomy-core/_out/"
+  Write-Host "[autonomy] FAILED. See logs in tools/autonomy-core/_out/"
   exit 1
 }
 
-Write-Host "[autonomy] Gates OK."
+Write-Host "[autonomy] OK."
 exit 0
