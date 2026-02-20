@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -29,18 +30,10 @@ export type CartItem = {
   qty: number;
 };
 
-type CartSnapshot = {
-  items: CartItem[];
-  ready: boolean;
-  hydrating: boolean;
-};
-
 type PersistedCartV1 = {
   v: 1;
-  updatedAt: number;
   items: {
     id: string;
-    qty: number;
     title?: string;
     price?: number;
     category?: string;
@@ -48,48 +41,31 @@ type PersistedCartV1 = {
     description?: string;
     unitLabel?: string;
     discountPercent?: number;
+    qty: number;
   }[];
 };
 
-const KEY = "@plugaishop:cart:v1";
+const KEY = "plugaishop_cart_v1";
 
-// ===== Store singleton =====
-const listeners = new Set<() => void>();
-
+let items: CartItem[] = [];
 let ready = false;
 let hydrating = false;
 
-let items: CartItem[] = [];
-let indexById: Record<string, number> = Object.create(null);
-
 let hydrationStarted = false;
-let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * ✅ REGRA DE OURO (Fabric DEV):
- * getSnapshot() NUNCA pode criar objeto/array.
- * Sempre retorna a MESMA referência enquanto nada mudou.
- */
-let snapshotRef: CartSnapshot = { items, ready, hydrating };
+const listeners = new Set<() => void>();
 
-function commit() {
-  // Só troca a referência quando algo mudou de fato.
-  if (
-    snapshotRef.items === items &&
-    snapshotRef.ready === ready &&
-    snapshotRef.hydrating === hydrating
-  ) {
-    return;
-  }
+const indexById: Record<string, number> = {};
 
-  snapshotRef = { items, ready, hydrating };
-
-  // DEV: evita mutação acidental por algum consumidor
-  if (__DEV__) Object.freeze(snapshotRef);
+function rebuildIndex(next: CartItem[]) {
+  for (const k of Object.keys(indexById)) delete indexById[k];
+  next.forEach((it, i) => {
+    indexById[String(it.id)] = i;
+  });
 }
 
-function getSnapshot(): CartSnapshot {
-  return snapshotRef;
+function emit() {
+  listeners.forEach((l) => l());
 }
 
 function subscribe(listener: () => void) {
@@ -97,20 +73,12 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function emit() {
-  // Blindagem extra: garante snapshot compatível com o estado atual
-  commit();
-  listeners.forEach((l) => l());
+function getSnapshot() {
+  return { items, ready, hydrating };
 }
 
-function rebuildIndex(next: CartItem[]) {
-  const idx: Record<string, number> = Object.create(null);
-  for (let i = 0; i < next.length; i++) idx[next[i].id] = i;
-  indexById = idx;
-}
-
-function findProductById(id: string): Product | null {
-  return products.find((p) => String(p.id) === String(id)) ?? null;
+function findProductById(id: string): Product | undefined {
+  return (products as Product[]).find((p) => String(p.id) === String(id));
 }
 
 function toCartItem(product: Product, qty: number): CartItem {
@@ -129,19 +97,17 @@ function toCartItem(product: Product, qty: number): CartItem {
   };
 }
 
-function schedulePersist() {
+let persistTimer: any = null;
+
+async function persistDebounced() {
   if (!isFlagEnabled("ff_cart_persist_v1")) return;
 
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(async () => {
-    persistTimer = null;
-
     const payload: PersistedCartV1 = {
       v: 1,
-      updatedAt: Date.now(),
       items: items.map((it) => ({
         id: it.id,
-        qty: it.qty,
         title: it.title,
         price: it.price,
         category: it.category,
@@ -149,6 +115,7 @@ function schedulePersist() {
         description: it.description,
         unitLabel: it.unitLabel,
         discountPercent: it.discountPercent,
+        qty: it.qty,
       })),
     };
 
@@ -167,39 +134,30 @@ function setItems(next: CartItem[], reason?: string) {
 
   items = next;
   rebuildIndex(next);
+  emit();
 
-  if (reason && isFlagEnabled("ff_cart_analytics_v1")) {
-    track("cart_mutation", { reason, items_count: next.length });
+  if (isFlagEnabled("ff_cart_analytics_v1") && reason) {
+    track("cart_changed", { reason, items_count: next.length });
   }
 
-  emit();
-  schedulePersist();
+  void persistDebounced();
 }
 
-// ===== O(1) mutations =====
 function addOrInc(product: Product, delta: number) {
   const id = String(product.id);
   const idx = indexById[id];
 
   if (idx === undefined) {
-    setItems([...items, toCartItem(product, Math.max(1, delta))], "add_new");
+    const q = Math.max(1, Math.floor(Number(delta) || 1));
+    setItems([...items, toCartItem(product, q)], "add_or_inc_new");
     return;
   }
 
   const curr = items[idx];
-  const nextQty = curr.qty + delta;
-
-  if (nextQty <= 0) {
-    setItems(
-      items.filter((it) => it.id !== id),
-      "remove_zero",
-    );
-    return;
-  }
-
+  const nextQty = Math.max(1, curr.qty + (Number(delta) || 0));
   const next = items.slice();
   next[idx] = { ...toCartItem(curr.product, nextQty), qty: nextQty };
-  setItems(next, "update_qty");
+  setItems(next, "add_or_inc_existing");
 }
 
 function setQty(productId: string, qty: number) {
@@ -325,6 +283,32 @@ export function useCart() {
 
   const total = subtotal;
 
+  // ===== Compat helpers (não quebrar telas antigas) =====
+  const resolveProduct = useCallback((p: any): Product | null => {
+    if (!p) return null;
+    if (typeof p === "object" && typeof p.id === "string") return p as Product;
+    // aceita { product }, { item }
+    const inner = (p as any)?.product ?? (p as any)?.item;
+    if (inner && typeof inner.id === "string") return inner as Product;
+
+    const id = String((p as any)?.id ?? (p as any)?.productId ?? "");
+    if (!id) return null;
+    const found = findProductById(id);
+    if (found) return found;
+
+    // fallback mínimo para não quebrar UI
+    return {
+      id,
+      title: String((p as any)?.title ?? "Produto"),
+      price: Number((p as any)?.price ?? 0),
+      category: String((p as any)?.category ?? ""),
+      image: (p as any)?.image,
+      description: (p as any)?.description,
+      unitLabel: (p as any)?.unitLabel,
+      discountPercent: (p as any)?.discountPercent,
+    };
+  }, []);
+
   return {
     items: snap.items,
     ready: snap.ready,
@@ -334,6 +318,7 @@ export function useCart() {
     subtotal,
     total,
 
+    // API principal
     addItem: (product: Product, qtyDelta: number = 1) =>
       addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
     decItem: (product: Product, qtyDelta: number = 1) =>
@@ -342,8 +327,37 @@ export function useCart() {
     setItemQty: (productId: string, qty: number) => setQty(productId, qty),
     clearCart: () => clear(),
 
-    // alias compat
+    // alias compat (nomes antigos)
+    add: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
+    inc: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
+    increase: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
+    dec: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, -Math.max(1, Math.abs(qtyDelta))),
+    decrease: (product: Product, qtyDelta: number = 1) =>
+      addOrInc(product, -Math.max(1, Math.abs(qtyDelta))),
+    remove: (productId: string) => remove(productId),
     setQty: (productId: string, qty: number) => setQty(productId, qty),
+
+    // ✅ safe* (contrato citado pelo build system)
+    safeAdd: (p: any, qtyDelta: number = 1) => {
+      const pr = resolveProduct(p);
+      if (!pr) return;
+      addOrInc(pr, Math.max(1, Math.abs(qtyDelta)));
+    },
+    safeDec: (p: any, qtyDelta: number = 1) => {
+      const pr = resolveProduct(p);
+      if (!pr) return;
+      addOrInc(pr, -Math.max(1, Math.abs(qtyDelta)));
+    },
+    safeRemove: (p: any) => {
+      const pr = resolveProduct(p);
+      const id = pr?.id ?? String(p?.id ?? p?.productId ?? "");
+      if (!id) return;
+      remove(id);
+    },
   };
 }
 

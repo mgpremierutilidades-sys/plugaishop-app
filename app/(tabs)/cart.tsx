@@ -120,7 +120,6 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 export default function CartTab() {
   const cartCtx = useCart() as any;
 
-  // TEMP: até adicionarmos no union FeatureFlag corretamente
   const uiV2 = isFlagEnabled("ff_cart_ui_v2");
 
   const actionLocksRef = useRef<Record<string, number>>({});
@@ -214,7 +213,10 @@ export default function CartTab() {
     return localRows.every((r) => selected[r.id]);
   }, [localRows, selected]);
 
-  const anySelected = useMemo(() => localRows.some((r) => selected[r.id]), [localRows, selected]);
+  const anySelected = useMemo(
+    () => localRows.some((r) => selected[r.id]),
+    [localRows, selected],
+  );
 
   const selectedSubtotal = useMemo(() => {
     return localRows.reduce((acc, r) => {
@@ -349,6 +351,93 @@ export default function CartTab() {
     }
   }, [localRows, selected, selectedSubtotal]);
 
+  const ListHeader = () => {
+    if (!uiV2) return null;
+
+    return (
+      <View style={styles.headerWrap}>
+        <View style={styles.banner}>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.bannerTitle, { fontFamily: FONT_BODY_BOLD }]}>
+              Frete grátis acima de {formatCurrency(freeShippingTarget)}
+            </ThemedText>
+            <ThemedText style={[styles.bannerSub, { fontFamily: FONT_BODY }]}>
+              {freeShippingRemaining === 0
+                ? "Você desbloqueou frete grátis"
+                : `Faltam ${formatCurrency(freeShippingRemaining)} para desbloquear`}
+            </ThemedText>
+            <ProgressBar value={selectedSubtotal} max={freeShippingTarget} />
+          </View>
+        </View>
+
+        <View style={styles.controlsRow}>
+          <View style={styles.controlsLeft}>
+            <SmallChip
+              label={allSelected ? "Tudo selecionado" : "Selecionar tudo"}
+              onPress={handleSelectAll}
+            />
+            <SmallChip label="Limpar" onPress={handleClearSelection} />
+          </View>
+          <View style={styles.controlsRight}>
+            <SmallChip label={editMode ? "Concluir" : "Editar"} onPress={handleToggleEdit} />
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const EmptyState = () => {
+    return (
+      <View style={styles.empty}>
+        <ThemedText style={[styles.emptyTitle, { fontFamily: FONT_BODY_BOLD }]}>
+          Seu carrinho está vazio
+        </ThemedText>
+        <ThemedText style={[styles.emptySub, { fontFamily: FONT_BODY }]}>
+          Explore produtos e adicione itens para continuar.
+        </ThemedText>
+        <PrimaryButton
+          label="Explorar produtos"
+          onPress={() => {
+            try {
+              router.push("/explore" as any);
+            } catch {
+              try {
+                router.push("/(tabs)/explore" as any);
+              } catch {}
+            }
+          }}
+        />
+      </View>
+    );
+  };
+
+  const StickyFooter = () => {
+    if (!uiV2) return null;
+
+    return (
+      <View style={styles.stickyFooter}>
+        <View style={styles.footerLeft}>
+          <ThemedText style={[styles.footerLabel, { fontFamily: FONT_BODY }]}>
+            Subtotal
+          </ThemedText>
+          <ThemedText style={[styles.footerValue, { fontFamily: FONT_BODY_BOLD }]}>
+            {formatCurrency(selectedSubtotal)}
+          </ThemedText>
+          <ThemedText style={[styles.footerHint, { fontFamily: FONT_BODY }]}>
+            {anySelected ? "Itens selecionados" : "Selecione itens para continuar"}
+          </ThemedText>
+        </View>
+        <View style={styles.footerRight}>
+          <PrimaryButton
+            label={anySelected ? "Continuar" : "Selecione itens"}
+            disabled={!anySelected}
+            onPress={handleProceed}
+          />
+        </View>
+      </View>
+    );
+  };
+
   const renderRowLegacy = ({ item }: { item: Row }) => {
     const checked = !!selected[item.id];
     const product = toProduct(item);
@@ -424,62 +513,50 @@ export default function CartTab() {
     const checked = !!selected[item.id];
     const product = toProduct(item);
 
-    const pctOff =
-      item.oldPrice && item.oldPrice > 0 && item.oldPrice > item.price
-        ? Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)
-        : 0;
-
     return (
-      <View style={styles.card}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => toggleRow(item.id)}
-          style={({ pressed }) => [styles.cardTopRow, pressed ? { opacity: 0.96 } : null]}
-        >
-          <View style={styles.checkboxBig}>
-            <View style={[styles.checkboxBox, checked && styles.checkboxBoxChecked]}>
-              {checked ? <IconSymbolDefault name="check" size={14} color={WHITE} /> : null}
-            </View>
-          </View>
+      <View style={styles.cardV2}>
+        <View style={styles.rowTopV2}>
+          <Pressable
+            onPress={() => toggleRow(item.id)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked }}
+            style={[
+              styles.checkV2,
+              checked ? styles.checkOnV2 : styles.checkOffV2,
+            ]}
+          >
+            {checked ? <IconSymbolDefault name="check" size={14} color={WHITE} /> : null}
+          </Pressable>
 
-          <ProductThumb image={item.image} size={76} />
+          <ProductThumb image={item.image} size={74} />
 
-          <View style={styles.cardBody}>
-            <ThemedText numberOfLines={2} style={[styles.itemTitle, { fontFamily: FONT_BODY }]}>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.titleV2, { fontFamily: FONT_BODY_BOLD }]} numberOfLines={2}>
               {item.title}
             </ThemedText>
 
-            <ThemedText numberOfLines={1} style={[styles.metaText, { fontFamily: FONT_BODY }]}>
-              Cor: Preto • Tamanho: Único
-            </ThemedText>
-
-            <View style={styles.priceRow}>
-              <ThemedText style={[styles.price, { fontFamily: FONT_BODY_BOLD }]}>
+            <View style={styles.priceRowV2}>
+              <ThemedText style={[styles.priceV2, { fontFamily: FONT_BODY_BOLD }]}>
                 {formatCurrency(item.price)}
               </ThemedText>
-              {item.oldPrice ? (
-                <ThemedText style={[styles.oldPrice, { fontFamily: FONT_BODY }]}>
-                  {formatCurrency(item.oldPrice)}
-                </ThemedText>
-              ) : null}
-              {pctOff ? (
-                <View style={styles.discountPill}>
-                  <ThemedText style={[styles.discountText, { fontFamily: FONT_BODY_BOLD }]}>
-                    -{pctOff}%
-                  </ThemedText>
-                </View>
-              ) : null}
+              <ThemedText style={[styles.unitV2, { fontFamily: FONT_BODY }]}>/ un</ThemedText>
             </View>
-          </View>
-        </Pressable>
 
-        <View style={styles.cardBottomRow}>
-          <View style={styles.qtyRowV2}>
+            {item.oldPrice ? (
+              <ThemedText style={[styles.oldV2, { fontFamily: FONT_BODY }]} numberOfLines={1}>
+                {formatCurrency(item.oldPrice)}
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.rowBottomV2}>
+          <View style={styles.qtyWrapV2}>
             <Pressable onPress={() => safeDec(product)} style={styles.qtyBtnV2} accessibilityRole="button">
               <IconSymbolDefault name="minus" size={16} color={theme.colors.text} />
             </Pressable>
 
-            <View style={styles.qtyBoxV2}>
+            <View style={styles.qtyPillV2}>
               <ThemedText style={{ fontFamily: FONT_BODY_BOLD }}>{item.qty}</ThemedText>
             </View>
 
@@ -488,157 +565,15 @@ export default function CartTab() {
             </Pressable>
           </View>
 
-          {editMode ? (
-            <Pressable onPress={() => safeRemove(product)} style={styles.removeBtnV2} accessibilityRole="button">
-              <IconSymbolDefault name="trash" size={18} color={WHITE} />
-              <ThemedText style={[styles.removeTextV2, { fontFamily: FONT_BODY_BOLD }]}>
-                Remover
-              </ThemedText>
-            </Pressable>
-          ) : (
-            <View style={styles.inlineGuarantee}>
-              <IconSymbolDefault name="shield" size={14} color={theme.colors.textSecondary} />
-              <ThemedText style={[styles.metaText, { fontFamily: FONT_BODY }]}>
-                Compra protegida
-              </ThemedText>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  const ListHeader = () => {
-    if (!uiV2) return null;
-
-    return (
-      <View style={styles.topArea}>
-        <View style={styles.topActionsRow}>
-          {allSelected ? (
-            <SmallChip label="Limpar seleção" onPress={handleClearSelection} />
-          ) : (
-            <SmallChip label="Selecionar tudo" onPress={handleSelectAll} />
-          )}
-          <View style={{ flex: 1 }} />
-          <SmallChip label={editMode ? "Concluir" : "Editar"} onPress={handleToggleEdit} />
-        </View>
-
-        <View style={styles.topCard}>
-          <View style={styles.topCardRow}>
-            <IconSymbolDefault name="map-pin" size={18} color={theme.colors.text} />
-            <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.topCardTitle, { fontFamily: FONT_BODY_BOLD }]}>
-                Entregar em
-              </ThemedText>
-              <ThemedText numberOfLines={1} style={[styles.topCardSubtitle, { fontFamily: FONT_BODY }]}>
-                Defina seu endereço para calcular frete
-              </ThemedText>
-            </View>
-            <Pressable
-              onPress={() => {
-                try {
-                  router.push("/addresses" as any);
-                } catch {}
-              }}
-              style={styles.linkBtn}
-              accessibilityRole="button"
-            >
-              <ThemedText style={[styles.linkBtnText, { fontFamily: FONT_BODY_BOLD }]}>
-                Alterar
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.topCard}>
-          <View style={styles.topCardRow}>
-            <IconSymbolDefault name="truck" size={18} color={theme.colors.text} />
-            <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.topCardTitle, { fontFamily: FONT_BODY_BOLD }]}>
-                Frete grátis a partir de {formatCurrency(freeShippingTarget)}
-              </ThemedText>
-              <ThemedText style={[styles.topCardSubtitle, { fontFamily: FONT_BODY }]}>
-                {freeShippingRemaining <= 0
-                  ? "Você já desbloqueou o frete grátis"
-                  : `Faltam ${formatCurrency(freeShippingRemaining)} para liberar`}
-              </ThemedText>
-              <View style={{ marginTop: 8 }}>
-                <ProgressBar value={selectedSubtotal} max={freeShippingTarget} />
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.topCard, styles.topCardPromo]}>
-          <View style={styles.topCardRow}>
-            <IconSymbolDefault name="ticket" size={18} color={WHITE} />
-            <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.topCardTitle, { fontFamily: FONT_BODY_BOLD, color: WHITE }]}>
-                Cupom disponível
-              </ThemedText>
-              <ThemedText style={[styles.topCardSubtitle, { fontFamily: FONT_BODY, color: WHITE, opacity: 0.92 }]}>
-                Aplique no checkout e economize
-              </ThemedText>
-            </View>
-            <IconSymbolDefault name="chevron-right" size={18} color={WHITE} />
-          </View>
-        </View>
-
-        <ThemedText style={[styles.sectionLabel, { fontFamily: FONT_BODY_BOLD }]}>
-          Seus itens
-        </ThemedText>
-      </View>
-    );
-  };
-
-  const EmptyState = () => {
-    return (
-      <View style={styles.emptyWrap}>
-        <View style={styles.emptyIcon}>
-          <IconSymbolDefault name="shopping-cart" size={28} color={theme.colors.textSecondary} />
-        </View>
-        <ThemedText style={[styles.emptyTitle, { fontFamily: FONT_BODY_BOLD }]}>
-          Seu carrinho está vazio
-        </ThemedText>
-        <ThemedText style={[styles.emptySub, { fontFamily: FONT_BODY }]}>
-          Explore ofertas e adicione produtos para começar.
-        </ThemedText>
-        <PrimaryButton
-          label="Explorar produtos"
-          onPress={() => {
-            try {
-              router.push("/explore" as any);
-            } catch {
-              try {
-                router.push("/(tabs)/explore" as any);
-              } catch {}
-            }
-          }}
-        />
-      </View>
-    );
-  };
-
-  const StickyFooter = () => {
-    if (!uiV2) return null;
-
-    return (
-      <View style={styles.stickyFooter}>
-        <View style={styles.footerLeft}>
-          <ThemedText style={[styles.footerLabel, { fontFamily: FONT_BODY }]}>Subtotal</ThemedText>
-          <ThemedText style={[styles.footerValue, { fontFamily: FONT_BODY_BOLD }]}>
-            {formatCurrency(selectedSubtotal)}
-          </ThemedText>
-          <ThemedText style={[styles.footerHint, { fontFamily: FONT_BODY }]}>
-            {anySelected ? "Itens selecionados" : "Selecione itens para continuar"}
-          </ThemedText>
-        </View>
-        <View style={styles.footerRight}>
-          <PrimaryButton
-            label={anySelected ? "Continuar" : "Selecione itens"}
-            disabled={!anySelected}
-            onPress={handleProceed}
-          />
+          <Pressable
+            onPress={() => safeRemove(product)}
+            style={({ pressed }) => [styles.removeV2, pressed ? { opacity: 0.85 } : null]}
+            accessibilityRole="button"
+          >
+            <ThemedText style={[styles.removeV2Text, { fontFamily: FONT_BODY_BOLD }]}>
+              Remover
+            </ThemedText>
+          </Pressable>
         </View>
       </View>
     );
@@ -694,123 +629,189 @@ const styles = StyleSheet.create({
   itemImage: { alignItems: "center", justifyContent: "center" },
   itemImagePlaceholder: { borderRadius: 12, backgroundColor: theme.colors.divider, opacity: 0.25 },
 
-  legacyTitle: { fontSize: 14, color: theme.colors.text },
-  legacyPriceRow: { flexDirection: "row", alignItems: "baseline", marginTop: 6 },
+  legacyTitle: { fontSize: 13, lineHeight: 18, color: theme.colors.text },
+  legacyPriceRow: { flexDirection: "row", alignItems: "baseline" },
   legacyPrice: { fontSize: 14, color: theme.colors.text },
-  legacyUnit: { fontSize: 12, opacity: 0.7, color: theme.colors.textSecondary },
-  legacyOld: { fontSize: 12, opacity: 0.55, textDecorationLine: "line-through", marginTop: 2, color: theme.colors.textSecondary },
+  legacyUnit: { fontSize: 12, opacity: 0.8, color: theme.colors.text },
+  legacyOld: { fontSize: 12, textDecorationLine: "line-through", opacity: 0.65, color: theme.colors.text },
 
-  legacyRowBottom: { flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 },
+  legacyRowBottom: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
 
-  legacyQtyBtn: { width: 34, height: 34, borderRadius: 12, backgroundColor: theme.colors.divider, alignItems: "center", justifyContent: "center" },
-  legacyQtyPill: { minWidth: 46, height: 34, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.divider, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background, paddingHorizontal: 10 },
-  legacyQtyText: { minWidth: 18, textAlign: "center", color: theme.colors.text },
+  legacyQtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  legacyQtyPill: {
+    minWidth: 44,
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  legacyQtyText: { fontSize: 13, color: theme.colors.text },
 
-  legacyRemoveBtn: { marginLeft: "auto", paddingHorizontal: 10, paddingVertical: 8 },
-  legacyRemove: { fontSize: 12, opacity: 0.85, color: theme.colors.text },
+  legacyRemoveBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: "transparent" },
+  legacyRemove: { fontSize: 12, color: DANGER },
 
-  listContentV2: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 160 },
+  // ===== V2 =====
+  listContentV2: { paddingHorizontal: 14, paddingBottom: 140, paddingTop: 12 },
 
-  topArea: { paddingTop: 4, paddingBottom: 10, gap: 10 },
+  headerWrap: { marginBottom: 12 },
 
-  topActionsRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 },
+  banner: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  bannerTitle: { fontSize: 13, color: theme.colors.text, marginBottom: 4 },
+  bannerSub: { fontSize: 12, color: theme.colors.textMuted, marginBottom: 10 },
+
+  progressOuter: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    overflow: "hidden",
+  },
+  progressInner: {
+    height: "100%",
+    backgroundColor: theme.colors.primary,
+    borderRadius: 999,
+  },
+
+  controlsRow: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  controlsLeft: { flexDirection: "row", gap: 10 },
+  controlsRight: { flexDirection: "row", gap: 10 },
 
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 14,
     backgroundColor: theme.colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
   chipText: { fontSize: 12, color: theme.colors.text },
 
-  topCard: {
+  cardV2: {
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 12,
-    backgroundColor: theme.colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
-  topCardPromo: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  topCardRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  topCardTitle: { fontSize: 13, color: theme.colors.text },
-  topCardSubtitle: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 },
 
-  linkBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  rowTopV2: { flexDirection: "row", alignItems: "center", gap: 10 },
+
+  checkV2: {
+    width: 24,
+    height: 24,
     borderRadius: 10,
-    backgroundColor: theme.colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  linkBtnText: { fontSize: 12, color: theme.colors.text },
+  checkOnV2: { backgroundColor: SUCCESS },
+  checkOffV2: { borderWidth: 1, borderColor: theme.colors.divider, backgroundColor: "transparent" },
 
-  progressOuter: { width: "100%", height: 10, borderRadius: 999, backgroundColor: theme.colors.border, opacity: 0.35, overflow: "hidden" },
-  progressInner: { height: 10, borderRadius: 999, backgroundColor: SUCCESS },
+  titleV2: { fontSize: 13, lineHeight: 18, color: theme.colors.text },
+  priceRowV2: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
+  priceV2: { fontSize: 14, color: theme.colors.text },
+  unitV2: { fontSize: 12, opacity: 0.8, color: theme.colors.text },
+  oldV2: { fontSize: 12, textDecorationLine: "line-through", opacity: 0.65, color: theme.colors.text },
 
-  sectionLabel: { fontSize: 14, color: theme.colors.text, paddingHorizontal: 4, marginTop: 4 },
+  rowBottomV2: { marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 
-  card: { borderRadius: 18, backgroundColor: theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, overflow: "hidden" },
-  cardTopRow: { flexDirection: "row", gap: 10, padding: 12, paddingBottom: 10 },
+  qtyWrapV2: { flexDirection: "row", alignItems: "center", gap: 8 },
+  qtyBtnV2: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
+  qtyPillV2: {
+    minWidth: 44,
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+  },
 
-  checkboxBig: { paddingTop: 6, paddingRight: 2 },
-  checkboxBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: theme.colors.border, backgroundColor: theme.colors.background, alignItems: "center", justifyContent: "center" },
-  checkboxBoxChecked: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
-
-  cardBody: { flex: 1, gap: 4 },
-
-  itemTitle: { fontSize: 14, color: theme.colors.text, lineHeight: 18 },
-  metaText: { fontSize: 12, color: theme.colors.textSecondary },
-
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  price: { fontSize: 16, color: theme.colors.text },
-  oldPrice: { fontSize: 12, color: theme.colors.textSecondary, textDecorationLine: "line-through" },
-
-  discountPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: SUCCESS },
-  discountText: { fontSize: 11, color: WHITE },
-
-  cardBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingBottom: 12 },
-
-  qtyRowV2: { flexDirection: "row", alignItems: "center", gap: 8 },
-  qtyBtnV2: { width: 38, height: 38, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, backgroundColor: theme.colors.background, alignItems: "center", justifyContent: "center" },
-  qtyBoxV2: { minWidth: 44, height: 38, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceAlt, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
-
-  inlineGuarantee: { flexDirection: "row", alignItems: "center", gap: 6 },
-
-  removeBtnV2: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 38, borderRadius: 12, backgroundColor: DANGER },
-  removeTextV2: { fontSize: 12, color: WHITE },
+  removeV2: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  removeV2Text: { fontSize: 12, color: DANGER },
 
   stickyFooter: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.divider,
+    backgroundColor: theme.colors.background,
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     gap: 10,
   },
-
-  footerLeft: { flex: 1, justifyContent: "center" },
+  footerLeft: { flex: 1 },
   footerRight: { width: 160 },
+  footerLabel: { fontSize: 12, color: theme.colors.textMuted },
+  footerValue: { fontSize: 16, color: theme.colors.text },
+  footerHint: { fontSize: 12, color: theme.colors.textMuted },
 
-  footerLabel: { fontSize: 12, color: theme.colors.textSecondary },
-  footerValue: { fontSize: 18, color: theme.colors.text, marginTop: 2 },
-  footerHint: { fontSize: 11, color: theme.colors.textSecondary, marginTop: 2 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  emptyTitle: { fontSize: 18, color: theme.colors.text, marginBottom: 6 },
+  emptySub: { fontSize: 12, color: theme.colors.textMuted, marginBottom: 14, textAlign: "center" },
 
-  primaryBtn: { height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.primary },
-  primaryBtnPressed: { opacity: 0.92 },
+  primaryBtn: {
+    marginTop: 4,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryBtnText: { color: "#fff", fontSize: 12, fontFamily: FONT_BODY_BOLD },
+
   primaryBtnDisabled: { opacity: 0.55 },
-  primaryBtnText: { fontSize: 14, color: WHITE },
+  primaryBtnPressed: { opacity: 0.9 },
 
-  emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 10 },
-  emptyIcon: { width: 56, height: 56, borderRadius: 16, backgroundColor: theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  emptyTitle: { fontSize: 18, color: theme.colors.text, textAlign: "center" },
-  emptySub: { fontSize: 13, color: theme.colors.textSecondary, textAlign: "center", marginBottom: 6 },
+  hint: { marginTop: 12, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.75 },
 });
