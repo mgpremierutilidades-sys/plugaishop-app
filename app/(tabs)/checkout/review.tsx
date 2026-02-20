@@ -44,6 +44,9 @@ export default function Review() {
     );
   }
 
+  const discount = order.discount ?? 0;
+  const total = order.total ?? order.subtotal - discount;
+
   return (
     <View style={{ flex: 1, padding: 16 }}>
       <Text style={{ fontSize: 24, fontWeight: "bold" }}>
@@ -57,11 +60,11 @@ export default function Review() {
       </Text>
 
       <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {order.discount.toFixed(2)}
+        Desconto: R$ {discount.toFixed(2)}
       </Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>
-        Total: R$ {order.total.toFixed(2)}
+        Total: R$ {total.toFixed(2)}
       </Text>
 
       <Pressable

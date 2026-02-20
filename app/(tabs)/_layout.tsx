@@ -7,7 +7,6 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#F5F7FA" },
         tabBarActiveTintColor: theme.colors.tabIconActive,
         tabBarInactiveTintColor: theme.colors.tabIconInactive,
         tabBarHideOnKeyboard: false,
@@ -27,7 +26,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "InÃ­cio",
+          title: "Início",
           tabBarIcon: ({ color }) => (
             <IconSymbolDefault name="home-outline" color={color} size={22} />
           ),
