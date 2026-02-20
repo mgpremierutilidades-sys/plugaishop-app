@@ -3,15 +3,15 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path ".").Path
 [System.IO.Directory]::SetCurrentDirectory($RepoRoot)
 
-$CoreDir  = Join-Path $RepoRoot "tools/autonomy-core"
-$OutDir   = Join-Path $CoreDir "_out"
-$State    = Join-Path $CoreDir "state.json"
-$Tasks    = Join-Path $CoreDir "tasks.json"
-$Metrics  = Join-Path $CoreDir "metrics.json"
+$CoreDir     = Join-Path $RepoRoot "tools/autonomy-core"
+$OutDir      = Join-Path $CoreDir "_out"
+$StatePath   = Join-Path $CoreDir "state.json"
+$TasksPath   = Join-Path $CoreDir "tasks.json"
+$MetricsPath = Join-Path $CoreDir "metrics.json"
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-$ts = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+$ts  = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
 $log = Join-Path $OutDir ("run-" + $ts + ".log")
 $err = Join-Path $OutDir ("run-" + $ts + ".err.log")
 
@@ -20,19 +20,11 @@ function Read-Json([string]$Path) {
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
-function Write-Json {
-  param(
-    [Parameter(Mandatory=$true)][string]$Path,
-    [Parameter(Mandatory=$true)][object]$Value
-  )
-  $json = $Value | ConvertTo-Json -Depth 50
-  $json | Out-File -FilePath $Path -Encoding UTF8
-}
-
+# Executa via cmd.exe para evitar problemas com npm shims no Windows
 function Run-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
-  $exe = "$env:ComSpec"  # cmd.exe
+  $exe  = "$env:ComSpec"   # cmd.exe
   $args = "/c " + $commandLine
 
   $p = Start-Process -FilePath $exe `
@@ -46,7 +38,7 @@ function Run-CmdLine([string]$commandLine) {
 }
 
 # ===== Load state/metrics =====
-$state = Read-Json -Path $State
+$state = Read-Json $StatePath
 if ($null -eq $state) {
   $state = @{
     v = 1
@@ -58,14 +50,14 @@ if ($null -eq $state) {
   }
 }
 
-$metrics = Read-Json -Path $Metrics
-if ($null -eq $metrics) { throw "Missing metrics.json" }
+$metrics = Read-Json $MetricsPath
+if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
 # ===== Controller =====
 $ctrlJson = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
-  -RepoRoot $RepoRoot -TasksPath $Tasks -StatePath $State
+  -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath
 $ctrl = $ctrlJson | ConvertFrom-Json
 
 $notes = New-Object System.Collections.Generic.List[string]
@@ -101,7 +93,9 @@ if ($ok) {
   $state.consecutive_failures = [int]$state.consecutive_failures + 1
 }
 
-Write-Json -Path $State -Value $state
+# ===== Persist state (INLINE, sem função para evitar bug de binding) =====
+$stateJson = ($state | ConvertTo-Json -Depth 50)
+$stateJson | Out-File -FilePath $StatePath -Encoding UTF8 -Force
 
 # ===== Report =====
 $runSummary = @{
