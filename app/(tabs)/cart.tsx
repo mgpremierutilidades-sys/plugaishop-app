@@ -1,4 +1,3 @@
-// PATH: app/(tabs)/cart.tsx
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +19,7 @@ import { useCart } from "../../context/CartContext";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
+import { startCheckout } from "../../lib/checkout";
 import { formatCurrency } from "../../utils/formatCurrency";
 
 const FONT_BODY = "OpenSans_400Regular";
@@ -122,9 +122,6 @@ export default function CartTab() {
   const cartCtx = useCart() as any;
 
   const uiV2 = isFlagEnabled("ff_cart_ui_v2");
-
-  // FIX: o type FeatureFlag ainda não inclui "ff_cart_ux_upgrade_v1"
-  // => cast local para destravar o build sem mexer em outros arquivos.
   const cartUxUpgrade = isFlagEnabled("ff_cart_ux_upgrade_v1");
 
   const actionLocksRef = useRef<Record<string, number>>({});
@@ -359,28 +356,22 @@ export default function CartTab() {
   }, [editMode]);
 
   const handleProceed = useCallback(() => {
+    const selectedCount = localRows.filter((r) => selected[r.id]).length;
+
     if (isFlagEnabled("ff_cart_analytics_v1")) {
       track("cart_proceed_tap", {
-        selected_count: localRows.filter((r) => selected[r.id]).length,
+        selected_count: selectedCount,
         subtotal: selectedSubtotal,
       });
     }
 
-    if (cartUxUpgrade && isFlagEnabled("ff_cart_analytics_v1")) {
-      track("checkout_start", {
-        source: "cart",
-        subtotal: selectedSubtotal,
-      });
-    }
-
-    try {
-      router.push("/checkout" as any);
-    } catch {
-      try {
-        router.push("/(tabs)/checkout" as any);
-      } catch {}
-    }
-  }, [cartUxUpgrade, localRows, selected, selectedSubtotal]);
+    // ✅ Fonte única: checkout_start + rota (guardrails)
+    startCheckout({
+      source: "cart",
+      subtotal: selectedSubtotal,
+      items_count: selectedCount,
+    });
+  }, [localRows, selected, selectedSubtotal]);
 
   const ListHeader = () => {
     if (!uiV2) return null;

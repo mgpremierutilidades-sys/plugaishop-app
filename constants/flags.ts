@@ -1,4 +1,3 @@
-// PATH: constants/flags.ts
 export type FeatureFlag =
   | "ff_cart_rehydration_hardened"
   | "ff_cart_o1_index"
@@ -6,7 +5,8 @@ export type FeatureFlag =
   | "ff_cart_analytics_v1"
   | "ff_cart_persist_v1"
   | "ff_cart_ui_v2"
-  | "ff_cart_ux_upgrade_v1";
+  | "ff_cart_ux_upgrade_v1"
+  | "ff_checkout_start_guardrails_v1";
 
 const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_cart_rehydration_hardened: true,
@@ -20,6 +20,9 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
 
   // CART-002 — UX Upgrade (savings + extras)
   ff_cart_ux_upgrade_v1: false,
+
+  // CHECKOUT-001 — Guardrails + tracking canônico
+  ff_checkout_start_guardrails_v1: true,
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {

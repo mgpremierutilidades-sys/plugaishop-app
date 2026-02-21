@@ -1,4 +1,3 @@
-# PATH: tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TaskJson,
@@ -29,6 +28,13 @@ if ($metrics.autocommit -ne $null) {
   $autocommitEnabled = [bool]$metrics.autocommit.enabled
   $authorName = $metrics.autocommit.author_name
   $authorEmail = $metrics.autocommit.author_email
+}
+
+function Write-FileUtf8NoBom([string]$Path, [string]$Content) {
+  $dir = Split-Path -Parent $Path
+  if (!(Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($Path, $Content.Replace("`r`n","`n").Replace("`n","`r`n"), $utf8NoBom)
 }
 
 function Action-ValidateCartAnalyticsContract() {
@@ -68,7 +74,7 @@ function Action-CartUxUpgradeV1() {
   $before = Get-Content $cartFile -Raw
   $after = $before
 
-  # 1) Ensure feature-flag hook exists (non-visual by default: OFF)
+  # Ensure feature-flag hook exists (non-visual by default: OFF)
   if ($after -notmatch 'const\s+cartUxUpgrade\s*=\s*isFlagEnabled\("ff_cart_ux_upgrade_v1"\)\s*;') {
     $after = [Regex]::Replace(
       $after,
@@ -78,25 +84,88 @@ function Action-CartUxUpgradeV1() {
     )
   }
 
-  # 2) Fix duplicated "if (isFlagEnabled(...)) if (isFlagEnabled(...)) track(...)" occurrences
-  #    This is a syntactic correctness pass to keep TS/ESLint happy.
+  # Fix duplicated guard lines if any
   $dupPattern = 'if\s*\(\s*isFlagEnabled\("ff_cart_analytics_v1"\)\s*\)\s*\r?\n\s*if\s*\(\s*isFlagEnabled\("ff_cart_analytics_v1"\)\s*\)\s*track\('
   $after = [Regex]::Replace($after, $dupPattern, 'if (isFlagEnabled("ff_cart_analytics_v1")) track(')
 
-  # 3) Ensure checkout_start tracking is guarded and present (kept minimal)
-  if ($after -notmatch 'track\("checkout_start"') {
-    # If missing entirely, we do not inject blindly here (avoid working in the dark).
-    # cart.tsx already has cart_proceed_tap; checkout_start is injected in the file patch itself.
-    $result.notes += "cart.tsx: checkout_start not injected by executor (handled in code patch)"
-  }
-
   if ($after -ne $before) {
     Set-Content -Path $cartFile -Value $after -Encoding UTF8
-    $result.notes += "cart.tsx: applied cart_ux_upgrade_v1 preparatory fixes (flag hook + analytics duplicate cleanup)"
+    $result.notes += "cart.tsx: applied cart_ux_upgrade_v1 preparatory fixes"
     $result.did_change = $true
   } else {
     $result.notes += "cart.tsx: no changes needed for cart_ux_upgrade_v1"
   }
+}
+
+function Action-CheckoutStartGuardrailsV1() {
+  $checkoutFile = Join-Path $RepoRoot "lib/checkout.ts"
+  $cartFile     = Join-Path $RepoRoot "app/(tabs)/cart.tsx"
+
+  Ensure-File $cartFile "Missing cart screen: app/(tabs)/cart.tsx"
+
+  $checkoutContent = @'
+import { router } from "expo-router";
+import { isFlagEnabled } from "../constants/flags";
+import { track } from "./analytics";
+
+export type CheckoutStartPayload = {
+  source: "cart" | "pdp" | "home" | "unknown";
+  subtotal?: number;
+  items_count?: number;
+};
+
+export function startCheckout(payload: CheckoutStartPayload) {
+  if (!isFlagEnabled("ff_checkout_start_guardrails_v1")) {
+    try {
+      router.push("/checkout" as any);
+    } catch {
+      try {
+        router.push("/(tabs)/checkout" as any);
+      } catch {}
+    }
+    return;
+  }
+
+  if (isFlagEnabled("ff_cart_analytics_v1")) {
+    track("checkout_start", {
+      source: payload.source ?? "unknown",
+      subtotal: Number(payload.subtotal ?? 0),
+      items_count: Number(payload.items_count ?? 0),
+    });
+  }
+
+  try {
+    router.push("/checkout" as any);
+  } catch {
+    try {
+      router.push("/(tabs)/checkout" as any);
+    } catch {}
+  }
+}
+'@
+
+  Write-FileUtf8NoBom -Path $checkoutFile -Content $checkoutContent
+  $result.notes += "lib/checkout.ts: created/updated startCheckout() canonical entrypoint"
+  $result.did_change = $true
+
+  # cart.tsx must import and call startCheckout; easiest deterministic approach is to rely on code being updated by human paste.
+  # But we still ensure the import exists if the file already contains 'handleProceed' with router.push.
+  $cart = Get-Content $cartFile -Raw
+  if ($cart -notmatch 'from\s+"../../lib/checkout"') {
+    $cart2 = [Regex]::Replace(
+      $cart,
+      'import\s+\{\s*track\s*\}\s+from\s+"../../lib/analytics";\s*',
+      'import { track } from "../../lib/analytics";' + "`r`n" + 'import { startCheckout } from "../../lib/checkout";' + "`r`n",
+      1
+    )
+    if ($cart2 -ne $cart) {
+      Set-Content -Path $cartFile -Value $cart2 -Encoding UTF8
+      $result.notes += "cart.tsx: added startCheckout import"
+      $result.did_change = $true
+    }
+  }
+
+  $result.notes += "checkout_start_guardrails_v1: cart.tsx should call startCheckout (use provided full cart.tsx file)"
 }
 
 try {
@@ -110,6 +179,7 @@ try {
   switch ($action) {
     "validate_cart_analytics_contract" { Action-ValidateCartAnalyticsContract }
     "cart_ux_upgrade_v1" { Action-CartUxUpgradeV1 }
+    "checkout_start_guardrails_v1" { Action-CheckoutStartGuardrailsV1 }
     default { throw "Unknown action: $action" }
   }
 
