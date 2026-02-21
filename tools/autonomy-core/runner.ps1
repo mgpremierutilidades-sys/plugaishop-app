@@ -1,3 +1,4 @@
+# PATH: tools/autonomy-core/runner.ps1
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path ".").Path

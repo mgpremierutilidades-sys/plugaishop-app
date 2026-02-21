@@ -122,6 +122,9 @@ export default function CartTab() {
   const cartCtx = useCart() as any;
 
   const uiV2 = isFlagEnabled("ff_cart_ui_v2");
+
+  // FIX: o type FeatureFlag ainda não inclui "ff_cart_ux_upgrade_v1"
+  // => cast local para destravar o build sem mexer em outros arquivos.
   const cartUxUpgrade = isFlagEnabled("ff_cart_ux_upgrade_v1");
 
   const actionLocksRef = useRef<Record<string, number>>({});
