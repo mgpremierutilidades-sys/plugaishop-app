@@ -53,16 +53,16 @@ function Run-CmdLine([string]$commandLine) {
   return $p.ExitCode
 }
 
-function Finalize-Task([object]$Ctrl, [bool]$Ok) {
-  if ($null -eq $Ctrl) { return }
-  if ($Ctrl.mode -ne "execute") { return }
-  if ($null -eq $Ctrl.task) { return }
+# Finaliza por ID (robusto: independe do objeto $ctrl)
+function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
+  if (-not $TaskId) { return }
 
   $tasks = Read-Json $TasksPath
   if ($null -eq $tasks -or $null -eq $tasks.queue) { return }
 
+  $updated = $false
   foreach ($t in $tasks.queue) {
-    if ($t.id -eq $Ctrl.task.id) {
+    if ($t.id -eq $TaskId) {
       $now = (Get-Date).ToUniversalTime().ToString("s") + "Z"
       if ($Ok) {
         $t.status = "done"
@@ -71,10 +71,14 @@ function Finalize-Task([object]$Ctrl, [bool]$Ok) {
         $t.status = "failed"
         $t.failed_utc = $now
       }
+      $updated = $true
+      break
     }
   }
 
-  Write-Json $TasksPath $tasks 50
+  if ($updated) {
+    Write-Json $TasksPath $tasks 50
+  }
 }
 
 # ===== Ensure runtime state/tasks exist =====
@@ -190,11 +194,13 @@ if ($ok) {
 
 Write-Json $StatePath $state 50
 
-# ===== Finalize task =====
+# ===== Finalize task (by last_task_id) =====
 try {
-  Finalize-Task -Ctrl $ctrl -Ok:$ok
-  if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
+  if ($state.last_task_id) {
+    Finalize-TaskById -TaskId $state.last_task_id -Ok:$ok
     $notes.Add("task_finalized=" + ($ok ? "done" : "failed"))
+  } else {
+    $notes.Add("task_finalized=skipped(no_last_task_id)")
   }
 } catch {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
