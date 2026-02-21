@@ -55,6 +55,7 @@ function Run-CmdLine([string]$commandLine) {
 
 # Finaliza por ID (robusto: independe do objeto $ctrl)
 # - normaliza/trima IDs
+# - usa Add-Member para garantir completed_utc/failed_utc
 # - retorna bool indicando se atualizou mesmo
 function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
   if (-not $TaskId) { return $false }
@@ -69,14 +70,23 @@ function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
   foreach ($t in $tasks.queue) {
     if ($null -eq $t.id) { continue }
     if ($t.id.ToString().Trim() -eq $id) {
+
       $now = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+
       if ($Ok) {
         $t.status = "done"
-        $t.completed_utc = $now
+        $t | Add-Member -NotePropertyName "completed_utc" -NotePropertyValue $now -Force
+        if ($t.PSObject.Properties.Name -contains "failed_utc") {
+          $t | Add-Member -NotePropertyName "failed_utc" -NotePropertyValue $null -Force
+        }
       } else {
         $t.status = "failed"
-        $t.failed_utc = $now
+        $t | Add-Member -NotePropertyName "failed_utc" -NotePropertyValue $now -Force
+        if ($t.PSObject.Properties.Name -contains "completed_utc") {
+          $t | Add-Member -NotePropertyName "completed_utc" -NotePropertyValue $null -Force
+        }
       }
+
       $updated = $true
       break
     }
