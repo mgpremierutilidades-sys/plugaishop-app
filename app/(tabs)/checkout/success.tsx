@@ -1,12 +1,16 @@
 // app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
-import { useCallback, useRef } from "react";
+
+import { isFlagEnabled } from "../../../constants/flags";
+import { useCallback, useEffect, useRef } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
+
+import { track } from "../../../lib/analytics";
 import { useCart } from "../../../context/CartContext";
 import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
@@ -61,7 +65,44 @@ export default function CheckoutSuccessScreen() {
 
     try {
       const items = normalizeCartItems(cartAny);
-      if (!items.length) return null;
+      
+  const placeMockEnabled = isFlagEnabled("ff_order_place_mock_v1");
+  const analyticsEnabled = isFlagEnabled("ff_cart_analytics_v1");
+
+  // ORDER-001: quando ligado, confirma automaticamente, limpa carrinho e vai para /orders
+  // Mantém a tela para o modo flag OFF (UX atual).
+  useEffect(() => {
+    if (!placeMockEnabled) return;
+
+    let alive = true;
+    (async () => {
+      try {
+        if (analyticsEnabled) track("order_place_attempt", { source: "checkout_success" });
+
+        const order = await generateOrder();
+        clearCart();
+
+        if (!alive) return;
+
+        if (order?.id) {
+          if (analyticsEnabled) track("order_place_success", { order_id: order.id });
+          router.replace(`/orders/${order.id}` as any);
+          return;
+        }
+
+        if (analyticsEnabled) track("order_place_fail", { reason: "no_items" });
+        router.replace("/orders" as any);
+      } catch (e: any) {
+        if (analyticsEnabled) track("order_place_fail", { reason: "exception" });
+        router.replace("/orders" as any);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [placeMockEnabled, analyticsEnabled, generateOrder, clearCart]);
+if (!items.length) return null;
 
       // Importante:
       // status Ã© TÃ‰CNICO (created/paid/...) â€” label "Confirmado" Ã© sÃ³ para UI.
@@ -260,3 +301,4 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
 });
+
