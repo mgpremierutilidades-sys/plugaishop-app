@@ -1,3 +1,4 @@
+# tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TaskJson,
@@ -622,29 +623,12 @@ const styles = StyleSheet.create({
 # -----------------------------
 # Existing actions (minimal + idempotent)
 # -----------------------------
-function Action-ValidateCartAnalyticsContract() {
-  $result.notes += "validate_cart_analytics_contract: no-op (contract assumed)"
-}
-
-function Action-CartUxUpgradeV1() {
-  $result.notes += "cart_ux_upgrade_v1: no-op (already handled in app code)"
-}
-
-function Action-CheckoutStartGuardrailsV1() {
-  $result.notes += "checkout_start_guardrails_v1: no-op (already handled)"
-}
-
-function Action-CheckoutUiV1() {
-  $result.notes += "checkout_ui_v1: no-op (already handled)"
-}
-
-function Action-CartCrossSellV1() {
-  $result.notes += "cart_cross_sell_v1: no-op"
-}
-
-function Action-CartPerformancePassV1() {
-  $result.notes += "cart_performance_pass_v1: no-op"
-}
+function Action-ValidateCartAnalyticsContract() { $result.notes += "validate_cart_analytics_contract: no-op (contract assumed)" }
+function Action-CartUxUpgradeV1() { $result.notes += "cart_ux_upgrade_v1: no-op (already handled in app code)" }
+function Action-CheckoutStartGuardrailsV1() { $result.notes += "checkout_start_guardrails_v1: no-op (already handled)" }
+function Action-CheckoutUiV1() { $result.notes += "checkout_ui_v1: no-op (already handled)" }
+function Action-CartCrossSellV1() { $result.notes += "cart_cross_sell_v1: no-op" }
+function Action-CartPerformancePassV1() { $result.notes += "cart_performance_pass_v1: no-op" }
 
 # -----------------------------
 # New actions requested in this thread
@@ -664,11 +648,32 @@ function Action-CheckoutAddressV1() {
   $indexPath = Join-Path $RepoRoot "app/(tabs)/checkout/index.tsx"
   $idx = Read-FileRaw $indexPath
   if ($idx) {
-    if ($idx -notmatch 'ff_checkout_address_v1') {
-      # minimal patch: if flag enabled go address else go shipping
-      $patched = $idx -replace 'push\("/checkout/address"\);', 'push(isFlagEnabled("ff_checkout_address_v1") ? "/checkout/address" : "/checkout/shipping");'
-      if ($patched -ne $idx) {
-        $c = Write-FileIfChanged -Path $indexPath -Content $patched
+    $idx2 = $idx
+
+    # ensure import isFlagEnabled exists if we patch push
+    if ($idx2 -notmatch 'from\s+"../../../constants/flags"' -and $idx2 -match 'app/\(tabs\)/checkout/index\.tsx') {
+      # (avoid unsafe import injection if file looks unrelated)
+      $result.notes += "checkout/index.tsx: skip import injection (unknown structure)"
+    }
+
+    # Only patch if literal push("/checkout/address"); exists
+    if ($idx2 -notmatch 'ff_checkout_address_v1' -and $idx2 -match 'push\("/checkout/address"\);') {
+      # if missing isFlagEnabled import, inject minimally after other imports
+      if ($idx2 -notmatch 'isFlagEnabled' ) {
+        if ($idx2 -match '(^import[\s\S]*?\r?\n)\r?\n') {
+          $idx2 = [regex]::Replace(
+            $idx2,
+            '(^import[\s\S]*?\r?\n)\r?\n',
+            { param($m) $m.Groups[1].Value + 'import { isFlagEnabled } from "../../../constants/flags";' + "`r`n`r`n" },
+            [System.Text.RegularExpressions.RegexOptions]::Singleline
+          )
+        }
+      }
+
+      $idx2 = $idx2 -replace 'push\("/checkout/address"\);', 'push(isFlagEnabled("ff_checkout_address_v1") ? "/checkout/address" : "/checkout/shipping");'
+
+      if ($idx2 -ne $idx) {
+        $c = Write-FileIfChanged -Path $indexPath -Content $idx2
         if ($c) { $result.notes += "checkout/index.tsx: gated address step behind ff_checkout_address_v1"; $result.did_change = $true }
       }
     }
@@ -688,7 +693,6 @@ function Action-CheckoutPaymentV1() {
 }
 
 function Action-OrderPlaceMockV1() {
-  # ORDER-001: Implemented in app/(tabs)/checkout/success.tsx (flag-gated auto place). We only verify marker.
   $file = Join-Path $RepoRoot "app/(tabs)/checkout/success.tsx"
   $txt = Read-FileRaw $file
   if (-not $txt) { throw "Missing checkout success screen at: $file" }
@@ -698,14 +702,10 @@ function Action-OrderPlaceMockV1() {
     return
   }
 
-  # Best-effort: do nothing here to avoid breaking UX; rely on manual fix already merged.
   $result.notes += "checkout/success.tsx: ORDER-001 detected missing markers; no-op to avoid unsafe patch"
 }
 
-function Action-AnalyticsHardenV1() {
-  # OBS-001: assumed implemented in lib/analytics.ts; no-op to keep idempotent
-  $result.notes += "lib/analytics.ts: OBS-001 already present or no-op"
-}
+function Action-AnalyticsHardenV1() { $result.notes += "lib/analytics.ts: OBS-001 already present or no-op" }
 
 function Action-AutonomyHealthcheckV1() {
   $out = Join-Path $CoreDir "_out/healthcheck.json"
@@ -766,9 +766,9 @@ function Action-AutonomyMigrationsV1() {
 }
 
 function Action-PaymentAdapterV1() {
-  # ORDER-002: create minimal payment adapter + flag placeholder. Safe no-op if user later refines.
+  # ORDER-002: create minimal payment adapter + flag placeholder.
   $adapterPath = Join-Path $RepoRoot "lib/payments/adapter.ts"
-  $typesPath = Join-Path $RepoRoot "types/payment.ts"
+  $typesPath   = Join-Path $RepoRoot "types/payment.ts"
 
   $typesContent = @'
 export type PaymentMethod = "pix" | "card" | "boleto";
@@ -800,22 +800,61 @@ export function selectPaymentMethod(method: PaymentMethod): PaymentSelection {
   if ($c1) { $result.notes += "types/payment.ts: created/updated (ORDER-002)"; $result.did_change = $true }
   if ($c2) { $result.notes += "lib/payments/adapter.ts: created/updated (ORDER-002)"; $result.did_change = $true }
 
-  # Best-effort: ensure flag exists in constants/flags.ts (append if missing)
+  # Ensure ff_payment_adapter_v1 exists in constants/flags.ts (SAFE patch)
   $flagsPath = Join-Path $RepoRoot "constants/flags.ts"
   $flags = Read-FileRaw $flagsPath
-  if ($flags -and $flags -notmatch 'ff_payment_adapter_v1') {
-    $flags2 = $flags
+  if (-not $flags) {
+    $result.notes += "constants/flags.ts: missing (skip flag patch)"
+    $result.notes += "payment_adapter_v1: scaffolded (mock)"
+    return
+  }
 
-    # add to union (before last ';')
-    $flags2 = $flags2 -replace '(\|\s*"ff_analytics_harden_v1";)', '$1' + "`r`n  | ""ff_payment_adapter_v1"";"
+  if ($flags -match 'ff_payment_adapter_v1') {
+    $result.notes += "constants/flags.ts: ff_payment_adapter_v1 already present"
+    $result.notes += "payment_adapter_v1: scaffolded (mock)"
+    return
+  }
 
-    # add default entry (before closing '};' of DEFAULT_FLAGS)
-    $flags2 = $flags2 -replace '(ff_analytics_harden_v1:\s*false,\s*)\r?\n\};', '$1' + "`r`n`r`n  // ORDER-002 (Payment adapter)`r`n  ff_payment_adapter_v1: false,`r`n};"
+  # Preserve EOL
+  $eol = "`n"
+  if ($flags -match "`r`n") { $eol = "`r`n" }
 
-    if ($flags2 -ne $flags) {
-      $cf = Write-FileIfChanged -Path $flagsPath -Content $flags2
-      if ($cf) { $result.notes += "constants/flags.ts: added ff_payment_adapter_v1"; $result.did_change = $true }
+  $flags2 = $flags
+
+  # (1) Add to FeatureFlag union: insert before the union's terminating ';' (best-effort, safe)
+  $unionPattern = '(export\s+type\s+FeatureFlag\s*=\s*[\s\S]*?)(;\s*' + [regex]::Escape($eol) + '\s*const\s+DEFAULT_FLAGS)'
+  if ($flags2 -match $unionPattern) {
+    $insertUnion = $eol + '  // ORDER-002' + $eol + '  | "ff_payment_adapter_v1"'
+    $flags2 = [regex]::Replace(
+      $flags2,
+      $unionPattern,
+      { param($m) ($m.Groups[1].Value.TrimEnd() + $insertUnion + $m.Groups[2].Value) },
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  } else {
+    $result.notes += "constants/flags.ts: could not locate FeatureFlag union safely (skip union patch)"
+  }
+
+  # (2) Add default entry (before closing of DEFAULT_FLAGS)
+  $defaultsPattern = '(ff_analytics_harden_v1:\s*false,\s*)(\r?\n\};)'
+  if ($flags2 -match $defaultsPattern) {
+    $rep = '$1' + $eol + $eol + '  // ORDER-002 (Payment adapter)' + $eol + '  ff_payment_adapter_v1: false,' + '$2'
+    $flags2 = $flags2 -replace $defaultsPattern, $rep
+  } else {
+    # fallback: insert before last "};" (safe-ish)
+    $endObjPattern = '(\r?\n\};\s*)$'
+    if ($flags2 -match $endObjPattern) {
+      $flags2 = $flags2 -replace $endObjPattern, ($eol + '  // ORDER-002 (Payment adapter)' + $eol + '  ff_payment_adapter_v1: false,' + $eol + '};' + $eol)
+    } else {
+      $result.notes += "constants/flags.ts: could not locate DEFAULT_FLAGS end safely (skip defaults patch)"
     }
+  }
+
+  if ($flags2 -ne $flags) {
+    $cf = Write-FileIfChanged -Path $flagsPath -Content $flags2
+    if ($cf) { $result.notes += "constants/flags.ts: added ff_payment_adapter_v1"; $result.did_change = $true }
+  } else {
+    $result.notes += "constants/flags.ts: no changes produced"
   }
 
   $result.notes += "payment_adapter_v1: scaffolded (mock)"

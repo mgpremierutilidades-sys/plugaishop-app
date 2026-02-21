@@ -16,7 +16,9 @@ export type FeatureFlag =
   // ORDER-001
   | "ff_order_place_mock_v1"
   // OBS-001
-  | "ff_analytics_harden_v1";
+  | "ff_analytics_harden_v1"
+  // ORDER-002
+  | "ff_payment_adapter_v1";
 
 const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_cart_rehydration_hardened: true,
@@ -51,6 +53,9 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
 
   // OBS-001 (Analytics harden)
   ff_analytics_harden_v1: false,
+
+  // ORDER-002 (Payment adapter)
+  ff_payment_adapter_v1: false,
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {

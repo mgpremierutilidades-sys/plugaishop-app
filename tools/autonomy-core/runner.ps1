@@ -123,7 +123,10 @@ try {
     $notes.Add("migrate_missing=true")
   }
 } catch {
-  $notes.Add("migrate_error")
+  if ($null -eq $notes) {
+  $notes = New-Object System.Collections.Generic.List[string]
+}
+$notes.Add("migrate_error")
 }
 
 # ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
