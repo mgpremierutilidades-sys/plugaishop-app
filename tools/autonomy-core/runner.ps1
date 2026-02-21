@@ -54,15 +54,21 @@ function Run-CmdLine([string]$commandLine) {
 }
 
 # Finaliza por ID (robusto: independe do objeto $ctrl)
+# - normaliza/trima IDs
+# - retorna bool indicando se atualizou mesmo
 function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
-  if (-not $TaskId) { return }
+  if (-not $TaskId) { return $false }
+
+  $id = $TaskId.ToString().Trim()
+  if (-not $id) { return $false }
 
   $tasks = Read-Json $TasksPath
-  if ($null -eq $tasks -or $null -eq $tasks.queue) { return }
+  if ($null -eq $tasks -or $null -eq $tasks.queue) { return $false }
 
   $updated = $false
   foreach ($t in $tasks.queue) {
-    if ($t.id -eq $TaskId) {
+    if ($null -eq $t.id) { continue }
+    if ($t.id.ToString().Trim() -eq $id) {
       $now = (Get-Date).ToUniversalTime().ToString("s") + "Z"
       if ($Ok) {
         $t.status = "done"
@@ -79,6 +85,8 @@ function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
   if ($updated) {
     Write-Json $TasksPath $tasks 50
   }
+
+  return $updated
 }
 
 # ===== Ensure runtime state/tasks exist =====
@@ -194,13 +202,40 @@ if ($ok) {
 
 Write-Json $StatePath $state 50
 
-# ===== Finalize task (by last_task_id) =====
+# ===== Finalize task (by last_task_id + recovery + logging) =====
 try {
+  $finalized = $false
+
   if ($state.last_task_id) {
-    Finalize-TaskById -TaskId $state.last_task_id -Ok:$ok
-    $notes.Add("task_finalized=" + ($ok ? "done" : "failed"))
+    $notes.Add("task_finalize_attempt=" + $state.last_task_id)
+    $finalized = Finalize-TaskById -TaskId $state.last_task_id -Ok:$ok
+    $notes.Add("task_finalize_updated=" + ($finalized ? "true" : "false"))
   } else {
-    $notes.Add("task_finalized=skipped(no_last_task_id)")
+    $notes.Add("task_finalize_skipped=no_last_task_id")
+  }
+
+  # Recovery: se ainda existir algum "running" e o run foi ok, fecha o 1º running
+  if (-not $finalized -and $ok) {
+    $tasksNow = Read-Json $TasksPath
+    if ($tasksNow -and $tasksNow.queue) {
+      $run = $null
+      foreach ($t in $tasksNow.queue) {
+        if ($t.status -eq "running") { $run = $t; break }
+      }
+      if ($null -ne $run -and $run.id) {
+        $notes.Add("task_recovery_attempt=" + $run.id)
+        $finalized2 = Finalize-TaskById -TaskId $run.id -Ok:$true
+        $notes.Add("task_recovery_updated=" + ($finalized2 ? "true" : "false"))
+      } else {
+        $notes.Add("task_recovery_skipped=no_running_found")
+      }
+    } else {
+      $notes.Add("task_recovery_skipped=tasks_unreadable")
+    }
+  }
+
+  if ($state.last_task_id) {
+    $notes.Add("task_finalized=" + ($ok ? "done" : "failed"))
   }
 } catch {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
