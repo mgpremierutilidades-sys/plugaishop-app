@@ -27,7 +27,9 @@ export default function CheckoutIndex() {
 
   const checkoutUiV1 = isFlagEnabled("ff_checkout_ui_v1");
 
-  const itemsCount = useMemo(() => {
+  
+  const checkoutAddressV1 = isFlagEnabled("ff_checkout_address_v1");
+const itemsCount = useMemo(() => {
     const items = (cart?.items ?? []) as any[];
     return Array.isArray(items) ? items.reduce((acc, it) => acc + (it?.qty ?? 1), 0) : 0;
   }, [cart?.items]);
@@ -56,7 +58,7 @@ export default function CheckoutIndex() {
         total,
       });
     }
-    push("/checkout/address");
+    push(checkoutAddressV1 ? "/checkout/address" : "/checkout/shipping");
   };
 
   const onFinish = async () => {
