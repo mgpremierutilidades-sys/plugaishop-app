@@ -1,14 +1,12 @@
 import { router } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   View,
   type ImageSourcePropType,
-  type ListRenderItemInfo,
 } from "react-native";
 
 import { AppHeader } from "../../components/AppHeader";
@@ -46,13 +44,7 @@ type CartSection = {
   data: Row[];
 };
 
-const ProductThumb = memo(function ProductThumb({
-  image,
-  size = 72,
-}: {
-  image?: string;
-  size?: number;
-}) {
+function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   const src: ImageSourcePropType | null =
     typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
 
@@ -65,15 +57,13 @@ const ProductThumb = memo(function ProductThumb({
           resizeMode="cover"
         />
       ) : (
-        <View
-          style={[styles.itemImagePlaceholder, { width: size, height: size }]}
-        />
+        <View style={[styles.itemImagePlaceholder, { width: size, height: size }]} />
       )}
     </View>
   );
-});
+}
 
-const PrimaryButton = memo(function PrimaryButton({
+function PrimaryButton({
   label,
   onPress,
   disabled,
@@ -103,15 +93,9 @@ const PrimaryButton = memo(function PrimaryButton({
       </ThemedText>
     </Pressable>
   );
-});
+}
 
-const SmallChip = memo(function SmallChip({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) {
+function SmallChip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -123,118 +107,13 @@ const SmallChip = memo(function SmallChip({
       </ThemedText>
     </Pressable>
   );
-});
+}
 
-const ProgressBar = memo(function ProgressBar({
-  value,
-  max,
-}: {
-  value: number;
-  max: number;
-}) {
+function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max <= 0 ? 0 : Math.max(0, Math.min(1, value / max));
   return (
     <View style={styles.progressOuter}>
-      <View
-        style={[styles.progressInner, { width: `${Math.round(pct * 100)}%` }]}
-      />
-    </View>
-  );
-});
-
-function RecommendationsCrossSell({
-  enabled,
-  cartItemIds,
-  onAdd,
-}: {
-  enabled: boolean;
-  cartItemIds: string[];
-  onAdd: (p: Product) => void;
-}) {
-  const recs = useMemo(() => {
-    if (!enabled) return [] as Product[];
-    const ids = new Set(cartItemIds.map(String));
-    return (products as Product[]).filter((p) => !ids.has(String(p.id))).slice(0, 4);
-  }, [enabled, cartItemIds]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    if (recs.length === 0) return;
-    if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track("cart_cross_sell_impression", { count: recs.length });
-    }
-  }, [enabled, recs.length]);
-
-  if (!enabled || recs.length === 0) return null;
-
-  return (
-    <View style={{ marginTop: 8 }}>
-      <ThemedText
-        style={{
-          fontFamily: FONT_BODY_BOLD,
-          fontSize: 14,
-          marginBottom: 10,
-          color: theme.colors.text,
-        }}
-      >
-        Você também pode gostar
-      </ThemedText>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingRight: 12 }}
-      >
-        {recs.map((p) => (
-          <Pressable
-            key={String(p.id)}
-            onPress={() => {
-              if (isFlagEnabled("ff_cart_analytics_v1")) {
-                track("cart_cross_sell_tap", { item_id: String(p.id) });
-              }
-              onAdd(p);
-            }}
-            style={({ pressed }) => [
-              styles.crossSellCard,
-              pressed ? { opacity: 0.9 } : null,
-            ]}
-          >
-            <ProductThumb image={(p as any).image} size={64} />
-            <ThemedText
-              style={{
-                fontFamily: FONT_BODY_BOLD,
-                fontSize: 12,
-                marginTop: 10,
-                color: theme.colors.text,
-              }}
-              numberOfLines={2}
-            >
-              {p.title}
-            </ThemedText>
-            <ThemedText
-              style={{
-                fontFamily: FONT_BODY_BOLD,
-                fontSize: 13,
-                marginTop: 6,
-                color: theme.colors.text,
-              }}
-            >
-              {formatCurrency(p.price)}
-            </ThemedText>
-            <View style={{ marginTop: 10 }}>
-              <ThemedText
-                style={{
-                  fontFamily: FONT_BODY_BOLD,
-                  fontSize: 12,
-                  color: theme.colors.primary,
-                }}
-              >
-                Adicionar
-              </ThemedText>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={[styles.progressInner, { width: `${Math.round(pct * 100)}%` }]} />
     </View>
   );
 }
@@ -244,7 +123,6 @@ export default function CartTab() {
 
   const uiV2 = isFlagEnabled("ff_cart_ui_v2");
   const cartUxUpgrade = isFlagEnabled("ff_cart_ux_upgrade_v1");
-  const crossSellV1 = isFlagEnabled("ff_cart_cross_sell_v1");
 
   const actionLocksRef = useRef<Record<string, number>>({});
   const ACTION_LOCK_MS = 250;
@@ -363,7 +241,7 @@ export default function CartTab() {
   const freeShippingTarget = 199;
   const freeShippingRemaining = Math.max(0, freeShippingTarget - selectedSubtotal);
 
-  const toProduct = useCallback((row: Row): Product => {
+  function toProduct(row: Row): Product {
     const p = (products as Product[]).find((x) => x.id === row.id);
     return (
       p ?? {
@@ -374,84 +252,73 @@ export default function CartTab() {
         image: row.image ?? "",
       }
     );
-  }, []);
+  }
 
-  const safeAdd = useCallback(
-    (product: Product) => {
-      const any = cartCtx as any;
-      const fn =
-        any?.addItem?.bind(any) ||
-        any?.add?.bind(any) ||
-        any?.addToCart?.bind(any) ||
-        any?.increase?.bind(any) ||
-        any?.increment?.bind(any);
+  function safeAdd(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.addItem?.bind(any) ||
+      any?.add?.bind(any) ||
+      any?.addToCart?.bind(any) ||
+      any?.increase?.bind(any) ||
+      any?.increment?.bind(any);
 
-      withActionLock(`inc:${product.id}`, () => {
-        if (isFlagEnabled("ff_cart_analytics_v1")) {
-          track("cart_item_increment", { item_id: String(product.id), delta: 1 });
-        }
+    withActionLock(`inc:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
+        track("cart_item_increment", { item_id: String(product.id), delta: 1 });
+      }
 
-        if (fn) return fn(product, 1);
+      if (fn) return fn(product, 1);
 
-        setLocalRows((prev) =>
-          prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)),
-        );
-      });
-    },
-    [cartCtx, withActionLock],
-  );
+      setLocalRows((prev) =>
+        prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)),
+      );
+    });
+  }
 
-  const safeDec = useCallback(
-    (product: Product) => {
-      const any = cartCtx as any;
-      const fn =
-        any?.decItem?.bind(any) ||
-        any?.decrease?.bind(any) ||
-        any?.dec?.bind(any) ||
-        any?.decrement?.bind(any) ||
-        any?.removeOne?.bind(any);
+  function safeDec(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.decItem?.bind(any) ||
+      any?.decrease?.bind(any) ||
+      any?.dec?.bind(any) ||
+      any?.decrement?.bind(any) ||
+      any?.removeOne?.bind(any);
 
-      withActionLock(`dec:${product.id}`, () => {
-        if (isFlagEnabled("ff_cart_analytics_v1")) {
-          track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
-        }
+    withActionLock(`dec:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
+        track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
+      }
 
-        if (fn) return fn(product, 1);
+      if (fn) return fn(product, 1);
 
-        setLocalRows((prev) =>
-          prev
-            .map((r) =>
-              r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r,
-            )
-            .filter((r) => r.qty > 0),
-        );
-      });
-    },
-    [cartCtx, withActionLock],
-  );
+      setLocalRows((prev) =>
+        prev
+          .map((r) => (r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r))
+          .filter((r) => r.qty > 0),
+      );
+    });
+  }
 
-  const safeRemove = useCallback(
-    (product: Product) => {
-      const any = cartCtx as any;
-      const fn =
-        any?.removeItem?.bind(any) ||
-        any?.remove?.bind(any) ||
-        any?.removeFromCart?.bind(any) ||
-        any?.deleteItem?.bind(any) ||
-        any?.clearItem?.bind(any);
+  function safeRemove(product: Product) {
+    const any = cartCtx as any;
+    const fn =
+      any?.removeItem?.bind(any) ||
+      any?.remove?.bind(any) ||
+      any?.removeFromCart?.bind(any) ||
+      any?.deleteItem?.bind(any) ||
+      any?.clearItem?.bind(any);
 
-      withActionLock(`rm:${product.id}`, () => {
-        if (isFlagEnabled("ff_cart_analytics_v1")) {
-          track("cart_item_remove", { item_id: String(product.id) });
-        }
+    withActionLock(`rm:${product.id}`, () => {
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
+        track("cart_item_remove", { item_id: String(product.id) });
+      }
 
-        if (fn) return fn(product.id);
+      if (fn) return fn(product.id);
 
-        setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
-      });
-    },
-    [cartCtx, withActionLock],
-  );
+      setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+    });
+  }
 
   const sections: CartSection[] = useMemo(
     () => [{ title: "Produtos", data: localRows }],
@@ -498,6 +365,7 @@ export default function CartTab() {
       });
     }
 
+    // ✅ Fonte única: checkout_start + rota (guardrails)
     startCheckout({
       source: "cart",
       subtotal: selectedSubtotal,
@@ -505,7 +373,7 @@ export default function CartTab() {
     });
   }, [localRows, selected, selectedSubtotal]);
 
-  const ListHeader = useMemo(() => {
+  const ListHeader = () => {
     if (!uiV2) return null;
 
     return (
@@ -533,27 +401,14 @@ export default function CartTab() {
             <SmallChip label="Limpar" onPress={handleClearSelection} />
           </View>
           <View style={styles.controlsRight}>
-            <SmallChip
-              label={editMode ? "Concluir" : "Editar"}
-              onPress={handleToggleEdit}
-            />
+            <SmallChip label={editMode ? "Concluir" : "Editar"} onPress={handleToggleEdit} />
           </View>
         </View>
       </View>
     );
-  }, [
-    uiV2,
-    freeShippingTarget,
-    freeShippingRemaining,
-    selectedSubtotal,
-    allSelected,
-    editMode,
-    handleSelectAll,
-    handleClearSelection,
-    handleToggleEdit,
-  ]);
+  };
 
-  const EmptyState = useMemo(() => {
+  const EmptyState = () => {
     return (
       <View style={styles.empty}>
         <ThemedText style={[styles.emptyTitle, { fontFamily: FONT_BODY_BOLD }]}>
@@ -576,9 +431,9 @@ export default function CartTab() {
         />
       </View>
     );
-  }, []);
+  };
 
-  const StickyFooter = useMemo(() => {
+  const StickyFooter = () => {
     if (!uiV2) return null;
 
     return (
@@ -592,13 +447,7 @@ export default function CartTab() {
           </ThemedText>
 
           {cartUxUpgrade && selectedSavings > 0 ? (
-            <ThemedText
-              style={{
-                fontSize: 12,
-                color: SUCCESS,
-                fontFamily: FONT_BODY_BOLD,
-              }}
-            >
+            <ThemedText style={{ fontSize: 12, color: SUCCESS, fontFamily: FONT_BODY_BOLD }}>
               Você economiza {formatCurrency(selectedSavings)}
             </ThemedText>
           ) : null}
@@ -616,227 +465,181 @@ export default function CartTab() {
         </View>
       </View>
     );
-  }, [uiV2, selectedSubtotal, cartUxUpgrade, selectedSavings, anySelected, handleProceed]);
+  };
 
-  const renderRowLegacy = useCallback(
-    ({ item }: ListRenderItemInfo<Row>) => {
-      const checked = !!selected[item.id];
-      const product = toProduct(item);
+  const renderRowLegacy = ({ item }: { item: Row }) => {
+    const checked = !!selected[item.id];
+    const product = toProduct(item);
 
-      return (
-        <View style={styles.legacyCard}>
-          <View style={styles.legacyRowTop}>
-            <Pressable
-              onPress={() => toggleRow(item.id)}
-              hitSlop={10}
-              style={[
-                styles.legacyCheck,
-                checked ? styles.legacyCheckOn : styles.legacyCheckOff,
-              ]}
+    return (
+      <View style={styles.legacyCard}>
+        <View style={styles.legacyRowTop}>
+          <Pressable
+            onPress={() => toggleRow(item.id)}
+            hitSlop={10}
+            style={[
+              styles.legacyCheck,
+              checked ? styles.legacyCheckOn : styles.legacyCheckOff,
+            ]}
+          >
+            {checked ? <View style={styles.legacyDot} /> : null}
+          </Pressable>
+
+          <ProductThumb image={item.image} />
+
+          <View style={{ flex: 1 }}>
+            <ThemedText
+              style={[styles.legacyTitle, { fontFamily: FONT_BODY_BOLD }]}
+              numberOfLines={2}
             >
-              {checked ? <View style={styles.legacyDot} /> : null}
-            </Pressable>
+              {item.title}
+            </ThemedText>
 
-            <ProductThumb image={item.image} />
-
-            <View style={{ flex: 1 }}>
-              <ThemedText
-                style={[styles.legacyTitle, { fontFamily: FONT_BODY_BOLD }]}
-                numberOfLines={2}
-              >
-                {item.title}
+            <View style={styles.legacyPriceRow}>
+              <ThemedText style={[styles.legacyPrice, { fontFamily: FONT_BODY_BOLD }]}>
+                {formatCurrency(item.price)}
               </ThemedText>
-
-              <View style={styles.legacyPriceRow}>
-                <ThemedText
-                  style={[styles.legacyPrice, { fontFamily: FONT_BODY_BOLD }]}
-                >
-                  {formatCurrency(item.price)}
-                </ThemedText>
-                <ThemedText style={[styles.legacyUnit, { fontFamily: FONT_BODY }]}>
-                  {" "}
-                  / un
-                </ThemedText>
-              </View>
-
-              {item.oldPrice ? (
-                <ThemedText style={[styles.legacyOld, { fontFamily: FONT_BODY }]}>
-                  {formatCurrency(item.oldPrice)}
-                </ThemedText>
-              ) : null}
+              <ThemedText style={[styles.legacyUnit, { fontFamily: FONT_BODY }]}>
+                {" "}
+                / un
+              </ThemedText>
             </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={[styles.legacyOld, { fontFamily: FONT_BODY }]}>
+                {formatCurrency(item.oldPrice)}
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.legacyRowBottom}>
+          <Pressable onPress={() => safeDec(product)} style={styles.legacyQtyBtn} hitSlop={10}>
+            <IconSymbolDefault name="minus" size={16} color={theme.colors.text} />
+          </Pressable>
+
+          <View style={styles.legacyQtyPill}>
+            <ThemedText style={[styles.legacyQtyText, { fontFamily: FONT_BODY_BOLD }]}>
+              {item.qty}
+            </ThemedText>
           </View>
 
-          <View style={styles.legacyRowBottom}>
+          <Pressable onPress={() => safeAdd(product)} style={styles.legacyQtyBtn} hitSlop={10}>
+            <IconSymbolDefault name="plus" size={16} color={theme.colors.text} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => safeRemove(product)}
+            style={styles.legacyRemoveBtn}
+            hitSlop={10}
+          >
+            <ThemedText style={[styles.legacyRemove, { fontFamily: FONT_BODY_BOLD }]}>
+              Remover
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
+  const renderRowV2 = ({ item }: { item: Row }) => {
+    const checked = !!selected[item.id];
+    const product = toProduct(item);
+
+    return (
+      <View style={styles.cardV2}>
+        <View style={styles.rowTopV2}>
+          <Pressable
+            onPress={() => toggleRow(item.id)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked }}
+            style={[
+              styles.checkV2,
+              checked ? styles.checkOnV2 : styles.checkOffV2,
+            ]}
+          >
+            {checked ? <IconSymbolDefault name="check" size={14} color={WHITE} /> : null}
+          </Pressable>
+
+          <ProductThumb image={item.image} size={74} />
+
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.titleV2, { fontFamily: FONT_BODY_BOLD }]} numberOfLines={2}>
+              {item.title}
+            </ThemedText>
+
+            <View style={styles.priceRowV2}>
+              <ThemedText style={[styles.priceV2, { fontFamily: FONT_BODY_BOLD }]}>
+                {formatCurrency(item.price)}
+              </ThemedText>
+              <ThemedText style={[styles.unitV2, { fontFamily: FONT_BODY }]}>/ un</ThemedText>
+            </View>
+
+            {item.oldPrice ? (
+              <ThemedText style={[styles.oldV2, { fontFamily: FONT_BODY }]} numberOfLines={1}>
+                {formatCurrency(item.oldPrice)}
+              </ThemedText>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.rowBottomV2}>
+          <View style={styles.qtyWrapV2}>
             <Pressable
               onPress={() => safeDec(product)}
-              style={styles.legacyQtyBtn}
-              hitSlop={10}
+              style={styles.qtyBtnV2}
+              accessibilityRole="button"
             >
               <IconSymbolDefault name="minus" size={16} color={theme.colors.text} />
             </Pressable>
 
-            <View style={styles.legacyQtyPill}>
-              <ThemedText
-                style={[styles.legacyQtyText, { fontFamily: FONT_BODY_BOLD }]}
-              >
-                {item.qty}
-              </ThemedText>
+            <View style={styles.qtyPillV2}>
+              <ThemedText style={{ fontFamily: FONT_BODY_BOLD }}>{item.qty}</ThemedText>
             </View>
 
             <Pressable
               onPress={() => safeAdd(product)}
-              style={styles.legacyQtyBtn}
-              hitSlop={10}
+              style={styles.qtyBtnV2}
+              accessibilityRole="button"
             >
               <IconSymbolDefault name="plus" size={16} color={theme.colors.text} />
             </Pressable>
-
-            <Pressable
-              onPress={() => safeRemove(product)}
-              style={styles.legacyRemoveBtn}
-              hitSlop={10}
-            >
-              <ThemedText style={[styles.legacyRemove, { fontFamily: FONT_BODY_BOLD }]}>
-                Remover
-              </ThemedText>
-            </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => safeRemove(product)}
+            style={({ pressed }) => [styles.removeV2, pressed ? { opacity: 0.85 } : null]}
+            accessibilityRole="button"
+          >
+            <ThemedText style={[styles.removeV2Text, { fontFamily: FONT_BODY_BOLD }]}>
+              Remover
+            </ThemedText>
+          </Pressable>
         </View>
-      );
-    },
-    [selected, toProduct, toggleRow, safeDec, safeAdd, safeRemove],
-  );
-
-  const renderRowV2 = useCallback(
-    ({ item }: ListRenderItemInfo<Row>) => {
-      const checked = !!selected[item.id];
-      const product = toProduct(item);
-
-      return (
-        <View style={styles.cardV2}>
-          <View style={styles.rowTopV2}>
-            <Pressable
-              onPress={() => toggleRow(item.id)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked }}
-              style={[styles.checkV2, checked ? styles.checkOnV2 : styles.checkOffV2]}
-            >
-              {checked ? (
-                <IconSymbolDefault name="check" size={14} color={WHITE} />
-              ) : null}
-            </Pressable>
-
-            <ProductThumb image={item.image} size={74} />
-
-            <View style={{ flex: 1 }}>
-              <ThemedText
-                style={[styles.titleV2, { fontFamily: FONT_BODY_BOLD }]}
-                numberOfLines={2}
-              >
-                {item.title}
-              </ThemedText>
-
-              <View style={styles.priceRowV2}>
-                <ThemedText style={[styles.priceV2, { fontFamily: FONT_BODY_BOLD }]}>
-                  {formatCurrency(item.price)}
-                </ThemedText>
-                <ThemedText style={[styles.unitV2, { fontFamily: FONT_BODY }]}>
-                  / un
-                </ThemedText>
-              </View>
-
-              {item.oldPrice ? (
-                <ThemedText
-                  style={[styles.oldV2, { fontFamily: FONT_BODY }]}
-                  numberOfLines={1}
-                >
-                  {formatCurrency(item.oldPrice)}
-                </ThemedText>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.rowBottomV2}>
-            <View style={styles.qtyWrapV2}>
-              <Pressable
-                onPress={() => safeDec(product)}
-                style={styles.qtyBtnV2}
-                accessibilityRole="button"
-              >
-                <IconSymbolDefault name="minus" size={16} color={theme.colors.text} />
-              </Pressable>
-
-              <View style={styles.qtyPillV2}>
-                <ThemedText style={{ fontFamily: FONT_BODY_BOLD }}>{item.qty}</ThemedText>
-              </View>
-
-              <Pressable
-                onPress={() => safeAdd(product)}
-                style={styles.qtyBtnV2}
-                accessibilityRole="button"
-              >
-                <IconSymbolDefault name="plus" size={16} color={theme.colors.text} />
-              </Pressable>
-            </View>
-
-            <Pressable
-              onPress={() => safeRemove(product)}
-              style={({ pressed }) => [styles.removeV2, pressed ? { opacity: 0.85 } : null]}
-              accessibilityRole="button"
-            >
-              <ThemedText style={[styles.removeV2Text, { fontFamily: FONT_BODY_BOLD }]}>
-                Remover
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      );
-    },
-    [selected, toProduct, toggleRow, safeDec, safeAdd, safeRemove],
-  );
-
-  const keyExtractor = useCallback((i: Row) => i.id, []);
-
-  const listFooter = useMemo(() => {
-    return (
-      <View>
-        <RecommendationsCrossSell
-          enabled={crossSellV1}
-          cartItemIds={localRows.map((r) => r.id)}
-          onAdd={(p) => safeAdd(p)}
-        />
-        <View style={{ height: 140 }} />
       </View>
     );
-  }, [crossSellV1, localRows, safeAdd]);
+  };
 
   return (
     <ThemedView style={styles.container}>
       <AppHeader title="Carrinho" />
 
       {localRows.length === 0 ? (
-        EmptyState
+        <EmptyState />
       ) : (
         <View style={{ flex: 1 }}>
           <SectionList
             sections={sections}
-            keyExtractor={keyExtractor}
+            keyExtractor={(i) => i.id}
             renderItem={uiV2 ? renderRowV2 : renderRowLegacy}
             renderSectionHeader={() => null}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={uiV2 ? styles.listContentV2 : styles.listContentLegacy}
-            ListHeaderComponent={ListHeader}
+            ListHeaderComponent={<ListHeader />}
             stickySectionHeadersEnabled={false}
-            ListFooterComponent={listFooter}
-            // ===== Performance pass =====
-            removeClippedSubviews
-            initialNumToRender={8}
-            maxToRenderPerBatch={8}
-            updateCellsBatchingPeriod={40}
-            windowSize={7}
+            ListFooterComponent={<View style={{ height: 140 }} />}
           />
-          {StickyFooter}
+          {uiV2 ? <StickyFooter /> : null}
         </View>
       )}
     </ThemedView>
@@ -871,11 +674,7 @@ const styles = StyleSheet.create({
   legacyDot: { width: 10, height: 10, borderRadius: 4, backgroundColor: WHITE },
 
   itemImage: { alignItems: "center", justifyContent: "center" },
-  itemImagePlaceholder: {
-    borderRadius: 12,
-    backgroundColor: theme.colors.divider,
-    opacity: 0.25,
-  },
+  itemImagePlaceholder: { borderRadius: 12, backgroundColor: theme.colors.divider, opacity: 0.25 },
 
   legacyTitle: { fontSize: 13, lineHeight: 18, color: theme.colors.text },
   legacyPriceRow: { flexDirection: "row", alignItems: "baseline" },
@@ -1001,12 +800,7 @@ const styles = StyleSheet.create({
   },
 
   titleV2: { fontSize: 13, lineHeight: 18, color: theme.colors.text },
-  priceRowV2: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    marginTop: 4,
-  },
+  priceRowV2: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
   priceV2: { fontSize: 14, color: theme.colors.text },
   unitV2: { fontSize: 12, opacity: 0.8, color: theme.colors.text },
   oldV2: {
@@ -1099,16 +893,6 @@ const styles = StyleSheet.create({
 
   primaryBtnDisabled: { opacity: 0.55 },
   primaryBtnPressed: { opacity: 0.9 },
-
-  crossSellCard: {
-    width: 160,
-    marginRight: 10,
-    borderRadius: 16,
-    padding: 12,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
 
   hint: { marginTop: 12, fontSize: 12, fontFamily: FONT_BODY, opacity: 0.75 },
 });
