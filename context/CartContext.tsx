@@ -174,7 +174,7 @@ function setItems(next: CartItem[], reason?: string) {
   applyStoreState(next, ready, hydrating, true);
 
   if (isFlagEnabled("ff_cart_analytics_v1") && reason) {
-    track("cart_changed", { reason, items_count: next.length });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_changed", { reason, items_count: next.length });
   }
 
   void persistDebounced();
@@ -243,7 +243,7 @@ async function hydrateOnce() {
     if (!data || data.v !== 1 || !Array.isArray(data.items)) {
       applyStoreState(items, true, false, true);
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_rehydration_success", { items_count: 0 });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: 0 });
       }
       return;
     }
@@ -277,12 +277,12 @@ async function hydrateOnce() {
     applyStoreState(next, true, false, true);
 
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track("cart_rehydration_success", { items_count: next.length });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: next.length });
     }
   } catch (e: any) {
     applyStoreState(items, true, false, true);
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track("cart_rehydration_fail", { message: String(e?.message ?? e) });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_fail", { message: String(e?.message ?? e) });
     }
   }
 }

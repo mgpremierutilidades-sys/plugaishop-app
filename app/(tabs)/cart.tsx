@@ -135,7 +135,7 @@ export default function CartTab() {
 
     if (now - last < ACTION_LOCK_MS) {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_double_action_prevented", { key });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_double_action_prevented", { key });
       }
       return;
     }
@@ -195,7 +195,7 @@ export default function CartTab() {
       }
     } catch (e: any) {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_rows_map_fail", { message: String(e?.message ?? e) });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rows_map_fail", { message: String(e?.message ?? e) });
       }
     }
   }, [ctxItems]);
@@ -265,7 +265,7 @@ export default function CartTab() {
 
     withActionLock(`inc:${product.id}`, () => {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_item_increment", { item_id: String(product.id), delta: 1 });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_item_increment", { item_id: String(product.id), delta: 1 });
       }
 
       if (fn) return fn(product, 1);
@@ -287,7 +287,7 @@ export default function CartTab() {
 
     withActionLock(`dec:${product.id}`, () => {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
       }
 
       if (fn) return fn(product, 1);
@@ -311,7 +311,7 @@ export default function CartTab() {
 
     withActionLock(`rm:${product.id}`, () => {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-        track("cart_item_remove", { item_id: String(product.id) });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_item_remove", { item_id: String(product.id) });
       }
 
       if (fn) return fn(product.id);
@@ -351,7 +351,7 @@ export default function CartTab() {
     const next = !editMode;
     setEditMode(next);
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track("cart_toggle_edit_mode", { next });
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_toggle_edit_mode", { next });
     }
   }, [editMode]);
 
@@ -359,7 +359,7 @@ export default function CartTab() {
     const selectedCount = localRows.filter((r) => selected[r.id]).length;
 
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-      track("cart_proceed_tap", {
+if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_proceed_tap", {
         selected_count: selectedCount,
         subtotal: selectedSubtotal,
       });
