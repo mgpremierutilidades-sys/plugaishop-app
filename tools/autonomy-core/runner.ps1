@@ -136,6 +136,27 @@ try {
 $notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
 
+
+# AUTONOMY-011: pause on consecutive failures
+# Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
+try {
+  $StatePath = Join-Path $CoreDir "_state\state.json"
+  if (Test-Path $StatePath) {
+    $stRaw = Get-Content $StatePath -Raw
+    $st = $stRaw | ConvertFrom-Json
+    $cf = 0
+    if ($st -and $st.PSObject.Properties.Name -contains "consecutive_failures") {
+      $cf = [int]($st.consecutive_failures)
+    }
+    if ($cf -ge 3) {
+      $notes.Add("paused_due_to_failures")
+      $notes.Add("consecutive_failures=" + $cf)
+      $ctrl.mode = "observe"
+    }
+  }
+} catch {
+  $notes.Add("pause_guard_error")
+}
 # ===== Executor (aplica ação real da task) =====
 $executorOk = $true
 $committedSha = $null
