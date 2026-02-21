@@ -12,9 +12,9 @@
     "enabled": true
   },
   "autocommit": {
-    "enabled": false,
-    "author_name": "plugaishop-autonomy",
-    "author_email": "autonomy@plugaishop.local"
+    "enabled": true,
+    "author_name": "Plugaishop Autonomy",
+    "author_email": "autonomy@plugaishop.ai"
   },
   "scope": {
     "allow_paths": [
