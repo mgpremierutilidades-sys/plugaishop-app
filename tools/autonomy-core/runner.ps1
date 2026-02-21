@@ -113,6 +113,19 @@ if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
+# MIG-001: run migrations before controller
+try {
+  $migratePath = Join-Path $CoreDir "migrate.ps1"
+  if (Test-Path $migratePath) {
+    $mOut = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
+    $notes.Add("migrate_ran=true")
+  } else {
+    $notes.Add("migrate_missing=true")
+  }
+} catch {
+  $notes.Add("migrate_error")
+}
+
 # ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
