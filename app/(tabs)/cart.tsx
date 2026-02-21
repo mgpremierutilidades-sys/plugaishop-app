@@ -1,3 +1,4 @@
+// PATH: app/(tabs)/cart.tsx
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -121,6 +122,7 @@ export default function CartTab() {
   const cartCtx = useCart() as any;
 
   const uiV2 = isFlagEnabled("ff_cart_ui_v2");
+  const cartUxUpgrade = isFlagEnabled("ff_cart_ux_upgrade_v1");
 
   const actionLocksRef = useRef<Record<string, number>>({});
   const ACTION_LOCK_MS = 250;
@@ -132,8 +134,9 @@ export default function CartTab() {
     const last = actionLocksRef.current[key] ?? 0;
 
     if (now - last < ACTION_LOCK_MS) {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_double_action_prevented", { key });
+      }
       return;
     }
 
@@ -225,6 +228,16 @@ export default function CartTab() {
     }, 0);
   }, [localRows, selected]);
 
+  const selectedSavings = useMemo(() => {
+    if (!cartUxUpgrade) return 0;
+
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      if (!r.oldPrice) return acc;
+      return acc + (r.oldPrice - r.price) * r.qty;
+    }, 0);
+  }, [localRows, selected, cartUxUpgrade]);
+
   const freeShippingTarget = 199;
   const freeShippingRemaining = Math.max(0, freeShippingTarget - selectedSubtotal);
 
@@ -251,8 +264,9 @@ export default function CartTab() {
       any?.increment?.bind(any);
 
     withActionLock(`inc:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_increment", { item_id: String(product.id), delta: 1 });
+      }
 
       if (fn) return fn(product, 1);
 
@@ -272,8 +286,9 @@ export default function CartTab() {
       any?.removeOne?.bind(any);
 
     withActionLock(`dec:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
+      }
 
       if (fn) return fn(product, 1);
 
@@ -295,8 +310,9 @@ export default function CartTab() {
       any?.clearItem?.bind(any);
 
     withActionLock(`rm:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_remove", { item_id: String(product.id) });
+      }
 
       if (fn) return fn(product.id);
 
@@ -304,7 +320,10 @@ export default function CartTab() {
     });
   }
 
-  const sections: CartSection[] = useMemo(() => [{ title: "Produtos", data: localRows }], [localRows]);
+  const sections: CartSection[] = useMemo(
+    () => [{ title: "Produtos", data: localRows }],
+    [localRows],
+  );
 
   const toggleRow = useCallback((id: string) => {
     setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -329,15 +348,24 @@ export default function CartTab() {
   }, [localRows]);
 
   const handleToggleEdit = useCallback(() => {
-    setEditMode((v) => !v);
-    if (isFlagEnabled("ff_cart_analytics_v1"))
-      track("cart_toggle_edit_mode", { next: !editMode });
+    const next = !editMode;
+    setEditMode(next);
+    if (isFlagEnabled("ff_cart_analytics_v1")) {
+      track("cart_toggle_edit_mode", { next });
+    }
   }, [editMode]);
 
   const handleProceed = useCallback(() => {
     if (isFlagEnabled("ff_cart_analytics_v1")) {
       track("cart_proceed_tap", {
         selected_count: localRows.filter((r) => selected[r.id]).length,
+        subtotal: selectedSubtotal,
+      });
+    }
+
+    if (cartUxUpgrade && isFlagEnabled("ff_cart_analytics_v1")) {
+      track("checkout_start", {
+        source: "cart",
         subtotal: selectedSubtotal,
       });
     }
@@ -349,7 +377,7 @@ export default function CartTab() {
         router.push("/(tabs)/checkout" as any);
       } catch {}
     }
-  }, [localRows, selected, selectedSubtotal]);
+  }, [cartUxUpgrade, localRows, selected, selectedSubtotal]);
 
   const ListHeader = () => {
     if (!uiV2) return null;
@@ -423,6 +451,13 @@ export default function CartTab() {
           <ThemedText style={[styles.footerValue, { fontFamily: FONT_BODY_BOLD }]}>
             {formatCurrency(selectedSubtotal)}
           </ThemedText>
+
+          {cartUxUpgrade && selectedSavings > 0 ? (
+            <ThemedText style={{ fontSize: 12, color: SUCCESS, fontFamily: FONT_BODY_BOLD }}>
+              Você economiza {formatCurrency(selectedSavings)}
+            </ThemedText>
+          ) : null}
+
           <ThemedText style={[styles.footerHint, { fontFamily: FONT_BODY }]}>
             {anySelected ? "Itens selecionados" : "Selecione itens para continuar"}
           </ThemedText>
@@ -499,7 +534,11 @@ export default function CartTab() {
             <IconSymbolDefault name="plus" size={16} color={theme.colors.text} />
           </Pressable>
 
-          <Pressable onPress={() => safeRemove(product)} style={styles.legacyRemoveBtn} hitSlop={10}>
+          <Pressable
+            onPress={() => safeRemove(product)}
+            style={styles.legacyRemoveBtn}
+            hitSlop={10}
+          >
             <ThemedText style={[styles.legacyRemove, { fontFamily: FONT_BODY_BOLD }]}>
               Remover
             </ThemedText>
@@ -552,7 +591,11 @@ export default function CartTab() {
 
         <View style={styles.rowBottomV2}>
           <View style={styles.qtyWrapV2}>
-            <Pressable onPress={() => safeDec(product)} style={styles.qtyBtnV2} accessibilityRole="button">
+            <Pressable
+              onPress={() => safeDec(product)}
+              style={styles.qtyBtnV2}
+              accessibilityRole="button"
+            >
               <IconSymbolDefault name="minus" size={16} color={theme.colors.text} />
             </Pressable>
 
@@ -560,7 +603,11 @@ export default function CartTab() {
               <ThemedText style={{ fontFamily: FONT_BODY_BOLD }}>{item.qty}</ThemedText>
             </View>
 
-            <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtnV2} accessibilityRole="button">
+            <Pressable
+              onPress={() => safeAdd(product)}
+              style={styles.qtyBtnV2}
+              accessibilityRole="button"
+            >
               <IconSymbolDefault name="plus" size={16} color={theme.colors.text} />
             </Pressable>
           </View>
@@ -621,7 +668,13 @@ const styles = StyleSheet.create({
 
   legacyRowTop: { flexDirection: "row", alignItems: "center", gap: 10 },
 
-  legacyCheck: { width: 22, height: 22, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  legacyCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   legacyCheckOn: { backgroundColor: SUCCESS },
   legacyCheckOff: { borderWidth: 1, borderColor: theme.colors.divider },
   legacyDot: { width: 10, height: 10, borderRadius: 4, backgroundColor: WHITE },
@@ -633,7 +686,12 @@ const styles = StyleSheet.create({
   legacyPriceRow: { flexDirection: "row", alignItems: "baseline" },
   legacyPrice: { fontSize: 14, color: theme.colors.text },
   legacyUnit: { fontSize: 12, opacity: 0.8, color: theme.colors.text },
-  legacyOld: { fontSize: 12, textDecorationLine: "line-through", opacity: 0.65, color: theme.colors.text },
+  legacyOld: {
+    fontSize: 12,
+    textDecorationLine: "line-through",
+    opacity: 0.65,
+    color: theme.colors.text,
+  },
 
   legacyRowBottom: {
     marginTop: 10,
@@ -666,7 +724,12 @@ const styles = StyleSheet.create({
   },
   legacyQtyText: { fontSize: 13, color: theme.colors.text },
 
-  legacyRemoveBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, backgroundColor: "transparent" },
+  legacyRemoveBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "transparent",
+  },
   legacyRemove: { fontSize: 12, color: DANGER },
 
   // ===== V2 =====
@@ -698,7 +761,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
 
-  controlsRow: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  controlsRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   controlsLeft: { flexDirection: "row", gap: 10 },
   controlsRight: { flexDirection: "row", gap: 10 },
 
@@ -731,15 +799,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkOnV2: { backgroundColor: SUCCESS },
-  checkOffV2: { borderWidth: 1, borderColor: theme.colors.divider, backgroundColor: "transparent" },
+  checkOffV2: {
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: "transparent",
+  },
 
   titleV2: { fontSize: 13, lineHeight: 18, color: theme.colors.text },
   priceRowV2: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
   priceV2: { fontSize: 14, color: theme.colors.text },
   unitV2: { fontSize: 12, opacity: 0.8, color: theme.colors.text },
-  oldV2: { fontSize: 12, textDecorationLine: "line-through", opacity: 0.65, color: theme.colors.text },
+  oldV2: {
+    fontSize: 12,
+    textDecorationLine: "line-through",
+    opacity: 0.65,
+    color: theme.colors.text,
+  },
 
-  rowBottomV2: { marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rowBottomV2: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 
   qtyWrapV2: { flexDirection: "row", alignItems: "center", gap: 8 },
   qtyBtnV2: {
@@ -798,7 +880,12 @@ const styles = StyleSheet.create({
 
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { fontSize: 18, color: theme.colors.text, marginBottom: 6 },
-  emptySub: { fontSize: 12, color: theme.colors.textMuted, marginBottom: 14, textAlign: "center" },
+  emptySub: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    marginBottom: 14,
+    textAlign: "center",
+  },
 
   primaryBtn: {
     marginTop: 4,
