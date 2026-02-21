@@ -1,4 +1,4 @@
-// context/CartContext.tsx
+// PATH: context/CartContext.tsx
 import type { ReactNode } from "react";
 import {
   createContext,
@@ -47,6 +47,7 @@ type PersistedCartV1 = {
 
 const KEY = "plugaishop_cart_v1";
 
+// ===== Store (singleton) =====
 let items: CartItem[] = [];
 let ready = false;
 let hydrating = false;
@@ -54,8 +55,20 @@ let hydrating = false;
 let hydrationStarted = false;
 
 const listeners = new Set<() => void>();
-
 const indexById: Record<string, number> = {};
+
+type Snapshot = {
+  items: CartItem[];
+  ready: boolean;
+  hydrating: boolean;
+};
+
+/**
+ * CRITICAL: useSyncExternalStore requires getSnapshot() to return a value
+ * that is stable (same reference) between renders unless the store changed.
+ * If getSnapshot returns a new object every time, React can enter an infinite loop.
+ */
+let snapshot: Snapshot = { items, ready, hydrating };
 
 function rebuildIndex(next: CartItem[]) {
   for (const k of Object.keys(indexById)) delete indexById[k];
@@ -73,8 +86,16 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function getSnapshot() {
-  return { items, ready, hydrating };
+function getSnapshot(): Snapshot {
+  return snapshot;
+}
+
+function setSnapshot(nextItems: CartItem[], nextReady: boolean, nextHydrating: boolean) {
+  // Only create a NEW reference when state actually changes.
+  if (nextItems === snapshot.items && nextReady === snapshot.ready && nextHydrating === snapshot.hydrating) {
+    return;
+  }
+  snapshot = { items: nextItems, ready: nextReady, hydrating: nextHydrating };
 }
 
 function findProductById(id: string): Product | undefined {
@@ -128,16 +149,32 @@ async function persistDebounced() {
   }, 350);
 }
 
+/**
+ * Single state transition point for the store.
+ * - updates globals
+ * - rebuilds index
+ * - updates snapshot (NEW ref only on real change)
+ * - emits listeners
+ */
+function applyStoreState(nextItems: CartItem[], nextReady: boolean, nextHydrating: boolean, emitNow: boolean) {
+  items = nextItems;
+  ready = nextReady;
+  hydrating = nextHydrating;
+
+  rebuildIndex(nextItems);
+  setSnapshot(nextItems, nextReady, nextHydrating);
+
+  if (emitNow) emit();
+}
+
 function setItems(next: CartItem[], reason?: string) {
-  // Evita churn se alguém passar a mesma referência
+  // Avoid churn if same reference
   if (next === items) return;
 
-  items = next;
-  rebuildIndex(next);
-  emit();
+  applyStoreState(next, ready, hydrating, true);
 
   if (isFlagEnabled("ff_cart_analytics_v1") && reason) {
-if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_changed", { reason, items_count: next.length });
+    track("cart_changed", { reason, items_count: next.length });
   }
 
   void persistDebounced();
@@ -194,24 +231,19 @@ async function hydrateOnce() {
   hydrationStarted = true;
 
   if (!isFlagEnabled("ff_cart_rehydration_hardened")) {
-    ready = true;
-    hydrating = false;
-    emit();
+    applyStoreState(items, true, false, true);
     return;
   }
 
-  hydrating = true;
-  emit();
+  applyStoreState(items, ready, true, true);
 
   try {
     const data = await storageGetJSON<PersistedCartV1>(KEY);
 
     if (!data || data.v !== 1 || !Array.isArray(data.items)) {
-      ready = true;
-      hydrating = false;
-      emit();
+      applyStoreState(items, true, false, true);
       if (isFlagEnabled("ff_cart_analytics_v1")) {
-if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: 0 });
+        track("cart_rehydration_success", { items_count: 0 });
       }
       return;
     }
@@ -241,22 +273,16 @@ if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { i
       }
     }
 
-    items = next;
-    rebuildIndex(next);
-
-    ready = true;
-    hydrating = false;
-    emit();
+    // Hydration should not immediately persist back; only set store and emit.
+    applyStoreState(next, true, false, true);
 
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_success", { items_count: next.length });
+      track("cart_rehydration_success", { items_count: next.length });
     }
   } catch (e: any) {
-    ready = true;
-    hydrating = false;
-    emit();
+    applyStoreState(items, true, false, true);
     if (isFlagEnabled("ff_cart_analytics_v1")) {
-if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_rehydration_fail", { message: String(e?.message ?? e) });
+      track("cart_rehydration_fail", { message: String(e?.message ?? e) });
     }
   }
 }
