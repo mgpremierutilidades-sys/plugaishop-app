@@ -19,12 +19,25 @@ _bundle_*.txt
 _bundle_part*.txt
 _bundle_part*.md
 
-# Autopilot / logs
+# Autopilot / logs (legado)
 scripts/ai/_out/
 scripts/ai/_out/*.log
 scripts/ai/_out/*.err.log
 scripts/ai/_out/*.out.log
 scripts/ai/_out/*.md
+
+# Autopilot (ops/) — scripts versionados; ignorar só artefatos gerados
+ops/logs/
+ops/logs/**
+
+ops/expo.url.txt
+ops/expo.qr.txt
+ops/_autonomy_loop.cmd
+ops/*.status.txt
+ops/*.pid
+
+# Diagnóstico local
+estrutura.txt
 
 # Autonomy Core runtime (mutable)
 tools/autonomy-core/_out/
