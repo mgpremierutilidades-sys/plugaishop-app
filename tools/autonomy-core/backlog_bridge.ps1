@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TasksPath,
   [Parameter(Mandatory=$true)][string]$BacklogPath,
@@ -29,7 +29,7 @@ function Write-JsonAtomic([string]$p, [object]$obj, [int]$Depth = 80) {
 
 function NowUtc() { (Get-Date).ToUniversalTime().ToString("s") + "Z" }
 
-function Parse-Backlog([string]$yamlPath) {
+function Get-BacklogItems([string]$yamlPath) {
   $lines = Get-Content -LiteralPath $yamlPath -Encoding UTF8
   $items = New-Object System.Collections.Generic.List[object]
   $cur = $null
@@ -97,7 +97,7 @@ function Write-Backlog([string]$yamlPath, [object[]]$items) {
   Move-Item -LiteralPath $tmp -Destination $yamlPath -Force
 }
 
-function Ensure-Tasks([object]$t) {
+function Initialize-TasksObject([object]$t) {
   if ($null -eq $t) { return [ordered]@{ v=1; queue=@() } }
   if ($null -eq $t.queue) { $t | Add-Member -NotePropertyName queue -NotePropertyValue @() -Force }
   if ($null -eq $t.v) { $t | Add-Member -NotePropertyName v -NotePropertyValue 1 -Force }
@@ -105,14 +105,14 @@ function Ensure-Tasks([object]$t) {
 }
 
 function Import-One() {
-  $items = Parse-Backlog $BacklogPath
+  $items = Get-BacklogItems $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
   $pick = $null
   foreach ($it in $items) { if (($it.status+"") -eq "queued") { $pick=$it; break } }
   if (-not $pick) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Read-Json $TasksPath)
 
   foreach ($t in @($tasks.queue)) {
     if (($t.id+"") -eq ($pick.id+"")) { return }
@@ -147,10 +147,10 @@ function Import-One() {
 }
 
 function Sync-Back() {
-  $items = Parse-Backlog $BacklogPath
+  $items = Get-BacklogItems $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Read-Json $TasksPath)
   $map = @{}
   foreach ($t in @($tasks.queue)) { if ($t.id) { $map[$t.id.ToString()] = $t } }
 
@@ -168,3 +168,4 @@ function Sync-Back() {
 
 if ($Mode -eq "import") { Import-One; exit 0 }
 if ($Mode -eq "sync")   { Sync-Back; exit 0 }
+
