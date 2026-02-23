@@ -12,5 +12,5 @@
     - home.achadinhos.impression
     - home.achadinhos.card_click
     - home.achadinhos.shelf_scroll
-  status: queued
+  status: blocked
   risk: low

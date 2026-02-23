@@ -887,8 +887,8 @@ function Action-HomeAchadinhosShelfV1() {
   $flags = Get-Content -LiteralPath $flagFile -Raw
   if ($flags -notmatch "ff_home_achadinhos_shelf") { throw "flags.ts missing ff_home_achadinhos_shelf" }
 
-  $home = Get-Content -LiteralPath $homeFile -Raw
-  if ($home -notmatch "AUTOPILOT_HOME_ACHADINHOS") { throw "Home index.tsx missing Achadinhos shelf marker" }
+  $homeFile = Get-Content -LiteralPath $homeFile -Raw
+  if ($homeFile -notmatch "AUTOPILOT_HOME_ACHADINHOS") { throw "Home index.tsx missing Achadinhos shelf marker" }
 
   $card = Get-Content -LiteralPath $cardFile -Raw
   if ($card -notmatch "ProductCardVariant") { throw "product-card.tsx missing shelf variant support" }
