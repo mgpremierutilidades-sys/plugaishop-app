@@ -1,8 +1,8 @@
-﻿name: AI Queue Worker
+name: AI Queue Worker
 
 on:
   issues:
-    types: [labeled, edited]
+    types: [labeled]
 
 permissions:
   contents: write
@@ -15,12 +15,7 @@ concurrency:
 
 jobs:
   run:
-    if: |
-      github.event_name == 'issues' &&
-      (
-        (github.event.action == 'labeled' && github.event.label.name == 'ai:queue') ||
-        (github.event.action == 'edited' && contains(join(github.event.issue.labels.*.name, ','), 'ai:queue'))
-      )
+    if: github.event.action == 'labeled' && github.event.label.name == 'ai:queue'
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -30,21 +25,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      
-      - name: Mark processing (early)
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
-          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:done" || true
-          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:failed" || true
-          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:processing" || true
-- name: Setup Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -64,6 +45,19 @@ jobs:
 
       - name: Install deps
         run: npm ci --no-audit --fund=false
+
+      - name: Mark processing (early) + clean stale labels
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:processing" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:done" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:failed" || true
 
       - name: Run AI Queue Worker
         id: worker
@@ -142,20 +136,16 @@ jobs:
 
           gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$body" || true
 
-          # SEMPRE remove transitórios
-          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
           gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:processing" || true
 
-          # estado final consistente
           if [ "$result" = "ok" ]; then
-            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:failed" || true
             gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:done" || true
-          elif [ "$result" = "fail" ]; then
-            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:done" || true
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:failed" || true
+          else
             gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:failed" || true
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:done" || true
           fi
 
       - name: Fail job when worker fails (after cleanup)
         if: steps.worker.outputs.result == 'fail'
         run: exit 1
-
