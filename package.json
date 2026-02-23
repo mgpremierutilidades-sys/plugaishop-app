@@ -29,8 +29,8 @@
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-linking": "~8.0.11",
-    "expo-notifications": "~0.32.15",
-    "expo-router": "~6.0.21",
+    "expo-notifications": "~0.32.16",
+    "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
@@ -55,5 +55,8 @@
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "minimatch": "^10.2.1"
+  }
 }
