@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: ai-queue-${{ github.repository }}
+  group: ai-queue-${{ github.repository }}-issue-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +22,7 @@ jobs:
         (github.event.action == 'edited' && contains(join(github.event.issue.labels.*.name, ','), 'ai:queue'))
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -35,8 +36,13 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
+        with:
+          version: "7.4.x"
+
       - name: Install deps
-        run: npm ci
+        run: npm ci --no-audit --fund=false
 
       - name: Run AI Queue Worker
         shell: pwsh
@@ -59,4 +65,5 @@ jobs:
           path: |
             scripts/ai/_out
             scripts/ai/_state
+            tools/autonomy-core/_out
           if-no-files-found: ignore
