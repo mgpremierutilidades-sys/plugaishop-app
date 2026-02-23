@@ -36,10 +36,18 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup PowerShell
-        uses: PowerShell/PowerShell@v1
-        with:
-          version: "7.4.x"
+      # ✅ FIX: não usa action inexistente; garante pwsh de forma determinística
+      - name: Ensure PowerShell (pwsh)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v pwsh >/dev/null 2>&1; then
+            pwsh --version
+            exit 0
+          fi
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh --version
 
       - name: Install deps
         run: npm ci --no-audit --fund=false
@@ -119,13 +127,9 @@ jobs:
 
           body=$'### 🤖 AI Queue Worker\n\n'"${status_line}${pr_line}"$'\n\n'"**Run:** ${RUN_URL}"$'\n'
 
-          # comenta
           gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$body" || true
-
-          # remove ai:queue SEMPRE (evita loop em edited)
           gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
 
-          # aplica label de status
           if [ "$result" = "fail" ]; then
             gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:failed" || true
           elif [ "$result" = "ok" ]; then
