@@ -1,13 +1,15 @@
 // app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
+import { isFlagEnabled } from "../../../constants/flags";
 import theme, { Radius, Spacing } from "../../../constants/theme";
 import { useCart } from "../../../context/CartContext";
+import { track } from "../../../lib/analytics";
 import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
 
 function normalizeCartItems(cartAny: any) {
@@ -49,6 +51,9 @@ export default function CheckoutSuccessScreen() {
   const cartAny = useCart() as any;
   const creatingRef = useRef(false);
 
+  const placeMockEnabled = isFlagEnabled("ff_order_place_mock_v1");
+  const analyticsEnabled = isFlagEnabled("ff_cart_analytics_v1");
+
   const clearCart = useCallback(() => {
     if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
     else if (typeof cartAny?.clear === "function") cartAny.clear();
@@ -64,7 +69,7 @@ export default function CheckoutSuccessScreen() {
       if (!items.length) return null;
 
       // Importante:
-      // status Ã© TÃ‰CNICO (created/paid/...) â€” label "Confirmado" Ã© sÃ³ para UI.
+      // status é TÉCNICO (created/paid/...) — label "Confirmado" é só para UI.
       const order = createOrderFromCart({
         items,
         discount: 0,
@@ -77,6 +82,48 @@ export default function CheckoutSuccessScreen() {
       creatingRef.current = false;
     }
   }, [cartAny]);
+
+  // ORDER-001: quando ligado, confirma automaticamente, limpa carrinho e redireciona para Pedidos.
+  useEffect(() => {
+    if (!placeMockEnabled) return;
+
+    let alive = true;
+
+    (async () => {
+      try {
+        if (analyticsEnabled) {
+          track("order_place_attempt", { source: "checkout_success" });
+        }
+
+        const order = await generateOrder();
+        clearCart();
+
+        if (!alive) return;
+
+        if (order?.id) {
+          if (analyticsEnabled) {
+            track("order_place_success", { order_id: order.id });
+          }
+          router.replace(`/orders/${order.id}` as any);
+          return;
+        }
+
+        if (analyticsEnabled) {
+          track("order_place_fail", { reason: "no_items" });
+        }
+        router.replace("/orders" as any);
+      } catch {
+        if (analyticsEnabled) {
+          track("order_place_fail", { reason: "exception" });
+        }
+        router.replace("/orders" as any);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [placeMockEnabled, analyticsEnabled, generateOrder, clearCart]);
 
   const goOrders = () => router.push("/orders" as any);
   const goHome = () => router.push("/(tabs)" as any);
@@ -100,6 +147,8 @@ export default function CheckoutSuccessScreen() {
     goOrders();
   };
 
+  // Se o auto-place está ligado, esta UI tende a ser transitória (vamos dar replace).
+  // Mas manter a UI não atrapalha e evita flash branco em devices lentos.
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ThemedView style={styles.container}>
@@ -109,10 +158,10 @@ export default function CheckoutSuccessScreen() {
             hitSlop={12}
             style={styles.backBtn}
           >
-            <ThemedText style={styles.backArrow}>â†</ThemedText>
+            <ThemedText style={styles.backArrow}>←</ThemedText>
           </Pressable>
 
-          <ThemedText style={styles.title}>Compra concluÃ­da</ThemedText>
+          <ThemedText style={styles.title}>Compra concluída</ThemedText>
 
           <View style={{ width: 44 }} />
         </View>
@@ -120,8 +169,8 @@ export default function CheckoutSuccessScreen() {
         <ThemedView style={styles.card}>
           <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
           <ThemedText style={styles.p}>
-            Seu pedido foi registrado com sucesso. VocÃª pode acompanhar em
-            â€œPedidosâ€.
+            Seu pedido foi registrado com sucesso. Você pode acompanhar em
+            “Pedidos”.
           </ThemedText>
 
           <View style={{ height: 6 }} />
@@ -146,7 +195,7 @@ export default function CheckoutSuccessScreen() {
             style={styles.ghostBtn}
           >
             <ThemedText style={styles.ghostBtnText}>
-              Voltar ao inÃ­cio
+              Voltar ao início
             </ThemedText>
           </Pressable>
         </ThemedView>

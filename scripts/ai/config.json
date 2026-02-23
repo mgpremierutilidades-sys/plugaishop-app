@@ -1,24 +1,38 @@
 {
-  "projectRoot": "E:\\plugaishop-app",
-  "branch": "develop",
-  "checkpointHours": 7,
-  "cycleMinutes": 15,
-  "files": {
-    "contextBundle": "scripts\\ai\\_out\\context-bundle.txt",
-    "report": "scripts\\ai\\_out\\last-report.md",
-    "state": "scripts\\ai\\_state\\state.json"
+  "...": "...",
+  "autopilot": {
+    "allowlist_default": [
+      "app/(tabs)/cart.tsx"
+    ],
+    "denylist_default": [
+      "types/**",
+      "scripts/ai/config.json",
+      "scripts/ai/patch_repo.py",
+      "scripts/ai/run_ai_patch.ps1"
+    ],
+    "ignore_paths": [
+      "scripts/ai/_out/*.log",
+      "scripts/ai/_out/*.err.log",
+      "scripts/ai/_out/*.out.log"
+    ]
   },
-  "tabs": [
-    "app/(tabs)/index.tsx",
-    "app/(tabs)/explore.tsx",
-    "app/(tabs)/cart.tsx"
-  ],
-  "commands": {
-    "lint": "npm run lint",
-    "format": "npm run format",
-    "typecheck": "npm run typecheck",
-    "test": "npm test",
-    "expoDoctor": "npx expo-doctor",
-    "expoStart": "npx expo start --non-interactive"
+  "branch": "main",
+  "queue": {
+    "repo": "",
+    "label_queue": "ai:queue",
+    "label_processing": "ai:processing",
+    "label_done": "ai:done",
+    "label_failed": "ai:failed",
+    "poll_seconds": 30,
+    "max_per_cycle": 1
+  },
+  "git": {
+    "remote": "origin",
+    "base_branch": "main",
+    "pr_base_branch": "main",
+    "branch_prefix": "ai/issue",
+    "commit_prefix": "ai:",
+    "user_name": "ai-bot",
+    "user_email": "ai-bot@users.noreply.github.com"
   }
 }

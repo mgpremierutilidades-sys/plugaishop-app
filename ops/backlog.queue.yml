@@ -1,0 +1,16 @@
+- id: TICK-0001
+  area: home
+  title: "Home: Achadinhos do Dia (shelf) com flag + métricas"
+  target_files:
+    - app/(tabs)/index.tsx
+    - components/product-card.tsx
+    - constants/flags.ts
+    - lib/analytics.ts
+    - data/catalog.ts
+  flag: ff_home_achadinhos_shelf
+  metrics:
+    - home.achadinhos.impression
+    - home.achadinhos.card_click
+    - home.achadinhos.shelf_scroll
+  status: queued
+  risk: low

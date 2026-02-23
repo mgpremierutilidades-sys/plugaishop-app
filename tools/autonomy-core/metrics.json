@@ -1,0 +1,50 @@
+{
+  "v": 2,
+  "gates": {
+    "lint": { "enabled": true },
+    "typecheck": { "enabled": true }
+  },
+  "report": {
+    "out_dir": "tools/autonomy-core/_out",
+    "keep_last": 30
+  },
+  "rollback": {
+    "enabled": true
+  },
+  "autocommit": {
+    "enabled": true,
+    "author_name": "Plugaishop Autonomy",
+    "author_email": "autonomy@plugaishop.ai"
+  },
+  "scope": {
+    "allow_paths": [
+      "app/",
+      "context/",
+      "components/",
+      "lib/",
+      "constants/",
+      "utils/",
+      "data/",
+      "tools/autonomy-core/",
+      ".github/workflows/"
+    ],
+    "deny_paths": [
+      "node_modules/",
+      "android/",
+      "ios/",
+      ".git/",
+      ".expo/"
+    ]
+  },
+  "cart": {
+    "north_star": "checkout_start_rate",
+    "events": [
+      "cart_view",
+      "cart_qty_change",
+      "cart_remove",
+      "cart_checkout_start",
+      "cart_checkout_success",
+      "cart_abandon"
+    ]
+  }
+}

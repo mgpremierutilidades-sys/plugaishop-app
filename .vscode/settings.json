@@ -3,5 +3,8 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "task.allowAutomaticTasks": "on",
+  "task.saveBeforeRun": "never",
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
 }

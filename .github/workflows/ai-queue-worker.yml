@@ -49,7 +49,7 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 `
             -IssueNumber $env:ISSUE_NUMBER `
             -Repo $env:REPO `
-            -Fast
+            -Fast -Once
 
       - name: Upload AI artifacts (always)
         if: always()
