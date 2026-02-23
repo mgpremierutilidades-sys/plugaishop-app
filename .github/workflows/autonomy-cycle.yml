@@ -1,0 +1,88 @@
+name: Autonomy Cycle (Backlog)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: autonomy-cycle-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Configure git
+        run: |
+          git config user.name "Plugaishop Autonomy"
+          git config user.email "autonomy@plugaishop.ai"
+
+      - name: Run one autonomy cycle
+        id: cycle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BASE_BRANCH="main"
+          git fetch origin "$BASE_BRANCH":"origin/$BASE_BRANCH"
+
+          BASE_SHA="$(git rev-parse HEAD)"
+          BRANCH="autonomy/cycle-${{ github.run_id }}-${{ github.run_attempt }}"
+          git checkout -b "$BRANCH"
+
+          npm run autonomy || true
+
+          HEAD_SHA="$(git rev-parse HEAD)"
+
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          if [ "$BASE_SHA" = "$HEAD_SHA" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git push -u origin "$BRANCH"
+
+      - name: Create PR (only when changed)
+        if: steps.cycle.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ steps.cycle.outputs.branch }}"
+          TITLE="chore(ops): autonomy cycle ${{ github.run_id }}"
+          BODY="Automated autonomy cycle.\n\n- Source: ops/backlog.queue.yml\n- Runner: tools/autonomy-core/runner.ps1\n\nIf this PR only changes state files, you can close it safely."
+          # PR may already exist if rerun
+          if gh pr view --head "$BRANCH" --json url >/dev/null 2>&1; then
+            echo "PR already exists for $BRANCH"
+            exit 0
+          fi
+          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY" --label autopilot

@@ -871,7 +871,53 @@ try {
   $action = [string]$task.payload.action
   $result.notes += ("action=" + $action)
 
-  switch ($action) {
+  
+function Action-HomeAchadinhosShelfV1() {
+  # Verifica se o feature shelf está presente (idempotente: não reescreve se já existe)
+  $flagFile = Join-Path $RepoRoot "constants/flags.ts"
+  $homeFile = Join-Path $RepoRoot "app/(tabs)/index.tsx"
+  $cardFile = Join-Path $RepoRoot "components/product-card.tsx"
+  $analyticsFile = Join-Path $RepoRoot "lib/analytics.ts"
+  $catalogFile = Join-Path $RepoRoot "data/catalog.ts"
+
+  foreach ($p in @($flagFile,$homeFile,$cardFile,$analyticsFile,$catalogFile)) {
+    Ensure-File $p ("Missing required file for HOME Achadinhos: " + $p)
+  }
+
+  $flags = Get-Content -LiteralPath $flagFile -Raw
+  if ($flags -notmatch "ff_home_achadinhos_shelf") { throw "flags.ts missing ff_home_achadinhos_shelf" }
+
+  $home = Get-Content -LiteralPath $homeFile -Raw
+  if ($home -notmatch "AUTOPILOT_HOME_ACHADINHOS") { throw "Home index.tsx missing Achadinhos shelf marker" }
+
+  $card = Get-Content -LiteralPath $cardFile -Raw
+  if ($card -notmatch "ProductCardVariant") { throw "product-card.tsx missing shelf variant support" }
+
+  $a = Get-Content -LiteralPath $analyticsFile -Raw
+  if ($a -notmatch "HomeAchadinhosEvents") { throw "analytics.ts missing HomeAchadinhosEvents" }
+
+  $c = Get-Content -LiteralPath $catalogFile -Raw
+  if ($c -notmatch "getAchadinhosOfDay") { throw "catalog.ts missing getAchadinhosOfDay" }
+
+  $result.notes += "home_achadinhos_shelf=present"
+}
+
+function Action-BacklogDispatchV1() {
+  if ($null -eq $task.payload) { throw "backlog_dispatch_v1: missing task.payload" }
+  $b = $task.payload.backlog
+  if ($null -eq $b) { throw "backlog_dispatch_v1: missing task.payload.backlog" }
+
+  $flag = $b.flag
+  if ($flag -eq "ff_home_achadinhos_shelf") {
+    Action-HomeAchadinhosShelfV1
+    return
+  }
+
+  throw ("backlog_dispatch_v1: no mapping for flag=" + $flag + " id=" + $b.id)
+}
+
+
+switch ($action) {
     "validate_cart_analytics_contract" { Action-ValidateCartAnalyticsContract }
     "cart_ux_upgrade_v1" { Action-CartUxUpgradeV1 }
     "checkout_start_guardrails_v1" { Action-CheckoutStartGuardrailsV1 }
@@ -892,6 +938,9 @@ try {
     "autonomy_migrations_v1" { Action-AutonomyMigrationsV1 }
 
     "payment_adapter_v1" { Action-PaymentAdapterV1 }
+
+    "home_achadinhos_shelf_v1" { Action-HomeAchadinhosShelfV1 }
+    "backlog_dispatch_v1" { Action-BacklogDispatchV1 }
 
     default { throw "Unknown action: $action" }
   }

@@ -2,6 +2,14 @@ import { isFlagEnabled } from "../constants/flags";
 
 type TrackProps = Record<string, any>;
 
+// [AUTOPILOT_EVENTS] canonical event names (avoid typos)
+export const HomeAchadinhosEvents = {
+  impression: "home.achadinhos.impression",
+  cardClick: "home.achadinhos.card_click",
+  shelfScroll: "home.achadinhos.shelf_scroll",
+} as const;
+
+
 type QueuedEvent = {
   event: string;
   props?: TrackProps;

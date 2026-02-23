@@ -1,14 +1,21 @@
 import { Image } from "expo-image";
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Product } from "@/constants/products";
+import type { Product as UiProduct } from "@/constants/products";
+import type { Product as CatalogProduct } from "@/data/catalog";
 import { useThemeColor } from "@/hooks/use-theme-color";
 
+type AnyProduct = UiProduct | CatalogProduct;
+
+// [AUTOPILOT] product-card supports multiple catalog shapes + shelf variant
+export type ProductCardVariant = "grid" | "shelf";
+
 type ProductCardProps = {
-  product: Product;
+  product: AnyProduct;
+  variant?: ProductCardVariant;
+  onPress?: () => void;
 };
 
 function formatBRL(value: number) {
@@ -16,8 +23,41 @@ function formatBRL(value: number) {
   return `R$ ${fixed}`;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+
+// [AUTOPILOT] normalize multiple product shapes (constants/products vs data/catalog)
+function getProductName(p: AnyProduct): string {
+  return (p as any).name ?? (p as any).title ?? "";
+}
+
+function getProductDescription(p: AnyProduct): string {
+  return (p as any).description ?? "";
+}
+
+function getProductCategory(p: AnyProduct): string {
+  return (p as any).category ?? "";
+}
+
+function getProductImage(p: AnyProduct): any {
+  const img = (p as any).image;
+  return img ? img : undefined;
+}
+
+function getProductBadge(p: AnyProduct): string | undefined {
+  const b = (p as any).badge;
+  if (b) return b;
+  const d = (p as any).discountPercent;
+  if (typeof d === "number" && d > 0) return `-${Math.round(d)}%`;
+  return undefined;
+}
+
+export function ProductCard({ product, variant = "grid", onPress }: ProductCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
+
+  const name = getProductName(product);
+  const description = getProductDescription(product);
+  const category = getProductCategory(product);
+  const badge = getProductBadge(product);
+  const image = getProductImage(product);
 
   const cardBg = useThemeColor(
     { light: "#FFFFFF", dark: "#111315" },
@@ -39,38 +79,50 @@ export function ProductCard({ product }: ProductCardProps) {
   );
 
   const initials = useMemo(() => {
-    const s = (product.name || "").trim();
+    const s = (name || "").trim();
     if (!s) return "•";
     const parts = s.split(/\s+/).slice(0, 2);
     return parts.map((p) => p[0]?.toUpperCase()).join("");
-  }, [product.name]);
+  }, [name]);
 
   return (
-    <ThemedView
-      style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
+    <Pressable
+      disabled={!onPress}
+      onPress={onPress}
+      style={[
+        styles.card,
+        variant === "shelf" ? styles.cardShelf : null,
+        { backgroundColor: cardBg, borderColor: border },
+      ]}
     >
       <View style={styles.topRow}>
         <ThemedText type="caption" style={[styles.category, { color: muted }]}>
-          {product.category}
+          {category}
         </ThemedText>
 
-        {product.badge ? (
+        {badge ? (
           <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
-            {product.badge}
+            {badge}
           </ThemedText>
         ) : (
           <View style={{ width: 1 }} />
         )}
       </View>
 
-      <View style={[styles.imageWrap, { backgroundColor: imageBg }]}>
+      <View
+        style={[
+          styles.imageWrap,
+          variant === "shelf" ? styles.imageWrapShelf : null,
+          { backgroundColor: imageBg },
+        ]}
+      >
         {!imgFailed ? (
           <Image
-            source={product.image}
+            source={image}
             contentFit="cover"
             transition={120}
             style={styles.image}
-            accessibilityLabel={product.name}
+            accessibilityLabel={name}
             onError={() => setImgFailed(true)}
           />
         ) : (
@@ -99,7 +151,7 @@ export function ProductCard({ product }: ProductCardProps) {
           style={styles.title}
           numberOfLines={2}
         >
-          {product.name}
+          {name}
         </ThemedText>
 
         <ThemedText
@@ -107,7 +159,7 @@ export function ProductCard({ product }: ProductCardProps) {
           style={[styles.desc, { color: muted }]}
           numberOfLines={2}
         >
-          {product.description}
+          {description}
         </ThemedText>
       </View>
 
@@ -120,7 +172,7 @@ export function ProductCard({ product }: ProductCardProps) {
           Ver detalhes
         </ThemedText>
       </View>
-    </ThemedView>
+    </Pressable>
   );
 }
 
@@ -130,6 +182,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
   },
+
+  // [AUTOPILOT] shelf variant (horizontal)
+  cardShelf: {
+    width: 176,
+  },
+  imageWrapShelf: {
+    height: 96,
+  },
+
 
   topRow: {
     flexDirection: "row",
@@ -223,3 +284,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

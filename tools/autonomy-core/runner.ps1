@@ -22,6 +22,9 @@ $ts  = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
 $log = Join-Path $OutDir ("run-" + $ts + ".log")
 $err = Join-Path $OutDir ("run-" + $ts + ".err.log")
 
+$notes = New-Object System.Collections.Generic.List[string]
+
+
 function Read-Json([string]$Path) {
   if (!(Test-Path $Path)) { return $null }
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -129,6 +132,25 @@ try {
 $notes.Add("migrate_error")
 }
 
+
+# ===== Backlog Bridge (ops/backlog.queue.yml -> tasks.json) =====
+try {
+  $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
+  $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
+  if ((Test-Path $bridgePath) -and (Test-Path $backlogPath)) {
+    $bridgeLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File $bridgePath `
+      -RepoRoot $RepoRoot -TasksPath $TasksPath -BacklogPath $backlogPath -Mode import 2>&1
+    $bridgeText = ($bridgeLines | ForEach-Object { $_.ToString() }) -join "`n"
+    $notes.Add("backlog_bridge_import_ran=true")
+    if ($bridgeText) { Add-Content -Path $log -Encoding UTF8 -Value ("`n[backlog_bridge]`n" + $bridgeText) }
+  } else {
+    $notes.Add("backlog_bridge_import_skipped=true")
+  }
+} catch {
+  $notes.Add("backlog_bridge_import_error=" + $_.Exception.Message)
+}
+
+
 # ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
@@ -149,7 +171,6 @@ try {
   throw "Controller JSON parse failed. JSON was:`n$ctrlJson`n--- Full output ---`n$ctrlText"
 }
 
-$notes = New-Object System.Collections.Generic.List[string]
 $notes.Add("mode=" + $ctrl.mode)
 
 
@@ -288,6 +309,25 @@ try {
 } catch {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
 }
+
+
+# ===== Backlog Bridge Sync (tasks -> ops/backlog.queue.yml) =====
+try {
+  $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
+  $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
+  if ((Test-Path $bridgePath) -and (Test-Path $backlogPath)) {
+    $syncLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File $bridgePath `
+      -RepoRoot $RepoRoot -TasksPath $TasksPath -BacklogPath $backlogPath -Mode sync 2>&1
+    $syncText = ($syncLines | ForEach-Object { $_.ToString() }) -join "`n"
+    $notes.Add("backlog_bridge_sync_ran=true")
+    if ($syncText) { Add-Content -Path $log -Encoding UTF8 -Value ("`n[backlog_bridge_sync]`n" + $syncText) }
+  } else {
+    $notes.Add("backlog_bridge_sync_skipped=true")
+  }
+} catch {
+  $notes.Add("backlog_bridge_sync_error=" + $_.Exception.Message)
+}
+
 
 # ===== Report via JSON =====
 $runSummary = @{

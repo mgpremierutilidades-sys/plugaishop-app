@@ -1,3 +1,4 @@
+// [AUTOPILOT_FLAGS] central registry
 export type FeatureFlag =
   | "ff_cart_rehydration_hardened"
   | "ff_cart_o1_index"
@@ -18,7 +19,9 @@ export type FeatureFlag =
   // OBS-001
   | "ff_analytics_harden_v1"
   // ORDER-002
-  | "ff_payment_adapter_v1";
+  | "ff_payment_adapter_v1"
+  // HOME-001
+  | "ff_home_achadinhos_shelf";
 
 const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_cart_rehydration_hardened: true,
@@ -56,6 +59,9 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
 
   // ORDER-002 (Payment adapter)
   ff_payment_adapter_v1: false,
+
+  // HOME-001
+  ff_home_achadinhos_shelf: false,
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {
