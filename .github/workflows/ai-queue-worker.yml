@@ -44,18 +44,33 @@ jobs:
       - name: Install deps
         run: npm ci --no-audit --fund=false
 
+      # Executa o worker e captura status sem matar o job (para podermos comentar/remover label no final)
       - name: Run AI Queue Worker
-        shell: pwsh
+        id: worker
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 `
-            -IssueNumber $env:ISSUE_NUMBER `
-            -Repo $env:REPO `
+          set -euo pipefail
+
+          set +e
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 \
+            -IssueNumber "$ISSUE_NUMBER" \
+            -Repo "$REPO" \
             -Fast -Once
+          code=$?
+          set -e
+
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+          if [ "$code" -eq 0 ]; then
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload AI artifacts (always)
         if: always()
@@ -67,3 +82,65 @@ jobs:
             scripts/ai/_state
             tools/autonomy-core/_out
           if-no-files-found: ignore
+
+      # Descobre PR criado (se existir) pela branch padrão do worker (ou qualquer PR recente do bot)
+      - name: Detect PR (best effort)
+        id: pr
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          # Tenta encontrar PR referenciando a issue ou criado recentemente pelo workflow.
+          # 1) Se o worker criou PR com título/branch previsível, preferimos isso.
+          # 2) Fallback: buscar PRs abertos do repo e filtrar por referência "#ISSUE_NUMBER" no título/body.
+          pr_url=""
+
+          # busca PRs abertos e tenta achar referência ao número da issue
+          pr_url="$(gh pr list --repo "$REPO" --state open --limit 50 --json url,title,body \
+            --jq ".[] | select((.title|test(\"#${ISSUE_NUMBER}\")) or ((.body // \"\")|test(\"#${ISSUE_NUMBER}\"))) | .url" | head -n 1 || true)"
+
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      # Comentário final + remoção de label (sempre)
+      - name: Comment on issue + remove ai:queue label
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          result="${{ steps.worker.outputs.result }}"
+          code="${{ steps.worker.outputs.exit_code }}"
+          pr="${{ steps.pr.outputs.url }}"
+
+          if [ -z "$result" ]; then result="unknown"; fi
+          if [ -z "$code" ]; then code="n/a"; fi
+
+          status_line="**Result:** \`${result}\` (exit=${code})"
+          pr_line=""
+          if [ -n "$pr" ]; then
+            pr_line=$'\n'"**PR:** ${pr}"
+          fi
+
+          body=$'### 🤖 AI Queue Worker\n\n'"${status_line}${pr_line}"$'\n\n'"**Run:** ${RUN_URL}"$'\n'
+
+          # comenta na issue
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$body" || true
+
+          # remove label ai:queue (evita rerun infinito por issue edit)
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
+
+      # Se o worker falhou, falha o job no final (mas só depois de comentar e remover label)
+      - name: Fail job when worker fails (after cleanup)
+        if: steps.worker.outputs.result == 'fail'
+        run: |
+          exit 1
