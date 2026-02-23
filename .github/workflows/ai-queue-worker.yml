@@ -30,7 +30,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
+      
+      - name: Mark processing (early)
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:done" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:failed" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:processing" || true
+- name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -144,3 +158,4 @@ jobs:
       - name: Fail job when worker fails (after cleanup)
         if: steps.worker.outputs.result == 'fail'
         run: exit 1
+
