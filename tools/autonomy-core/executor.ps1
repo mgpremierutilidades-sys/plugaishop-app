@@ -1,4 +1,4 @@
-# tools/autonomy-core/executor.ps1
+﻿# tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TaskJson,
@@ -100,7 +100,7 @@ function Patch-RunnerPauseOnFailures([string]$RunnerPath) {
 
   $insert = @"
 # AUTONOMY-011: pause on consecutive failures
-# Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
+# Pausa execuÃ§Ã£o se consecutive_failures >= 3 (evita loop de rollback)
 try {
   `$StatePath = Join-Path `$CoreDir "_state\state.json"
   if (Test-Path `$StatePath) {
@@ -317,7 +317,7 @@ export default function CheckoutAddress() {
   const onContinue = () => {
     if (!canContinue) {
       if (analyticsEnabled) track("checkout_error", { step: "address", reason: "validation" });
-      Alert.alert("Endereço incompleto", "Preencha CEP, número, rua, bairro e cidade/UF.");
+      Alert.alert("EndereÃ§o incompleto", "Preencha CEP, nÃºmero, rua, bairro e cidade/UF.");
       return;
     }
 
@@ -336,15 +336,15 @@ export default function CheckoutAddress() {
       <ThemedView style={styles.container}>
         <View style={styles.header}>
           <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
-            <ThemedText style={styles.backIcon}>←</ThemedText>
+            <ThemedText style={styles.backIcon}>â†</ThemedText>
           </Pressable>
 
-          <ThemedText style={styles.title}>Endereço</ThemedText>
+          <ThemedText style={styles.title}>EndereÃ§o</ThemedText>
           <View style={styles.rightSpacer} />
         </View>
 
         <View style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>Informe seu endereço</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Informe seu endereÃ§o</ThemedText>
 
           <ThemedText style={styles.label}>CEP</ThemedText>
           <TextInput
@@ -361,11 +361,11 @@ export default function CheckoutAddress() {
 
           <View style={styles.twoCols}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.label}>Número</ThemedText>
+              <ThemedText style={styles.label}>NÃºmero</ThemedText>
               <TextInput
                 value={form.number}
                 onChangeText={(t) => setForm((p) => ({ ...p, number: t }))}
-                placeholder="Nº"
+                placeholder="NÂº"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 style={styles.input}
@@ -411,7 +411,7 @@ export default function CheckoutAddress() {
           <TextInput
             value={form.cityUf}
             onChangeText={(t) => setForm((p) => ({ ...p, cityUf: t }))}
-            placeholder="Goiânia/GO"
+            placeholder="GoiÃ¢nia/GO"
             placeholderTextColor="#94A3B8"
             style={styles.input}
             autoCorrect={false}
@@ -429,7 +429,7 @@ export default function CheckoutAddress() {
 
           {!canContinue ? (
             <ThemedText style={styles.hint}>
-              Preencha CEP, número, rua, bairro e cidade/UF para continuar.
+              Preencha CEP, nÃºmero, rua, bairro e cidade/UF para continuar.
             </ThemedText>
           ) : null}
         </View>
@@ -524,7 +524,7 @@ function Option({
         <ThemedText style={styles.optionTitle}>{title}</ThemedText>
         <ThemedText style={styles.optionDesc}>{desc}</ThemedText>
       </View>
-      <ThemedText style={styles.optionMark}>{selected ? "✓" : ""}</ThemedText>
+      <ThemedText style={styles.optionMark}>{selected ? "âœ“" : ""}</ThemedText>
     </Pressable>
   );
 }
@@ -551,7 +551,7 @@ export default function CheckoutPayment() {
   const goNext = () => {
     if (!canContinue) {
       if (analyticsEnabled) track("checkout_error", { step: "payment", reason: "validation" });
-      Alert.alert("Seleção obrigatória", "Escolha uma forma de pagamento para continuar.");
+      Alert.alert("SeleÃ§Ã£o obrigatÃ³ria", "Escolha uma forma de pagamento para continuar.");
       return;
     }
     router.push("/checkout/review" as any);
@@ -562,7 +562,7 @@ export default function CheckoutPayment() {
       <ThemedView style={styles.container}>
         <View style={styles.header}>
           <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn} accessibilityRole="button">
-            <ThemedText style={styles.backIcon}>←</ThemedText>
+            <ThemedText style={styles.backIcon}>â†</ThemedText>
           </Pressable>
 
           <ThemedText style={styles.title}>Pagamento</ThemedText>
@@ -572,9 +572,9 @@ export default function CheckoutPayment() {
         <View style={styles.card}>
           <ThemedText style={styles.sectionTitle}>Escolha uma forma</ThemedText>
 
-          <Option title="Pix" desc="Aprovação imediata" selected={method === "pix"} onPress={() => onSelect("pix")} />
-          <Option title="Cartão de crédito" desc="Parcelamento disponível" selected={method === "card"} onPress={() => onSelect("card")} />
-          <Option title="Boleto" desc="Compensação em até 2 dias úteis" selected={method === "boleto"} onPress={() => onSelect("boleto")} />
+          <Option title="Pix" desc="AprovaÃ§Ã£o imediata" selected={method === "pix"} onPress={() => onSelect("pix")} />
+          <Option title="CartÃ£o de crÃ©dito" desc="Parcelamento disponÃ­vel" selected={method === "card"} onPress={() => onSelect("card")} />
+          <Option title="Boleto" desc="CompensaÃ§Ã£o em atÃ© 2 dias Ãºteis" selected={method === "boleto"} onPress={() => onSelect("boleto")} />
 
           <Pressable onPress={goNext} style={styles.primaryBtn} accessibilityRole="button">
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
@@ -873,7 +873,7 @@ try {
 
   
 function Action-HomeAchadinhosShelfV1() {
-  # Verifica se o feature shelf está presente (idempotente: não reescreve se já existe)
+  # Verifica se o feature shelf estÃ¡ presente (idempotente: nÃ£o reescreve se jÃ¡ existe)
   $flagFile = Join-Path $RepoRoot "constants/flags.ts"
   $homeFile = Join-Path $RepoRoot "app/(tabs)/index.tsx"
   $cardFile = Join-Path $RepoRoot "components/product-card.tsx"
@@ -902,6 +902,12 @@ function Action-HomeAchadinhosShelfV1() {
   $result.notes += "home_achadinhos_shelf=present"
 }
 
+
+function Action-ReviewsVerifiedPurchaseV1() {
+  # TICK-0002 (stub): wiring pronto no dispatch; implementação completa vira ticket separado.
+  $result.notes += "reviews_verified_purchase_v1=stub_not_implemented"
+  throw "reviews_verified_purchase_v1: not implemented yet (stub)"
+}
 function Action-BacklogDispatchV1() {
   if ($null -eq $task.payload) { throw "backlog_dispatch_v1: missing task.payload" }
   $b = $task.payload.backlog
@@ -910,6 +916,11 @@ function Action-BacklogDispatchV1() {
   $flag = $b.flag
   if ($flag -eq "ff_home_achadinhos_shelf") {
     Action-HomeAchadinhosShelfV1
+    return
+  }
+
+  if ($flag -eq "ff_reviews_verified_purchase_v1") {
+    Action-ReviewsVerifiedPurchaseV1
     return
   }
 
@@ -961,3 +972,4 @@ switch ($action) {
 }
 
 $result | ConvertTo-Json -Depth 20
+
