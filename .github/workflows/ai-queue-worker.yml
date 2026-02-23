@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: ai-queue-${{ github.repository }}
+  group: ai-queue-${{ github.repository }}-issue-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +22,7 @@ jobs:
         (github.event.action == 'edited' && contains(join(github.event.issue.labels.*.name, ','), 'ai:queue'))
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -35,21 +36,38 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
+        with:
+          version: "7.4.x"
+
       - name: Install deps
-        run: npm ci
+        run: npm ci --no-audit --fund=false
 
       - name: Run AI Queue Worker
-        shell: pwsh
+        id: worker
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 `
-            -IssueNumber $env:ISSUE_NUMBER `
-            -Repo $env:REPO `
+          set -euo pipefail
+          set +e
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/ai/github-queue-worker.ps1 \
+            -IssueNumber "$ISSUE_NUMBER" \
+            -Repo "$REPO" \
             -Fast -Once
+          code=$?
+          set -e
+
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 0 ]; then
+            echo "result=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=fail" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload AI artifacts (always)
         if: always()
@@ -59,4 +77,61 @@ jobs:
           path: |
             scripts/ai/_out
             scripts/ai/_state
+            tools/autonomy-core/_out
           if-no-files-found: ignore
+
+      - name: Detect PR (best effort)
+        id: pr
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          pr_url=""
+          pr_url="$(gh pr list --repo "$REPO" --state open --limit 50 --json url,title,body \
+            --jq ".[] | select((.title|test(\"#${ISSUE_NUMBER}\")) or ((.body // \"\")|test(\"#${ISSUE_NUMBER}\"))) | .url" | head -n 1 || true)"
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on issue + finalize labels
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          result="${{ steps.worker.outputs.result }}"
+          code="${{ steps.worker.outputs.exit_code }}"
+          pr="${{ steps.pr.outputs.url }}"
+
+          if [ -z "$result" ]; then result="unknown"; fi
+          if [ -z "$code" ]; then code="n/a"; fi
+
+          status_line="**Result:** \`${result}\` (exit=${code})"
+          pr_line=""
+          if [ -n "$pr" ]; then pr_line=$'\n'"**PR:** ${pr}"; fi
+
+          body=$'### 🤖 AI Queue Worker\n\n'"${status_line}${pr_line}"$'\n\n'"**Run:** ${RUN_URL}"$'\n'
+
+          # comenta
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$body" || true
+
+          # remove ai:queue SEMPRE (evita loop em edited)
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "ai:queue" || true
+
+          # aplica label de status
+          if [ "$result" = "fail" ]; then
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:failed" || true
+          elif [ "$result" = "ok" ]; then
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "ai:done" || true
+          fi
+
+      - name: Fail job when worker fails (after cleanup)
+        if: steps.worker.outputs.result == 'fail'
+        run: exit 1

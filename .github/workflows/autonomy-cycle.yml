@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: autonomy-cycle-${{ github.repository }}
@@ -30,6 +31,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell@v1
+        with:
+          version: "7.4.x"
+
       - name: Install deps
         run: npm ci
 
@@ -46,28 +52,38 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          BASE_BRANCH="main"
-          git fetch origin "$BASE_BRANCH":"origin/$BASE_BRANCH"
 
-          BASE_SHA="$(git rev-parse HEAD)"
+          BASE_BRANCH="main"
+          git fetch origin "$BASE_BRANCH"
+          git checkout -B "$BASE_BRANCH" "origin/$BASE_BRANCH"
+
           BRANCH="autonomy/cycle-${{ github.run_id }}-${{ github.run_attempt }}"
           git checkout -b "$BRANCH"
 
-          npm run autonomy || true
+          # roda autonomia (falha se der erro)
+          npm run autonomy
 
-          HEAD_SHA="$(git rev-parse HEAD)"
-
-          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
-          if [ "$BASE_SHA" = "$HEAD_SHA" ]; then
+          # detecta mudanças de trabalho
+          if [ -z "$(git status --porcelain)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "changed=true" >> "$GITHUB_OUTPUT"
+          # commit automático do que mudou
+          git add -A
+          git commit -m "chore(ops): autonomy cycle ${{ github.run_id }}" || true
+
+          # se ainda não tiver commit (ex: só timestamps ignorados), sai
+          if [ -z "$(git status --porcelain)" ] && [ "$(git rev-list --count HEAD ^origin/$BASE_BRANCH)" -eq 0 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           git push -u origin "$BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Create PR (only when changed)
         if: steps.cycle.outputs.changed == 'true'
@@ -77,12 +93,26 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
           BRANCH="${{ steps.cycle.outputs.branch }}"
           TITLE="chore(ops): autonomy cycle ${{ github.run_id }}"
-          BODY="Automated autonomy cycle.\n\n- Source: ops/backlog.queue.yml\n- Runner: tools/autonomy-core/runner.ps1\n\nIf this PR only changes state files, you can close it safely."
-          # PR may already exist if rerun
+          BODY=$'Automated autonomy cycle.\n\n- Source: ops/backlog.queue.yml\n- Runner: tools/autonomy-core/runner.ps1\n\nIf this PR only changes runtime state files, you can close it safely.'
+
+          # PR pode já existir em rerun
           if gh pr view --head "$BRANCH" --json url >/dev/null 2>&1; then
             echo "PR already exists for $BRANCH"
             exit 0
           fi
-          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY" --label autopilot
+
+          # labels são opcionais (não falha se não existirem)
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "autopilot,risk-low" || \
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "$TITLE" \
+            --body "$BODY"

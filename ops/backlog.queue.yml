@@ -12,5 +12,25 @@
     - home.achadinhos.impression
     - home.achadinhos.card_click
     - home.achadinhos.shelf_scroll
+  status: done
+  risk: low
+- id: TICK-0002
+  area: trust
+  title: "Reviews: Compra Verificada + filtro (flag + métricas)"
+  target_files:
+    - constants/flags.ts
+    - lib/analytics.ts
+    - data/reviews.ts
+    - types/review.ts
+    - components/reviews/review-item.tsx
+    - components/reviews/review-list.tsx
+    - app/(tabs)/index.tsx
+  flag: ff_reviews_verified_purchase_v1
+  metrics:
+    - reviews.section_view
+    - reviews.filter_verified_toggle
+    - reviews.badge_impression
+    - reviews.sort_change
+    - reviews.write_attempt
   status: blocked
   risk: low

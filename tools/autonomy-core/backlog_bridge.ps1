@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TasksPath,
   [Parameter(Mandatory=$true)][string]$BacklogPath,
@@ -13,23 +13,20 @@ $RepoRoot    = (Resolve-Path -LiteralPath $RepoRoot).Path
 $TasksPath   = (Resolve-Path -LiteralPath $TasksPath).Path
 $BacklogPath = (Resolve-Path -LiteralPath $BacklogPath).Path
 [System.IO.Directory]::SetCurrentDirectory($RepoRoot)
-
-function Read-Json([string]$p) {
+function Get-JsonObject([string]$p) {
   if (!(Test-Path -LiteralPath $p)) { return $null }
   return Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json
 }
-
-function Write-JsonAtomic([string]$p, [object]$obj, [int]$Depth = 80) {
+function Set-JsonObjectAtomic([string]$p, [object]$obj, [int]$Depth = 80) {
   $dir = Split-Path -Parent $p
   if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
   $tmp = "$p.tmp"
   ($obj | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $tmp -Encoding UTF8 -Force
   Move-Item -LiteralPath $tmp -Destination $p -Force
 }
+function Get-UtcNowIso() { (Get-Date).ToUniversalTime().ToString("s") + "Z" }
 
-function NowUtc() { (Get-Date).ToUniversalTime().ToString("s") + "Z" }
-
-function Parse-Backlog([string]$yamlPath) {
+function Get-BacklogItems([string]$yamlPath) {
   $lines = Get-Content -LiteralPath $yamlPath -Encoding UTF8
   $items = New-Object System.Collections.Generic.List[object]
   $cur = $null
@@ -77,8 +74,7 @@ function Parse-Backlog([string]$yamlPath) {
   if ($cur) { $items.Add($cur) }
   return ,$items
 }
-
-function Write-Backlog([string]$yamlPath, [object[]]$items) {
+function Set-BacklogItems([string]$yamlPath, [object[]]$items) {
   $out = New-Object System.Collections.Generic.List[string]
   foreach ($it in $items) {
     $out.Add("- id: $($it.id)")
@@ -97,28 +93,27 @@ function Write-Backlog([string]$yamlPath, [object[]]$items) {
   Move-Item -LiteralPath $tmp -Destination $yamlPath -Force
 }
 
-function Ensure-Tasks([object]$t) {
+function Initialize-TasksObject([object]$t) {
   if ($null -eq $t) { return [ordered]@{ v=1; queue=@() } }
   if ($null -eq $t.queue) { $t | Add-Member -NotePropertyName queue -NotePropertyValue @() -Force }
   if ($null -eq $t.v) { $t | Add-Member -NotePropertyName v -NotePropertyValue 1 -Force }
   return $t
 }
-
-function Import-One() {
-  $items = Parse-Backlog $BacklogPath
+function Import-BacklogItem() {
+  $items = Get-BacklogItems $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
   $pick = $null
   foreach ($it in $items) { if (($it.status+"") -eq "queued") { $pick=$it; break } }
   if (-not $pick) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Get-JsonObject $TasksPath)
 
   foreach ($t in @($tasks.queue)) {
     if (($t.id+"") -eq ($pick.id+"")) { return }
   }
 
-  $now = NowUtc
+  $now = Get-UtcNowIso
   $task = [ordered]@{
     id = $pick.id
     title = $pick.title
@@ -140,17 +135,16 @@ function Import-One() {
   }
 
   $tasks.queue += $task
-  Write-JsonAtomic $TasksPath $tasks 80
+  Set-JsonObjectAtomic $TasksPath $tasks 80
 
   $pick.status = "in_progress"
-  Write-Backlog $BacklogPath $items
+  Set-BacklogItems $BacklogPath $items
 }
-
-function Sync-Back() {
-  $items = Parse-Backlog $BacklogPath
+function Sync-BacklogStatus() {
+  $items = Get-BacklogItems $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Get-JsonObject $TasksPath)
   $map = @{}
   foreach ($t in @($tasks.queue)) { if ($t.id) { $map[$t.id.ToString()] = $t } }
 
@@ -163,8 +157,10 @@ function Sync-Back() {
     if ($st -eq "failed" -and $it.status -ne "blocked") { $it.status="blocked"; $changed=$true }
   }
 
-  if ($changed) { Write-Backlog $BacklogPath $items }
+  if ($changed) { Set-BacklogItems $BacklogPath $items }
 }
 
-if ($Mode -eq "import") { Import-One; exit 0 }
-if ($Mode -eq "sync")   { Sync-Back; exit 0 }
+if ($Mode -eq "import") { Import-BacklogItem; exit 0 }
+if ($Mode -eq "sync")   { Sync-BacklogStatus; exit 0 }
+
+
