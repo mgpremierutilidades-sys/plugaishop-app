@@ -227,3 +227,4 @@ if ($Mode -eq "sync") {
 
 $result.changed = $changed
 $result | ConvertTo-Json -Depth 20
+
