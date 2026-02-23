@@ -174,15 +174,18 @@ function Import-One() {
     type = ($pick.area ? $pick.area : "backlog")
     created_utc = $now
     payload = [ordered]@{
-      area = $pick.area
-      target_files = @($pick.target_files)
-      flag = $pick.flag
-      metrics = @($pick.metrics)
-      risk = $pick.risk
+      action = "backlog_dispatch_v1"
+      backlog = [ordered]@{
+        id = $pick.id
+        area = $pick.area
+        title = $pick.title
+        target_files = @($pick.target_files)
+        flag = $pick.flag
+        metrics = @($pick.metrics)
+        risk = $pick.risk
+      }
     }
-  }
-
-  $tasks.queue += $task
+  }$tasks.queue += $task
   Write-JsonAtomic $TasksPath $tasks 50
 
   # trava item no YAML
@@ -228,5 +231,6 @@ function Sync-Back() {
 
 if ($Mode -eq "import") { Import-One; exit 0 }
 if ($Mode -eq "sync")   { Sync-Back; exit 0 }
+
 
 
