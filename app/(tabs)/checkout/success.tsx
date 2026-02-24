@@ -9,6 +9,7 @@ import theme from "../../../constants/theme";
 import { track } from "../../../lib/analytics";
 import { buildOrderFromDraft } from "../../../lib/orderFactory";
 import type { OrderDraft } from "../../../types/order";
+import { addNotification } from "../../../utils/notificationsStorage";
 import { loadOrderDraft, saveOrderDraft } from "../../../utils/orderStorage";
 import { addOrder } from "../../../utils/ordersStorage";
 
@@ -17,22 +18,30 @@ function formatBRL(value: number) {
   return `R$ ${n.toFixed(2)}`.replace(".", ",");
 }
 
+function makeId(prefix = "ntf") {
+  const ts = Date.now().toString(36);
+  const rnd = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${ts}_${rnd}`;
+}
+
 export default function Success() {
   const insets = useSafeAreaInsets();
 
-  const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [orderId, setOrderId] = useState<string>("");
+  const [paidTotal, setPaidTotal] = useState<number>(0);
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      const d = await loadOrderDraft();
+      const d = (await loadOrderDraft()) as OrderDraft | null;
       if (!alive) return;
 
-      setDraft(d ?? null);
+      // snapshot do total antes de limpar draft
+      const totalSnapshot = Number(d?.total ?? 0);
+      setPaidTotal(totalSnapshot);
 
-      // Rollback: se flag off, não persiste nada
+      // rollback: se flag off, não persiste nada
       if (!d || !isFlagEnabled("ff_orders_v1")) {
         try {
           track("checkout_success", { persisted: false });
@@ -40,14 +49,39 @@ export default function Success() {
         return;
       }
 
-      // Constrói e persiste pedido
       const order = buildOrderFromDraft(d);
 
       try {
         await addOrder(order);
         setOrderId(order.id);
 
-        // Limpa draft: marca como "finalizado" e remove itens (evita duplicação)
+        // ✅ Notificação: Pedido criado (badge sobe automaticamente)
+        if (isFlagEnabled("ff_orders_notifications_v1")) {
+          const n = {
+            id: makeId(),
+            title: `Pedido ${order.id}`,
+            body: "Pedido criado com sucesso.",
+            createdAt: new Date().toISOString(),
+            read: false,
+            orderId: order.id,
+            data: {
+              type: "order_created",
+              source: "checkout_success",
+            },
+          };
+
+          await addNotification(n);
+
+          try {
+            track("order_notification_created", {
+              order_id: order.id,
+              type: "order_created",
+              source: "checkout_success",
+            });
+          } catch {}
+        }
+
+        // Limpa draft: evita duplicação ao reabrir checkout
         await saveOrderDraft({
           ...d,
           id: order.id,
@@ -65,7 +99,7 @@ export default function Success() {
           track("order_created", {
             order_id: order.id,
             subtotal: order.subtotal,
-            discount: order.discount,
+            discount: order.discount ?? 0,
             shipping_price: order.shipping?.price ?? 0,
             total: order.total,
             items_count: order.items?.length ?? 0,
@@ -75,7 +109,6 @@ export default function Success() {
           track("checkout_success", { persisted: true, order_id: order.id });
         } catch {}
       } catch {
-        // Se falhar persistência, ainda mantém sucesso, mas registra
         try {
           track("checkout_success", { persisted: false, error: "persist_failed" });
         } catch {}
@@ -88,7 +121,6 @@ export default function Success() {
   }, []);
 
   function goOrders() {
-    // Se você tiver /orders index route
     try {
       router.push("/orders" as any);
     } catch {
@@ -105,8 +137,6 @@ export default function Success() {
       router.push("/" as any);
     }
   }
-
-  const total = draft?.total ?? 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -144,7 +174,7 @@ export default function Success() {
             Total pago
           </Text>
           <Text style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
-            {formatBRL(total)}
+            {formatBRL(paidTotal)}
           </Text>
         </View>
 

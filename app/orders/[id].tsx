@@ -1,583 +1,356 @@
-// app/orders/[id].tsx
-import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  Linking,
-  Share,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import * as Clipboard from "expo-clipboard";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../components/themed-text";
-import { ThemedView } from "../../components/themed-view";
-import theme, { Radius, Spacing } from "../../constants/theme";
-import OrderTimeline, { TimelineStep } from "../../components/OrderTimeline";
+import { AppHeader } from "../../components/AppHeader";
+import { isFlagEnabled } from "../../constants/flags";
+import theme from "../../constants/theme";
+import { track } from "../../lib/analytics";
+import { maybeAutoProgressOrder } from "../../lib/orderAutoProgress";
+import { makeOrderStatusNotification } from "../../lib/orderNotifications";
+import { advanceOrderStatus } from "../../lib/orderProgress";
+import type { Order } from "../../types/order";
+import { addNotification } from "../../utils/notificationsStorage";
+import { getOrderById, updateOrder } from "../../utils/ordersStorage";
 
-import { products } from "../../data/catalog";
-import { useCart } from "../../context/CartContext";
-import { formatCurrency } from "../../utils/formatCurrency";
-import type { Order, OrderStatus } from "../../utils/ordersStore";
-import { getOrderById, advanceOrderStatus } from "../../utils/ordersStore";
-
-function safeString(v: unknown) {
-  if (typeof v === "string") return v;
-  if (typeof v === "number") return String(v);
-  return "";
+function formatBRL(value: number) {
+  const n = Number.isFinite(value) ? value : 0;
+  return `R$ ${n.toFixed(2)}`.replace(".", ",");
 }
 
-function dateLabel(isoOrAny: string) {
-  if (!isoOrAny) return "";
-  const d = isoOrAny.includes("T") ? isoOrAny.split("T")[0] : isoOrAny;
-  if (d.includes("-")) return d.split("-").reverse().join("/");
-  return d;
-}
-
-async function copyToClipboard(text: string) {
-  try {
-    const mod = await import("expo-clipboard");
-    if (mod?.setStringAsync) {
-      await mod.setStringAsync(text);
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
+function statusLabel(st: string) {
+  switch (st) {
+    case "created":
+      return "Criado";
+    case "payment_pending":
+      return "Pagamento pendente";
+    case "paid":
+      return "Pago";
+    case "processing":
+      return "Processando";
+    case "shipped":
+      return "Enviado";
+    case "delivered":
+      return "Entregue";
+    case "canceled":
+    case "cancelled":
+      return "Cancelado";
+    default:
+      return st;
   }
 }
 
-export default function OrderDetailScreen() {
+export default function OrderDetails() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
-  const orderId = safeString(params?.id);
+  const id = String((params as any)?.id ?? "");
 
-  const cartAny = useCart() as any;
+  const uiEnabled = isFlagEnabled("ff_orders_ui_v1");
+  const progressEnabled = isFlagEnabled("ff_orders_progress_v1");
+  const autoEnabled = isFlagEnabled("ff_orders_autoprogress_v1");
+  const notifEnabled = isFlagEnabled("ff_orders_notifications_v1");
+  const devTools = isFlagEnabled("ff_dev_tools_v1");
+
   const [order, setOrder] = useState<Order | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!orderId) {
-      setOrder(null);
-      return;
-    }
-    const found = await getOrderById(orderId);
-    setOrder(found);
-  }, [orderId]);
+  useEffect(() => {
+    let alive = true;
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
+    (async () => {
+      if (!uiEnabled) return;
+      const o = await getOrderById(id);
+      if (!alive) return;
 
-  const historyMap = useMemo(() => {
-    const map = new Map<OrderStatus, string>();
-    const hist = Array.isArray(order?.statusHistory)
-      ? order!.statusHistory!
-      : [];
-    for (const h of hist) {
-      if (h?.status && h?.at) map.set(h.status, h.at);
-    }
-    if (!map.has("Confirmado") && order?.createdAt)
-      map.set("Confirmado", order.createdAt);
-    return map;
-  }, [order]);
+      // Auto tick no detalhe
+      if (autoEnabled && o) {
+        const before = o.status;
+        const next = maybeAutoProgressOrder(o);
 
-  const timelineSteps: TimelineStep[] = useMemo(() => {
-    const status = (order?.status ?? "").toString().toLowerCase();
+        if (next) {
+          await updateOrder(next);
 
-    const donePago = ["pago", "enviado", "entregue"].includes(status);
-    const doneEnviado = ["enviado", "entregue"].includes(status);
-    const doneEntregue = status === "entregue";
+          if (notifEnabled) {
+            const n = makeOrderStatusNotification({
+              orderId: next.id,
+              from: before,
+              to: next.status,
+              source: "auto",
+            });
+            await addNotification(n);
+            try {
+              track("order_notification_created", {
+                order_id: next.id,
+                from: before,
+                to: next.status,
+                source: "auto",
+              });
+            } catch {}
+          }
 
-    const dConfirmado = historyMap.get("Confirmado");
-    const dPago = historyMap.get("Pago");
-    const dEnviado = historyMap.get("Enviado");
-    const dEntregue = historyMap.get("Entregue");
+          try {
+            track("order_autoprogress_tick", {
+              scope: "order_detail",
+              order_id: next.id,
+              from: before,
+              to: next.status,
+            });
+          } catch {}
 
-    return [
-      {
-        title: "Pedido confirmado",
-        subtitle: dConfirmado
-          ? `Recebido em ${dateLabel(dConfirmado)}`
-          : "Recebemos seu pedido com sucesso.",
-        done: true,
-        active: status === "confirmado" || !status,
-      },
-      {
-        title: "Pagamento aprovado",
-        subtitle: dPago
-          ? `Aprovado em ${dateLabel(dPago)}`
-          : "Pagamento validado.",
-        done: donePago,
-        active: status === "pago",
-      },
-      {
-        title: "Pedido enviado",
-        subtitle: dEnviado
-          ? `Enviado em ${dateLabel(dEnviado)}`
-          : "Seu pedido saiu para entrega.",
-        done: doneEnviado,
-        active: status === "enviado",
-      },
-      {
-        title: "Pedido entregue",
-        subtitle: dEntregue
-          ? `Entregue em ${dateLabel(dEntregue)}`
-          : "Entrega concluída.",
-        done: doneEntregue,
-        active: status === "entregue",
-      },
-    ];
-  }, [order, historyMap]);
+          setOrder(next);
+        } else {
+          setOrder(o);
+        }
+      } else {
+        setOrder(o);
+      }
 
-  const totals = useMemo(() => {
-    const items = order?.items ?? [];
-    const subtotal = items.reduce(
-      (acc, it) => acc + Number(it.price ?? 0) * Number(it.qty ?? 0),
-      0,
-    );
-    const discount = Number(order?.discount ?? 0);
-    const shipping = Number(order?.shipping ?? 0);
-    const total = Math.max(0, subtotal - discount + shipping);
-    const count = items.reduce((a, b) => a + Number(b.qty ?? 0), 0);
-    return { subtotal, discount, shipping, total, count };
-  }, [order]);
+      try {
+        track("order_detail_view", { order_id: id, found: !!o });
+      } catch {}
+    })();
 
-  const onCopyId = async () => {
-    if (!orderId) return;
-    const ok = await copyToClipboard(orderId);
-    if (ok)
-      Alert.alert(
-        "Copiado",
-        "ID do pedido copiado para a área de transferência.",
-      );
-    else Alert.alert("Copiar ID", `Copie manualmente: ${orderId}`);
-  };
-
-  const onTrackExternal = async () => {
-    const url = `https://example.com/rastreio?pedido=${encodeURIComponent(orderId || "0")}`;
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert(
-        "Indisponível",
-        "Não foi possível abrir o link de rastreio neste dispositivo.",
-      );
-      return;
-    }
-    Linking.openURL(url);
-  };
-
-  const onRepeatPurchase = () => {
-    const items = order?.items ?? [];
-    if (!items.length) {
-      Alert.alert("Atenção", "Este pedido não possui itens para repetir.");
-      return;
-    }
-
-    const addOne = (product: any, qty: number) => {
-      if (typeof cartAny?.addItem === "function")
-        return cartAny.addItem(product, qty);
-      if (typeof cartAny?.addToCart === "function")
-        return cartAny.addToCart(product, qty);
-      if (typeof cartAny?.add === "function") return cartAny.add(product, qty);
-      return null;
+    return () => {
+      alive = false;
     };
+  }, [id, uiEnabled, autoEnabled, notifEnabled]);
 
-    let added = 0;
-    for (const it of items) {
-      const prod = (products as any[])?.find(
-        (p) => String(p.id) === String(it.productId),
-      );
-      if (!prod) continue;
-      const qty = Math.max(1, Number(it.qty ?? 1));
-      addOne(prod, qty);
-      added += qty;
-    }
+  const timeline = useMemo(() => order?.timeline ?? [], [order]);
 
-    if (!added) {
-      Alert.alert(
-        "Não foi possível repetir",
-        "Não encontramos os produtos deste pedido no catálogo atual.",
-      );
-      return;
-    }
+  async function handleCopyId() {
+    if (!order?.id) return;
+    await Clipboard.setStringAsync(order.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
 
-    Alert.alert("Repetir compra", "Itens adicionados ao carrinho.", [
-      { text: "Continuar", style: "default" },
-      {
-        text: "Ir para o carrinho",
-        style: "default",
-        onPress: () => router.push("/(tabs)/cart" as any),
-      },
-    ]);
-  };
+  async function handleAdvanceStatusDev() {
+    if (!order) return;
+    if (!progressEnabled) return;
+    if (!devTools) return;
+    if (busy) return;
 
-  const onAdvanceStatus = async () => {
-    if (!orderId) return;
-    const updated = await advanceOrderStatus(orderId);
-    if (!updated) {
-      Alert.alert(
-        "Status",
-        "Não foi possível atualizar o status deste pedido.",
-      );
-      return;
-    }
-    setOrder(updated);
-    Alert.alert("Status atualizado", `Novo status: ${updated.status}`);
-  };
-
-  const onShare = async () => {
-    if (!orderId) return;
+    setBusy(true);
     try {
-      await Share.share({
-        message: `Pedido Plugaí Shop #${orderId} — status: ${order?.status ?? "Confirmado"}`,
-      });
-    } catch {
-      Alert.alert("Compartilhar", "Não foi possível compartilhar no momento.");
-    }
-  };
+      const before = order.status;
+      const next = advanceOrderStatus(order);
+      if (next.status === before) return;
 
-  const goSupport = () => router.push(`/orders/${orderId}/support` as any);
-  const goInvoice = () => router.push(`/orders/${orderId}/invoice` as any);
-  const goReview = () => router.push(`/orders/${orderId}/review` as any);
-  const goReturn = () => router.push(`/orders/${orderId}/return` as any);
-  const goNotifications = () => router.push(`/orders/notifications` as any);
-  const goTracking = () => router.push(`/orders/${orderId}/tracking` as any);
+      await updateOrder(next);
+      setOrder(next);
+
+      if (notifEnabled) {
+        const n = makeOrderStatusNotification({
+          orderId: next.id,
+          from: before,
+          to: next.status,
+          source: "dev",
+        });
+        await addNotification(n);
+        try {
+          track("order_notification_created", {
+            order_id: next.id,
+            from: before,
+            to: next.status,
+            source: "dev",
+          });
+        } catch {}
+      }
+
+      try {
+        track("dev_tools_used", { action: "advance_status", order_id: next.id });
+      } catch {}
+
+      try {
+        track("order_status_advance", {
+          order_id: next.id,
+          from: before,
+          to: next.status,
+          timeline_len: next.timeline?.length ?? 0,
+        });
+      } catch {}
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!uiEnabled) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+        <AppHeader title="Pedido" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>Em breve</Text>
+          <Text style={{ marginTop: 8, opacity: 0.7, color: theme.colors.text }}>
+            A tela de pedido está desativada.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   if (!order) {
     return (
-      <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
-        <ThemedView style={styles.container}>
-          <View style={styles.topbar}>
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={12}
-              style={styles.backBtn}
-            >
-              <ThemedText style={styles.backArrow}>←</ThemedText>
-            </Pressable>
-            <ThemedText style={styles.title}>Pedido detalhe</ThemedText>
-            <View style={{ width: 44 }} />
-          </View>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+        <AppHeader title="Pedido" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>Pedido não encontrado.</Text>
 
-          <ThemedView style={styles.card}>
-            <ThemedText style={styles.cardTitle}>
-              Pedido não encontrado
-            </ThemedText>
-            <ThemedText style={styles.secondary}>
-              Não localizamos o pedido informado. Volte e selecione um pedido
-              válido.
-            </ThemedText>
-          </ThemedView>
-        </ThemedView>
-      </SafeAreaView>
+          <Pressable
+            onPress={() => router.back()}
+            style={{
+              marginTop: 14,
+              borderWidth: 1,
+              borderColor: theme.colors.divider,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: theme.colors.surface,
+            }}
+          >
+            <Text style={{ textAlign: "center", fontWeight: "800", color: theme.colors.text }}>
+              Voltar
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
+  const itemsCount = order.items?.length ?? 0;
+
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
-      <ThemedView style={styles.container}>
-        <View style={styles.topbar}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+      <AppHeader title="Detalhe do Pedido" showBack />
+
+      <ScrollView
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 16 + insets.bottom,
+          gap: 12,
+        }}
+      >
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            gap: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, opacity: 0.75, color: theme.colors.text }}>Pedido</Text>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: theme.colors.text }}>{order.id}</Text>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ fontSize: 12, opacity: 0.75, color: theme.colors.text }}>
+              Status: {statusLabel(order.status)}
+            </Text>
+            <Text style={{ fontSize: 12, fontWeight: "900", color: theme.colors.text }}>
+              {formatBRL(Number(order.total ?? 0))}
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 12, opacity: 0.65, color: theme.colors.text }}>
+            Itens: {itemsCount}
+          </Text>
+
           <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.backBtn}
+            onPress={handleCopyId}
+            style={{
+              marginTop: 6,
+              borderWidth: 1,
+              borderColor: theme.colors.divider,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: theme.colors.surface,
+            }}
           >
-            <ThemedText style={styles.backArrow}>←</ThemedText>
+            <Text style={{ textAlign: "center", fontWeight: "900", color: theme.colors.text }}>
+              {copied ? "Copiado ✓" : "Copiar ID do pedido"}
+            </Text>
           </Pressable>
-          <ThemedText style={styles.title}>Pedido detalhe</ThemedText>
-          <View style={{ width: 44 }} />
+
+          {/* DEV tools: avançar status */}
+          {devTools && progressEnabled ? (
+            <Pressable
+              onPress={handleAdvanceStatusDev}
+              disabled={busy}
+              style={{
+                marginTop: 10,
+                backgroundColor: "#EEF1F5",
+                padding: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.colors.divider,
+                opacity: busy ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ textAlign: "center", fontWeight: "900", color: "#000" }}>
+                {busy ? "Avançando..." : "(DEV) Avançar status"}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            gap: 10,
+          }}
         >
-          <ThemedView style={styles.card}>
-            <View style={styles.rowBetween}>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.cardTitle}>
-                  Pedido #{orderId}
-                </ThemedText>
-                <ThemedText style={styles.secondary}>
-                  Status:{" "}
-                  <ThemedText style={styles.bold}>
-                    {String(order.status ?? "Confirmado")}
-                  </ThemedText>
-                </ThemedText>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: theme.colors.text }}>
+            Timeline
+          </Text>
 
-                {order.trackingCode ? (
-                  <ThemedText style={styles.secondary}>
-                    Rastreio:{" "}
-                    <ThemedText style={styles.bold}>
-                      {order.trackingCode}
-                    </ThemedText>
-                  </ThemedText>
-                ) : null}
+          {timeline.length === 0 ? (
+            <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+              Sem eventos ainda.
+            </Text>
+          ) : (
+            timeline.map((ev, idx) => (
+              <View
+                key={idx}
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: theme.colors.divider,
+                  backgroundColor: theme.colors.background,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "900", color: theme.colors.text }}>
+                  {statusLabel(ev.status)}
+                </Text>
+                <Text style={{ marginTop: 4, fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+                  {String(ev.date).slice(0, 19).replace("T", " ")}
+                </Text>
               </View>
+            ))
+          )}
+        </View>
 
-              <Pressable onPress={onCopyId} style={styles.smallBtn}>
-                <ThemedText style={styles.smallBtnText}>Copiar ID</ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={onTrackExternal} style={styles.actionBtn}>
-                <ThemedText style={styles.actionBtnText}>Rastrear</ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goTracking} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Rastreio (Histórico)
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable
-                onPress={onRepeatPurchase}
-                style={styles.actionBtnOutline}
-              >
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Repetir
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={onAdvanceStatus}
-                style={styles.actionBtnOutline}
-              >
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Avançar status
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={onShare} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Compartilhar
-                </ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goInvoice} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Nota Fiscal
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={goSupport} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Suporte
-                </ThemedText>
-              </Pressable>
-
-              <Pressable onPress={goReturn} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Troca/Reembolso
-                </ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.actionRow}>
-              <Pressable onPress={goReview} style={styles.actionBtnOutline}>
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Avaliar
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={goNotifications}
-                style={styles.actionBtnOutline}
-              >
-                <ThemedText style={styles.actionBtnOutlineText}>
-                  Notificações
-                </ThemedText>
-              </Pressable>
-            </View>
-          </ThemedView>
-
-          <ThemedView style={styles.card}>
-            <ThemedText style={styles.cardTitle}>Resumo</ThemedText>
-
-            <View style={styles.kv}>
-              <ThemedText style={styles.k}>Itens</ThemedText>
-              <ThemedText style={styles.v}>{totals.count}</ThemedText>
-            </View>
-
-            <View style={styles.kv}>
-              <ThemedText style={styles.k}>Subtotal</ThemedText>
-              <ThemedText style={styles.v}>
-                {formatCurrency(totals.subtotal)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.kv}>
-              <ThemedText style={styles.k}>Descontos</ThemedText>
-              <ThemedText style={styles.v}>
-                - {formatCurrency(totals.discount)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.kv}>
-              <ThemedText style={styles.k}>Frete</ThemedText>
-              <ThemedText style={styles.v}>
-                {formatCurrency(totals.shipping)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.kv}>
-              <ThemedText style={[styles.k, styles.bold]}>Total</ThemedText>
-              <ThemedText style={[styles.v, styles.bold]}>
-                {formatCurrency(totals.total)}
-              </ThemedText>
-            </View>
-          </ThemedView>
-
-          <OrderTimeline steps={timelineSteps} />
-
-          <View style={{ height: 24 }} />
-        </ScrollView>
-      </ThemedView>
-    </SafeAreaView>
+        <Pressable
+          onPress={() => router.push("/orders/notifications" as any)}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            padding: 12,
+            borderRadius: 12,
+            backgroundColor: theme.colors.surface,
+          }}
+        >
+          <Text style={{ textAlign: "center", fontWeight: "900", color: theme.colors.text }}>
+            Ver notificações
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-
-  topbar: {
-    height: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  backArrow: {
-    fontFamily: "Arimo",
-    fontSize: 22,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  title: {
-    fontFamily: "Arimo",
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  scroll: { gap: Spacing.md, paddingBottom: 20 },
-
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  cardTitle: {
-    fontFamily: "Arimo",
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.md,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.divider,
-    width: "100%",
-    marginVertical: 6,
-  },
-
-  smallBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: Radius.lg,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  smallBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  actionRow: { flexDirection: "row", gap: Spacing.md },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.primary,
-  },
-  actionBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  actionBtnOutline: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  actionBtnOutlineText: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.primary,
-  },
-
-  kv: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  k: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.65)" },
-  v: { fontFamily: "OpenSans", fontSize: 12, color: theme.colors.text },
-  bold: { fontWeight: "700", color: theme.colors.text },
-
-  secondary: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    color: "rgba(0,0,0,0.65)",
-  },
-});

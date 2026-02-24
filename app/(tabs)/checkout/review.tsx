@@ -1,11 +1,16 @@
 // app/(tabs)/checkout/review.tsx
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import theme from "../../../constants/theme";
 import type { OrderDraft } from "../../../types/order";
 import { loadOrderDraft, saveOrderDraft } from "../../../utils/orderStorage";
+
+function formatBRL(value: number) {
+  const n = Number.isFinite(value) ? value : 0;
+  return `R$ ${n.toFixed(2)}`.replace(".", ",");
+}
 
 export default function Review() {
   const [order, setOrder] = useState<OrderDraft | null>(null);
@@ -24,12 +29,14 @@ export default function Review() {
     };
   }, []);
 
+  const discount = useMemo(() => Number(order?.discount ?? 0), [order]);
+
   async function handleConfirm() {
     if (!order) return;
 
-    // Bridge de pagamento (mock): marca como pendente e segue
     await saveOrderDraft({
       ...order,
+      discount, // garante number
       payment: { method: "pix", status: "pending" },
     });
 
@@ -46,22 +53,20 @@ export default function Review() {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-        Revisão do Pedido
-      </Text>
+      <Text style={{ fontSize: 24, fontWeight: "bold" }}>Revisão do Pedido</Text>
 
       <Text style={{ marginTop: 12 }}>Itens: {order.items.length}</Text>
 
       <Text style={{ marginTop: 6 }}>
-        Subtotal: R$ {order.subtotal.toFixed(2)}
+        Subtotal: {formatBRL(order.subtotal)}
       </Text>
 
       <Text style={{ marginTop: 6 }}>
-        Desconto: R$ {order.discount.toFixed(2)}
+        Desconto: {formatBRL(discount)}
       </Text>
 
       <Text style={{ marginTop: 6, fontWeight: "bold" }}>
-        Total: R$ {order.total.toFixed(2)}
+        Total: {formatBRL(order.total)}
       </Text>
 
       <Pressable
@@ -73,9 +78,7 @@ export default function Review() {
           borderRadius: 8,
         }}
       >
-        <Text
-          style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}
-        >
+        <Text style={{ color: "#000", fontWeight: "bold", textAlign: "center" }}>
           Confirmar pedido
         </Text>
       </Pressable>

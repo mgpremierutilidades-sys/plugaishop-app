@@ -19,11 +19,10 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
 $ts  = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
-$log = Join-Path $OutDir ("run-" + $ts + ".log")
-$err = Join-Path $OutDir ("run-" + $ts + ".err.log")
+$log = Join-Path $OutDir ("Invoke-" + $ts + ".log")
+$err = Join-Path $OutDir ("Invoke-" + $ts + ".err.log")
 
 $notes = New-Object System.Collections.Generic.List[string]
-
 
 function Read-Json([string]$Path) {
   if (!(Test-Path $Path)) { return $null }
@@ -34,21 +33,22 @@ function Write-Json([string]$Path, [object]$Value, [int]$Depth = 50) {
   ($Value | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $Path -Encoding UTF8 -Force
 }
 
-function Ensure-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
+function Initialize-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
   if (Test-Path $RuntimePath) { return }
   if (!(Test-Path $SeedPath)) { throw "Missing seed file: $SeedPath" }
   Copy-Item -LiteralPath $SeedPath -Destination $RuntimePath -Force
 }
 
 # npm via cmd.exe (evita shims Win32)
-function Run-CmdLine([string]$commandLine) {
+function Invoke-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
   $exe  = "$env:ComSpec"
-  $args = "/c " + $commandLine
+  # NÃO use $args (variável automática). Use outro nome.
+  $cliArgs = "/c " + $commandLine
 
   $p = Start-Process -FilePath $exe `
-    -ArgumentList $args `
+    -ArgumentList $cliArgs `
     -WorkingDirectory $RepoRoot `
     -NoNewWindow -PassThru -Wait `
     -RedirectStandardOutput $log `
@@ -61,7 +61,7 @@ function Run-CmdLine([string]$commandLine) {
 # - normaliza/trima IDs
 # - usa Add-Member para garantir completed_utc/failed_utc
 # - retorna bool indicando se atualizou mesmo
-function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
+function Complete-TaskById([string]$TaskId, [bool]$Ok) {
   if (-not $TaskId) { return $false }
 
   $id = $TaskId.ToString().Trim()
@@ -104,8 +104,8 @@ function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
 }
 
 # ===== Ensure runtime state/tasks exist =====
-Ensure-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
-Ensure-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
+Initialize-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
+Initialize-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
 
 # ===== Load state/metrics =====
 $state = Read-Json $StatePath
@@ -120,18 +120,18 @@ $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 try {
   $migratePath = Join-Path $CoreDir "migrate.ps1"
   if (Test-Path $migratePath) {
-    $mOut = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
+    # Não precisamos do output (evita warning mOut unused)
+    $null = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
     $notes.Add("migrate_ran=true")
   } else {
     $notes.Add("migrate_missing=true")
   }
 } catch {
   if ($null -eq $notes) {
-  $notes = New-Object System.Collections.Generic.List[string]
+    $notes = New-Object System.Collections.Generic.List[string]
+  }
+  $notes.Add("migrate_error=" + $_.Exception.Message)
 }
-$notes.Add("migrate_error")
-}
-
 
 # ===== Backlog Bridge (ops/backlog.queue.yml -> tasks.json) =====
 try {
@@ -149,7 +149,6 @@ try {
 } catch {
   $notes.Add("backlog_bridge_import_error=" + $_.Exception.Message)
 }
-
 
 # ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
@@ -173,13 +172,12 @@ try {
 
 $notes.Add("mode=" + $ctrl.mode)
 
-
 # AUTONOMY-011: pause on consecutive failures
 # Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
 try {
-  $StatePath = Join-Path $CoreDir "_state\state.json"
-  if (Test-Path $StatePath) {
-    $stRaw = Get-Content $StatePath -Raw
+  $StatePath2 = Join-Path $CoreDir "_state\state.json"
+  if (Test-Path $StatePath2) {
+    $stRaw = Get-Content $StatePath2 -Raw
     $st = $stRaw | ConvertFrom-Json
     $cf = 0
     if ($st -and $st.PSObject.Properties.Name -contains "consecutive_failures") {
@@ -192,8 +190,9 @@ try {
     }
   }
 } catch {
-  $notes.Add("pause_guard_error")
+  $notes.Add("pause_guard_error=" + $_.Exception.Message)
 }
+
 # ===== Executor (aplica ação real da task) =====
 $executorOk = $true
 $committedSha = $null
@@ -234,13 +233,13 @@ $lintResult = "skipped"
 $typeResult = "skipped"
 
 if ($metrics.gates.lint.enabled -eq $true) {
-  $code = Run-CmdLine "npm run lint"
+  $code = Invoke-CmdLine "npm run lint"
   $lintResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("lint_exit=" + $code)
 }
 
 if ($metrics.gates.typecheck.enabled -eq $true) {
-  $code = Run-CmdLine "npm run typecheck"
+  $code = Invoke-CmdLine "npm run typecheck"
   $typeResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("typecheck_exit=" + $code)
 }
@@ -277,7 +276,7 @@ try {
 
   if ($state.last_task_id) {
     $notes.Add("task_finalize_attempt=" + $state.last_task_id)
-    $finalized = Finalize-TaskById -TaskId $state.last_task_id -Ok:$ok
+    $finalized = Complete-TaskById -TaskId $state.last_task_id -Ok:$ok
     $notes.Add("task_finalize_updated=" + ($finalized ? "true" : "false"))
   } else {
     $notes.Add("task_finalize_skipped=no_last_task_id")
@@ -293,7 +292,7 @@ try {
       }
       if ($null -ne $run -and $run.id) {
         $notes.Add("task_recovery_attempt=" + $run.id)
-        $finalized2 = Finalize-TaskById -TaskId $run.id -Ok:$true
+        $finalized2 = Complete-TaskById -TaskId $run.id -Ok:$true
         $notes.Add("task_recovery_updated=" + ($finalized2 ? "true" : "false"))
       } else {
         $notes.Add("task_recovery_skipped=no_running_found")
@@ -309,7 +308,6 @@ try {
 } catch {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
 }
-
 
 # ===== Backlog Bridge Sync (tasks -> ops/backlog.queue.yml) =====
 try {
@@ -327,7 +325,6 @@ try {
 } catch {
   $notes.Add("backlog_bridge_sync_error=" + $_.Exception.Message)
 }
-
 
 # ===== Report via JSON =====
 $runSummary = @{
@@ -348,9 +345,9 @@ Write-Json $runSummaryPath $runSummary 20
   -OutDir $OutDir -RunSummaryPath $runSummaryPath
 
 if (-not $ok) {
-  Write-Host "[autonomy] FAILED. See logs in tools/autonomy-core/_out/"
+  Write-Information "[autonomy] FAILED. See logs in tools/autonomy-core/_out/" -InformationAction Continue
   exit 1
 }
 
-Write-Host "[autonomy] OK."
+Write-Information "[autonomy] OK." -InformationAction Continue
 exit 0

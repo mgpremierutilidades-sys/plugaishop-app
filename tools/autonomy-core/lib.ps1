@@ -11,7 +11,7 @@ function Initialize-File([string]$Path, [string]$Message) {
   if (!(Test-Path $Path)) { throw $Message }
 }
 
-function Test-GitChanges() {
+function Test-GitChange() {
   $out = git status --porcelain
   return ($out -and $out.Trim().Length -gt 0)
 }

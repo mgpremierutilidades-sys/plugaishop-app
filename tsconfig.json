@@ -2,7 +2,10 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
@@ -10,10 +13,14 @@
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
-    "types": ["react"],
+    "types": [
+      "react"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -34,7 +41,9 @@
     "hooks/**/*.ts",
     "hooks/**/*.tsx",
     "utils/**/*.ts",
-    "utils/**/*.tsx"
+    "utils/**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ],
   "exclude": [
     "**/node_modules/**",
@@ -43,17 +52,15 @@
     "**/web-build/**",
     "**/.expo/**",
     "**/.expo-shared/**",
-
     "**/_agent_bundle/**",
     "**/_agent_bundle_*/*",
     "**/_backup_*/**",
     "**/_zips_parts_*/**",
-
     "**/tools/autonomy-core/_out/**",
     "**/tools/autonomy-core/_state/**",
     "**/_state/**",
     "**/ops/**",
-
     "**/scripts/ai/templates/**"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

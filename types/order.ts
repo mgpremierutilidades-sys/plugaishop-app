@@ -18,12 +18,40 @@ export type Shipping = {
   deadline: string;
 };
 
-export type PaymentMethod = "pix" | "card" | "boleto" | "cash" | "unknown";
-export type PaymentStatus = "paid" | "pending" | "failed";
-
 export type Payment = {
-  method?: PaymentMethod;
-  status?: PaymentStatus;
+  method?: "pix" | "card" | "boleto" | "cash" | "unknown";
+  status?: "paid" | "pending" | "failed";
+};
+
+export type LogisticsEventType =
+  | "created"
+  | "payment_pending"
+  | "processing"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "canceled"
+  | "custom"
+  // compat com tracking UI
+  | "POSTED"
+  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "EXCEPTION";
+
+export type LogisticsEvent = {
+  id: string;
+  type: LogisticsEventType;
+
+  date?: string; // ISO (legacy)
+  at?: string; // ISO (preferido)
+
+  note?: string;
+  location?: string;
+
+  title?: string;
+  description?: string;
 };
 
 export type OrderDraft = {
@@ -34,24 +62,20 @@ export type OrderDraft = {
   id?: string;
 
   items: CartItem[];
-
-  /** soma dos itens (sem frete/desconto) */
   subtotal: number;
 
   /** desconto total aplicado ao pedido (default: 0) */
-  discount: number;
+  discount?: number;
 
   shipping?: Shipping;
-
-  /**
-   * total final (subtotal - discount + shipping.price)
-   * Observação: mantenha sempre consistente na camada de storage/bridge.
-   */
   total: number;
-
   address?: Address;
   payment?: Payment;
   note?: string;
+
+  // ---- Tracking/Logística (V1 stub) ----
+  trackingCode?: string;
+  logisticsEvents?: LogisticsEvent[];
 };
 
 export type Order = Omit<OrderDraft, "id"> & {
@@ -61,16 +85,13 @@ export type Order = Omit<OrderDraft, "id"> & {
   createdAt: string; // ISO
 };
 
-/**
- * Tipos adicionais usados pelo ordersStore (stubs tipados e compatíveis com mocks).
- */
 export type InAppNotification = {
   id: string;
   title: string;
   body: string;
   createdAt: string; // ISO
   read?: boolean;
-  data?: Record<string, unknown>;
+  data?: Record<string, any>;
   orderId?: string;
 };
 
@@ -87,31 +108,6 @@ export type Invoice = {
   danfeUrl?: string;
 };
 
-export type LogisticsEventType =
-  | "created"
-  | "payment_pending"
-  | "processing"
-  | "paid"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "canceled"
-  | "custom";
-
-export type LogisticsEvent = {
-  id: string;
-  type: LogisticsEventType;
-
-  date?: string; // ISO
-  at?: string; // ISO
-
-  note?: string;
-  location?: string;
-
-  title?: string;
-  description?: string;
-};
-
 export type OrderReview = {
   id?: string;
   rating: 1 | 2 | 3 | 4 | 5;
@@ -119,10 +115,7 @@ export type OrderReview = {
   createdAt: string; // ISO
 };
 
-/**
- * RENOMEADO: evita conflito com o utilitário global ReturnType<T> do TS.
- */
-export type ReturnKind = "refund" | "exchange" | "repair" | "other";
+export type ReturnType = "refund" | "exchange" | "repair" | "other";
 
 export type ReturnAttachment = {
   id: string;
@@ -148,7 +141,7 @@ export type ReturnRequest = {
   id?: string;
   orderId?: string;
 
-  type: ReturnKind;
+  type: ReturnType;
   reason?: string;
   status?: ReturnRequestStatus;
   createdAt: string; // ISO
