@@ -1,14 +1,15 @@
+// PATH: tools/autonomy-core/_state/tasks.json
 {
   "v": 1,
   "queue": [
     {
-      "id": "AUTONOMY-101",
-      "title": "Autonomy healthcheck",
+      "id": "AUTONOMY-201",
+      "title": "Autonomy pause on failures",
       "status": "queued",
       "type": "meta",
       "created_utc": "2026-02-24T00:00:00Z",
       "payload": {
-        "action": "autonomy_healthcheck_v1"
+        "action": "autonomy_pause_on_failures_v1"
       }
     },
     {
