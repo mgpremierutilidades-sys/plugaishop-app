@@ -50,10 +50,7 @@ export default function PixScreen() {
     return () => clearInterval(id);
   }, [expiresAt]);
 
-  const code = useMemo(
-    () => (draft ? (draft?.id ? makePixCode(draft.id) : "") : ""),
-    [draft],
-  );
+  const code = useMemo(() => (draft ? makePixCode(draft.id) : ""), [draft]);
 
   async function handleCopy() {
     if (!code) return;

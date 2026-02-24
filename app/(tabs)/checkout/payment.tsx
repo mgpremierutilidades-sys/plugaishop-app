@@ -1,20 +1,15 @@
 // app/(tabs)/checkout/payment.tsx
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
-import { isFlagEnabled } from "../../../constants/flags";
 import theme from "../../../constants/theme";
-import { track } from "../../../lib/analytics";
 
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
 const FONT_TITLE = "Arimo_400Regular";
-
-type PaymentMethod = "pix" | "card" | "boleto";
 
 function Option({
   title,
@@ -45,33 +40,7 @@ function Option({
 export default function CheckoutPayment() {
   const goBack = () => router.back();
 
-  const paymentEnabled = isFlagEnabled("ff_checkout_payment_v1");
-  const analyticsEnabled = isFlagEnabled("ff_cart_analytics_v1");
-
-  useEffect(() => {
-    if (!paymentEnabled) {
-      router.replace("/checkout/review" as any);
-      return;
-    }
-    if (analyticsEnabled) track("checkout_payment_view");
-  }, [paymentEnabled, analyticsEnabled]);
-
-  const [method, setMethod] = useState<PaymentMethod>("pix");
-
-  const canContinue = useMemo(() => !!method, [method]);
-
-  const select = (m: PaymentMethod) => {
-    setMethod(m);
-    if (analyticsEnabled) track("checkout_payment_select", { method: m });
-  };
-
   const goNext = () => {
-    if (!canContinue) {
-      if (analyticsEnabled) {
-        track("checkout_error", { step: "payment", reason: "validation" });
-      }
-      return;
-    }
     router.push("/checkout/review" as any);
   };
 
@@ -98,25 +67,23 @@ export default function CheckoutPayment() {
           <Option
             title="Pix"
             desc="Aprovação imediata"
-            selected={method === "pix"}
-            onPress={() => select("pix")}
+            selected
+            onPress={() => {}}
           />
           <Option
             title="Cartão de crédito"
             desc="Parcelamento disponível"
-            selected={method === "card"}
-            onPress={() => select("card")}
+            onPress={() => {}}
           />
           <Option
             title="Boleto"
             desc="Compensação em até 2 dias úteis"
-            selected={method === "boleto"}
-            onPress={() => select("boleto")}
+            onPress={() => {}}
           />
 
           <Pressable
             onPress={goNext}
-            style={[styles.primaryBtn, !canContinue ? { opacity: 0.6 } : null]}
+            style={styles.primaryBtn}
             accessibilityRole="button"
           >
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>

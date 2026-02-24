@@ -15,9 +15,6 @@ import { ProductCard } from "../../components/product-card";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
 import { categories, products } from "../../constants/products";
-import { isFlagEnabled } from "../../constants/flags";
-import { HomeAchadinhosEvents, track } from "../../lib/analytics";
-import { getAchadinhosOfDay } from "../../data/catalog";
 import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
@@ -30,12 +27,9 @@ export default function HomeScreen() {
 
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number]>("Todos");
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof categories)[number]>("Todos");
 
-  const [achadinhosSeen, setAchadinhosSeen] = useState(false);
-  const [achadinhosScrolled, setAchadinhosScrolled] = useState(false);
-
-  const achadinhos = useMemo(() => getAchadinhosOfDay(10), []);
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -100,48 +94,6 @@ export default function HomeScreen() {
             <View style={[styles.heroLine, { width: 42 }]} />
           </View>
         </ThemedView>
-
-        
-        {/* [AUTOPILOT_HOME_ACHADINHOS] shelf com flag + métricas */}
-        {isFlagEnabled("ff_home_achadinhos_shelf") && achadinhos.length > 0 ? (
-          <ThemedView
-            style={styles.achadinhosSection}
-            onLayout={() => {
-              if (!achadinhosSeen) {
-                setAchadinhosSeen(true);
-                track(HomeAchadinhosEvents.impression, { count: achadinhos.length });
-              }
-            }}
-          >
-            <View style={styles.sectionHeader}>
-              <ThemedText type="sectionTitle">Achadinhos do Dia</ThemedText>
-              <ThemedText type="caption">ofertas com desconto</ThemedText>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.achadinhosScroll}
-              scrollEventThrottle={64}
-              onScroll={() => {
-                if (!achadinhosScrolled) {
-                  setAchadinhosScrolled(true);
-                  track(HomeAchadinhosEvents.shelfScroll, { count: achadinhos.length });
-                }
-              }}
-            >
-              {achadinhos.map((p) => (
-                <View key={p.id} style={styles.achadinhosItem}>
-                  <ProductCard
-                    product={p}
-                    variant="shelf"
-                    onPress={() => track(HomeAchadinhosEvents.cardClick, { id: p.id })}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </ThemedView>
-        ) : null}
 
         {/* ✅ Seção de busca + chips compactos */}
         <ThemedView style={styles.searchSection}>
@@ -358,10 +310,4 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-
-  achadinhosSection: { marginTop: 12 },
-  achadinhosScroll: { paddingLeft: 16, paddingRight: 4 },
-  achadinhosItem: { marginRight: 12 },
 });
-
-

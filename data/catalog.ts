@@ -201,13 +201,3 @@ export const products: Product[] = [
     origin: "dropi",
   },
 ];
-
-
-// [AUTOPILOT_HOME] helpers for curated shelves
-export function getAchadinhosOfDay(limit: number = 10): Product[] {
-  return products
-    .filter((p) => typeof p.discountPercent === "number" && (p.discountPercent ?? 0) > 0)
-    .sort((a, b) => (b.discountPercent ?? 0) - (a.discountPercent ?? 0))
-    .slice(0, Math.max(0, limit));
-}
-
