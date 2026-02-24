@@ -7,35 +7,35 @@ function Write-Json([string]$Path, [object]$Value, [int]$Depth = 50) {
   ($Value | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $Path -Encoding UTF8 -Force
 }
 
-function Ensure-File([string]$Path, [string]$Message) {
+function Initialize-File([string]$Path, [string]$Message) {
   if (!(Test-Path $Path)) { throw $Message }
 }
 
-function Git-HasChanges() {
+function Test-GitChanges() {
   $out = git status --porcelain
   return ($out -and $out.Trim().Length -gt 0)
 }
 
-function Git-HeadSha() {
+function Get-GitHeadSha() {
   return (git rev-parse HEAD).Trim()
 }
 
-function Git-Commit([string]$Message, [string]$AuthorName = $null, [string]$AuthorEmail = $null) {
+function Invoke-GitCommit([string]$Message, [string]$AuthorName = $null, [string]$AuthorEmail = $null) {
   git add -A | Out-Null
   if ($AuthorName -and $AuthorEmail) {
     git -c user.name="$AuthorName" -c user.email="$AuthorEmail" commit -m $Message | Out-Null
   } else {
     git commit -m $Message | Out-Null
   }
-  return Git-HeadSha
+  return Get-GitHeadSha
 }
 
-function Wrap-TrackCallsWithFlag(
+function Protect-TrackCallsWithFlag(
   [string]$FilePath,
   [string]$FlagName,
   [string]$TrackPrefix = "cart_"
 ) {
-  Ensure-File $FilePath ("Missing file: " + $FilePath)
+  Initialize-File $FilePath ("Missing file: " + $FilePath)
 
   $lines = Get-Content -LiteralPath $FilePath
   $changed = $false
@@ -67,8 +67,8 @@ function Wrap-TrackCallsWithFlag(
   return $changed
 }
 
-function Ensure-IsFlagEnabledImport([string]$FilePath) {
-  Ensure-File $FilePath ("Missing file: " + $FilePath)
+function Add-IsFlagEnabledImport([string]$FilePath) {
+  Initialize-File $FilePath ("Missing file: " + $FilePath)
 
   $text = Get-Content -LiteralPath $FilePath -Raw
 

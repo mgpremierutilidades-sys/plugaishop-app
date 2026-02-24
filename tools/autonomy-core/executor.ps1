@@ -1,4 +1,4 @@
-﻿# tools/autonomy-core/executor.ps1
+# tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TaskJson,
@@ -723,7 +723,7 @@ function Action-AutonomyHealthcheckV1() {
   $hc = @{
     utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     branch = (Git-Branch)
-    sha = (Git-HeadSha)
+    sha = (Get-GitHeadSha)
     queued = $queued
     consecutive_failures = ($state.consecutive_failures)
     last_failure_utc = ($state.last_failure_utc)
@@ -881,7 +881,7 @@ function Action-HomeAchadinhosShelfV1() {
   $catalogFile = Join-Path $RepoRoot "data/catalog.ts"
 
   foreach ($p in @($flagFile,$homeFile,$cardFile,$analyticsFile,$catalogFile)) {
-    Ensure-File $p ("Missing required file for HOME Achadinhos: " + $p)
+    Initialize-File $p ("Missing required file for HOME Achadinhos: " + $p)
   }
 
   $flags = Get-Content -LiteralPath $flagFile -Raw
@@ -956,14 +956,14 @@ switch ($action) {
     default { throw "Unknown action: $action" }
   }
 
-  if ($autocommitEnabled -and (Git-HasChanges)) {
+  if ($autocommitEnabled -and (Test-GitChanges)) {
     $msg = "autonomy(task): " + $task.id + " - " + $task.title
-    $sha = Git-Commit -Message $msg -AuthorName $authorName -AuthorEmail $authorEmail
+    $sha = Invoke-GitCommit -Message $msg -AuthorName $authorName -AuthorEmail $authorEmail
     $result.committed_sha = $sha
     $result.notes += ("committed_sha=" + $sha)
   } else {
     if (-not $autocommitEnabled) { $result.notes += "autocommit=disabled" }
-    if (-not (Git-HasChanges)) { $result.notes += "no_git_changes" }
+    if (-not (Test-GitChanges)) { $result.notes += "no_git_changes" }
   }
 
 } catch {
