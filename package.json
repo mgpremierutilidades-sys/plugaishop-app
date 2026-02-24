@@ -1,14 +1,23 @@
 {
   "name": "plugaishop-app",
-  "main": "expo-router/entry",
   "version": "1.0.0",
+  "main": "expo-router/entry",
+  "private": true,
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+
+    "lint": "expo lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preflight": "npm run lint && npm run typecheck",
+    "ci": "npm run preflight",
+
+    "doctor": "expo doctor",
+    "clean": "node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true });\"",
+
+    "reset-project": "node ./scripts/reset-project.js"
   },
   "dependencies": {
     "@expo-google-fonts/arimo": "^0.4.2",
@@ -50,6 +59,5 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
-  },
-  "private": true
+  }
 }

@@ -1,14 +1,17 @@
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { isFlagEnabled } from "@/constants/flags";
 import { Product } from "@/constants/products";
 import { useThemeColor } from "@/hooks/use-theme-color";
 
 type ProductCardProps = {
   product: Product;
+  source?: "home" | "explore" | "unknown";
 };
 
 function formatBRL(value: number) {
@@ -16,7 +19,7 @@ function formatBRL(value: number) {
   return `R$ ${fixed}`;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
 
   const cardBg = useThemeColor(
@@ -42,85 +45,99 @@ export function ProductCard({ product }: ProductCardProps) {
     const s = (product.name || "").trim();
     if (!s) return "•";
     const parts = s.split(/\s+/).slice(0, 2);
-    return parts.map((p) => p[0]?.toUpperCase()).join("");
+    return parts.map((p: string) => p[0]?.toUpperCase()).join("");
   }, [product.name]);
 
+  function handleOpen() {
+    if (!isFlagEnabled("ff_pdp_v1")) return;
+
+    const id = String((product as any)?.id ?? "");
+    if (!id) return;
+
+    router.push({
+      pathname: "/product/[id]" as any,
+      params: { id, source },
+    } as any);
+  }
+
   return (
-    <ThemedView
-      style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
-    >
-      <View style={styles.topRow}>
-        <ThemedText type="caption" style={[styles.category, { color: muted }]}>
-          {product.category}
-        </ThemedText>
-
-        {product.badge ? (
-          <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
-            {product.badge}
+    <Pressable onPress={handleOpen} style={({ pressed }) => pressed ? { opacity: 0.96 } : null}>
+      <ThemedView
+        style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
+      >
+        <View style={styles.topRow}>
+          <ThemedText type="caption" style={[styles.category, { color: muted }]}>
+            {product.category}
           </ThemedText>
-        ) : (
-          <View style={{ width: 1 }} />
-        )}
-      </View>
 
-      <View style={[styles.imageWrap, { backgroundColor: imageBg }]}>
-        {!imgFailed ? (
-          <Image
-            source={product.image}
-            contentFit="cover"
-            transition={120}
-            style={styles.image}
-            accessibilityLabel={product.name}
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <View style={styles.fallback}>
-            <View style={[styles.fallbackBadge, { borderColor: border }]}>
+          {(product as any).badge ? (
+            <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
+              {(product as any).badge}
+            </ThemedText>
+          ) : (
+            <View style={{ width: 1 }} />
+          )}
+        </View>
+
+        <View style={[styles.imageWrap, { backgroundColor: imageBg }]}>
+          {!imgFailed ? (
+            <Image
+              source={(product as any).image}
+              contentFit="cover"
+              transition={120}
+              style={styles.image}
+              accessibilityLabel={product.name}
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <View style={styles.fallback}>
+              <View style={[styles.fallbackBadge, { borderColor: border }]}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={[styles.fallbackText, { color: muted }]}
+                >
+                  {initials}
+                </ThemedText>
+              </View>
               <ThemedText
-                type="defaultSemiBold"
-                style={[styles.fallbackText, { color: muted }]}
+                type="caption"
+                style={[styles.fallbackHint, { color: muted }]}
               >
-                {initials}
+                Imagem indisponível
               </ThemedText>
             </View>
-            <ThemedText
-              type="caption"
-              style={[styles.fallbackHint, { color: muted }]}
-            >
-              Imagem indisponível
-            </ThemedText>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      <View style={styles.info}>
-        <ThemedText
-          type="defaultSemiBold"
-          style={styles.title}
-          numberOfLines={2}
-        >
-          {product.name}
-        </ThemedText>
+        <View style={styles.info}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={styles.title}
+            numberOfLines={2}
+          >
+            {product.name}
+          </ThemedText>
 
-        <ThemedText
-          type="caption"
-          style={[styles.desc, { color: muted }]}
-          numberOfLines={2}
-        >
-          {product.description}
-        </ThemedText>
-      </View>
+          <ThemedText
+            type="caption"
+            style={[styles.desc, { color: muted }]}
+            numberOfLines={2}
+          >
+            {product.description}
+          </ThemedText>
+        </View>
 
-      <View style={styles.footer}>
-        <ThemedText type="defaultSemiBold" style={styles.price}>
-          {formatBRL(product.price)}
-        </ThemedText>
+        <View style={styles.footer}>
+          <ThemedText type="defaultSemiBold" style={styles.price}>
+            {formatBRL(product.price)}
+          </ThemedText>
 
-        <ThemedText type="caption" style={[styles.link, { color: accent }]}>
-          Ver detalhes
-        </ThemedText>
-      </View>
-    </ThemedView>
+          <ThemedText type="caption" style={[styles.link, { color: accent }]}>
+            Ver detalhes
+          </ThemedText>
+        </View>
+      </ThemedView>
+    </Pressable>
   );
 }
 

@@ -18,9 +18,12 @@ export type Shipping = {
   deadline: string;
 };
 
+export type PaymentMethod = "pix" | "card" | "boleto" | "cash" | "unknown";
+export type PaymentStatus = "paid" | "pending" | "failed";
+
 export type Payment = {
-  method?: "pix" | "card" | "boleto" | "cash" | "unknown";
-  status?: "paid" | "pending" | "failed";
+  method?: PaymentMethod;
+  status?: PaymentStatus;
 };
 
 export type OrderDraft = {
@@ -31,13 +34,21 @@ export type OrderDraft = {
   id?: string;
 
   items: CartItem[];
+
+  /** soma dos itens (sem frete/desconto) */
   subtotal: number;
 
   /** desconto total aplicado ao pedido (default: 0) */
-  discount?: number;
+  discount: number;
 
   shipping?: Shipping;
+
+  /**
+   * total final (subtotal - discount + shipping.price)
+   * Observação: mantenha sempre consistente na camada de storage/bridge.
+   */
   total: number;
+
   address?: Address;
   payment?: Payment;
   note?: string;
@@ -59,7 +70,7 @@ export type InAppNotification = {
   body: string;
   createdAt: string; // ISO
   read?: boolean;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   orderId?: string;
 };
 
@@ -108,7 +119,10 @@ export type OrderReview = {
   createdAt: string; // ISO
 };
 
-export type ReturnType = "refund" | "exchange" | "repair" | "other";
+/**
+ * RENOMEADO: evita conflito com o utilitário global ReturnType<T> do TS.
+ */
+export type ReturnKind = "refund" | "exchange" | "repair" | "other";
 
 export type ReturnAttachment = {
   id: string;
@@ -134,7 +148,7 @@ export type ReturnRequest = {
   id?: string;
   orderId?: string;
 
-  type: ReturnType;
+  type: ReturnKind;
   reason?: string;
   status?: ReturnRequestStatus;
   createdAt: string; // ISO

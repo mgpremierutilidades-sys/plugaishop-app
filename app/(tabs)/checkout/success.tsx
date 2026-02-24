@@ -1,262 +1,186 @@
-// app/(tabs)/checkout/success.tsx
 import { router } from "expo-router";
-import { useCallback, useRef } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../../components/themed-text";
-import { ThemedView } from "../../../components/themed-view";
-import theme, { Radius, Spacing } from "../../../constants/theme";
-import { useCart } from "../../../context/CartContext";
-import { addOrder, createOrderFromCart } from "../../../utils/ordersStore";
+import { AppHeader } from "../../../components/AppHeader";
+import { isFlagEnabled } from "../../../constants/flags";
+import theme from "../../../constants/theme";
+import { track } from "../../../lib/analytics";
+import { buildOrderFromDraft } from "../../../lib/orderFactory";
+import type { OrderDraft } from "../../../types/order";
+import { loadOrderDraft, saveOrderDraft } from "../../../utils/orderStorage";
+import { addOrder } from "../../../utils/ordersStorage";
 
-function normalizeCartItems(cartAny: any) {
-  const raw =
-    cartAny?.items ??
-    cartAny?.cartItems ??
-    cartAny?.cart ??
-    cartAny?.products ??
-    [];
-
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .map((it) => {
-      const product = it?.product ?? it?.item ?? it;
-      const productId = product?.id ?? it?.productId ?? it?.id;
-      const title = product?.title ?? it?.title ?? "Produto";
-      const price = product?.price ?? it?.price ?? 0;
-      const qty = it?.qty ?? it?.quantity ?? 1;
-
-      if (productId == null) return null;
-
-      return {
-        productId: String(productId),
-        title: String(title),
-        price: Number(price ?? 0),
-        qty: Math.max(1, Number(qty ?? 1)),
-      };
-    })
-    .filter(Boolean) as {
-    productId: string;
-    qty: number;
-    price: number;
-    title: string;
-  }[];
+function formatBRL(value: number) {
+  const n = Number.isFinite(value) ? value : 0;
+  return `R$ ${n.toFixed(2)}`.replace(".", ",");
 }
 
-export default function CheckoutSuccessScreen() {
-  const cartAny = useCart() as any;
-  const creatingRef = useRef(false);
+export default function Success() {
+  const insets = useSafeAreaInsets();
 
-  const clearCart = useCallback(() => {
-    if (typeof cartAny?.clearCart === "function") cartAny.clearCart();
-    else if (typeof cartAny?.clear === "function") cartAny.clear();
-    else if (typeof cartAny?.reset === "function") cartAny.reset();
-  }, [cartAny]);
+  const [draft, setDraft] = useState<OrderDraft | null>(null);
+  const [orderId, setOrderId] = useState<string>("");
 
-  const generateOrder = useCallback(async () => {
-    if (creatingRef.current) return null;
-    creatingRef.current = true;
+  useEffect(() => {
+    let alive = true;
 
+    (async () => {
+      const d = await loadOrderDraft();
+      if (!alive) return;
+
+      setDraft(d ?? null);
+
+      // Rollback: se flag off, não persiste nada
+      if (!d || !isFlagEnabled("ff_orders_v1")) {
+        try {
+          track("checkout_success", { persisted: false });
+        } catch {}
+        return;
+      }
+
+      // Constrói e persiste pedido
+      const order = buildOrderFromDraft(d);
+
+      try {
+        await addOrder(order);
+        setOrderId(order.id);
+
+        // Limpa draft: marca como "finalizado" e remove itens (evita duplicação)
+        await saveOrderDraft({
+          ...d,
+          id: order.id,
+          items: [],
+          subtotal: 0,
+          discount: 0,
+          total: 0,
+          note: "",
+          shipping: d.shipping,
+          address: d.address,
+          payment: d.payment,
+        });
+
+        try {
+          track("order_created", {
+            order_id: order.id,
+            subtotal: order.subtotal,
+            discount: order.discount,
+            shipping_price: order.shipping?.price ?? 0,
+            total: order.total,
+            items_count: order.items?.length ?? 0,
+            payment_method: order.payment?.method ?? "unknown",
+            payment_status: order.payment?.status ?? "pending",
+          });
+          track("checkout_success", { persisted: true, order_id: order.id });
+        } catch {}
+      } catch {
+        // Se falhar persistência, ainda mantém sucesso, mas registra
+        try {
+          track("checkout_success", { persisted: false, error: "persist_failed" });
+        } catch {}
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function goOrders() {
+    // Se você tiver /orders index route
     try {
-      const items = normalizeCartItems(cartAny);
-      if (!items.length) return null;
-
-      // Importante:
-      // status Ã© TÃ‰CNICO (created/paid/...) â€” label "Confirmado" Ã© sÃ³ para UI.
-      const order = createOrderFromCart({
-        items,
-        discount: 0,
-        shipping: 0,
-      });
-
-      await addOrder(order);
-      return order;
-    } finally {
-      creatingRef.current = false;
+      router.push("/orders" as any);
+    } catch {
+      try {
+        router.push("/(tabs)/orders" as any);
+      } catch {}
     }
-  }, [cartAny]);
+  }
 
-  const goOrders = () => router.push("/orders" as any);
-  const goHome = () => router.push("/(tabs)" as any);
-
-  const goToLatestOrder = async () => {
-    const order = await generateOrder();
-    clearCart();
-
-    if (order?.id) {
-      router.push(`/orders/${order.id}` as any);
-      return;
+  function goHome() {
+    try {
+      router.push("/(tabs)" as any);
+    } catch {
+      router.push("/" as any);
     }
+  }
 
-    Alert.alert("Pedido", "Seu pedido foi confirmado.");
-    goOrders();
-  };
-
-  const justGoOrders = async () => {
-    await generateOrder();
-    clearCart();
-    goOrders();
-  };
+  const total = draft?.total ?? 0;
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
-      <ThemedView style={styles.container}>
-        <View style={styles.topbar}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.backBtn}
-          >
-            <ThemedText style={styles.backArrow}>â†</ThemedText>
-          </Pressable>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader title="Sucesso" showBack />
 
-          <ThemedText style={styles.title}>Compra concluÃ­da</ThemedText>
+      <View
+        style={{
+          flex: 1,
+          padding: 16,
+          paddingTop: 12,
+          paddingBottom: 16 + insets.bottom,
+          gap: 12,
+        }}
+      >
+        <Text style={{ fontSize: 22, fontWeight: "900", color: theme.colors.text }}>
+          Pedido confirmado ✅
+        </Text>
 
-          <View style={{ width: 44 }} />
+        <Text style={{ fontSize: 13, opacity: 0.75, color: theme.colors.text }}>
+          {orderId ? `Pedido: ${orderId}` : "Seu pedido foi registrado."}
+        </Text>
+
+        <View
+          style={{
+            marginTop: 8,
+            padding: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            backgroundColor: theme.colors.surface,
+            gap: 6,
+          }}
+        >
+          <Text style={{ fontSize: 12, opacity: 0.75, color: theme.colors.text }}>
+            Total pago
+          </Text>
+          <Text style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
+            {formatBRL(total)}
+          </Text>
         </View>
 
-        <ThemedView style={styles.card}>
-          <ThemedText style={styles.h1}>Pedido confirmado</ThemedText>
-          <ThemedText style={styles.p}>
-            Seu pedido foi registrado com sucesso. VocÃª pode acompanhar em
-            â€œPedidosâ€.
-          </ThemedText>
+        <Pressable
+          onPress={goOrders}
+          style={{
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: theme.colors.divider,
+            padding: 14,
+            borderRadius: 12,
+            backgroundColor: theme.colors.surface,
+          }}
+        >
+          <Text style={{ textAlign: "center", fontWeight: "800", color: theme.colors.text }}>
+            Ver meus pedidos
+          </Text>
+        </Pressable>
 
-          <View style={{ height: 6 }} />
+        <Pressable
+          onPress={goHome}
+          style={{
+            backgroundColor: theme.colors.success,
+            padding: 14,
+            borderRadius: 12,
+          }}
+        >
+          <Text style={{ textAlign: "center", fontWeight: "900", color: "#000" }}>
+            Continuar comprando
+          </Text>
+        </Pressable>
 
-          <Pressable onPress={goToLatestOrder} style={styles.primaryBtn}>
-            <ThemedText style={styles.primaryBtnText}>
-              Ver pedido agora
-            </ThemedText>
-          </Pressable>
-
-          <Pressable onPress={justGoOrders} style={styles.secondaryBtn}>
-            <ThemedText style={styles.secondaryBtnText}>
-              Ir para Pedidos
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              clearCart();
-              goHome();
-            }}
-            style={styles.ghostBtn}
-          >
-            <ThemedText style={styles.ghostBtnText}>
-              Voltar ao inÃ­cio
-            </ThemedText>
-          </Pressable>
-        </ThemedView>
-      </ThemedView>
-    </SafeAreaView>
+        <Text style={{ fontSize: 12, opacity: 0.65, color: theme.colors.text }}>
+          Dica: no V2 vamos mostrar tracking, nota fiscal e suporte por pedido.
+        </Text>
+      </View>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-
-  topbar: {
-    height: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  backArrow: {
-    fontFamily: "Arimo",
-    fontSize: 22,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  title: {
-    fontFamily: "Arimo",
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  h1: {
-    fontFamily: "Arimo",
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  p: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    color: "rgba(0,0,0,0.65)",
-    lineHeight: 16,
-  },
-
-  primaryBtn: {
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.primary,
-  },
-  primaryBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-
-  secondaryBtn: {
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  secondaryBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.primary,
-  },
-
-  ghostBtn: {
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  ghostBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-});

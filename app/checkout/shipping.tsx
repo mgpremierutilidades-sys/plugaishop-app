@@ -1,4 +1,5 @@
 // app/checkout/shipping.tsx
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -10,15 +11,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
+import { AppHeader, HEADER_HEIGHT } from "../../components/AppHeader";
 import theme from "../../constants/theme";
 import type { OrderDraft } from "../../types/order";
-import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
-import { formatCEP, normalizeCEP, isValidCEP } from "../../utils/cep";
-import { getShippingOptions } from "../../utils/shippingService";
+import { formatCEP, isValidCEP, normalizeCEP } from "../../utils/cep";
 import { patchOrderDraft } from "../../utils/orderDraftPatch";
-import { AppHeader, HEADER_HEIGHT } from "../../components/AppHeader";
+import { loadOrderDraft, saveOrderDraft } from "../../utils/orderStorage";
+import { getShippingOptions, type ShippingOption } from "../../utils/shippingService";
 
 const FOOTER_H = 56;
 
@@ -26,14 +26,14 @@ function formatBRL(value: number) {
   return `R$ ${value.toFixed(2)}`.replace(".", ",");
 }
 
+type ShippingOptionId = "standard" | "express";
+
 export default function ShippingScreen() {
   const insets = useSafeAreaInsets();
 
   const [draft, setDraft] = useState<OrderDraft | null>(null);
   const [cep, setCep] = useState("");
-  const [selectedId, setSelectedId] = useState<"pac" | "sedex" | "express">(
-    "pac",
-  );
+  const [selectedId, setSelectedId] = useState<ShippingOptionId>("standard");
 
   useEffect(() => {
     (async () => {
@@ -42,33 +42,46 @@ export default function ShippingScreen() {
 
       const initialCep = d?.address?.zip ?? "";
       setCep(formatCEP(initialCep));
-      if (d?.shipping?.method?.toLowerCase().includes("sedex"))
-        setSelectedId("sedex");
-      if (d?.shipping?.method?.toLowerCase().includes("express"))
-        setSelectedId("express");
+
+      const method = String(d?.shipping?.method ?? "").toLowerCase();
+      if (method.includes("express")) setSelectedId("express");
+      else setSelectedId("standard");
     })();
   }, []);
-
-  const options = useMemo(() => getShippingOptions(cep), [cep]);
-  const selected = useMemo(
-    () => options.find((o) => o.id === selectedId) ?? options[0],
-    [options, selectedId],
-  );
 
   const zip8 = normalizeCEP(cep);
   const valid = isValidCEP(zip8);
 
+  const subtotal = useMemo(() => {
+    // subtotal do draft (fallback 0)
+    const s = Number(draft?.subtotal ?? 0);
+    return Number.isFinite(s) ? s : 0;
+  }, [draft?.subtotal]);
+
+  const options = useMemo<ShippingOption[]>(() => {
+    if (!valid) return [];
+    return getShippingOptions({ cep: zip8, subtotal });
+  }, [valid, zip8, subtotal]);
+
+  const selected = useMemo<ShippingOption | null>(() => {
+    if (!options.length) return null;
+    return options.find((o: ShippingOption) => o.id === selectedId) ?? options[0];
+  }, [options, selectedId]);
+
   async function handleContinue() {
     if (!draft) return;
     if (!valid) return;
+    if (!selected) return;
 
     const next = patchOrderDraft(draft, {
-      address: { ...(draft.address ?? { id: "addr-1" }), zip: zip8 } as any,
+      address: { ...(draft.address ?? { id: "addr-1" }), zip: zip8 },
       shipping: {
         method: selected.method,
         price: selected.price,
         deadline: selected.deadline,
       },
+      // total permanece como está; caso você queira recalcular com frete,
+      // faça isso no builder/bridge do checkout (melhor governança).
     });
 
     await saveOrderDraft(next);
@@ -128,45 +141,69 @@ export default function ShippingScreen() {
               />
 
               <View style={{ marginTop: 14 }}>
-                {options.map((o) => {
-                  const active = o.id === selectedId;
-                  return (
-                    <Pressable
-                      key={o.id}
-                      onPress={() => setSelectedId(o.id)}
-                      style={{
-                        padding: 12,
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: active
-                          ? theme.colors.primary
-                          : theme.colors.divider,
-                        backgroundColor: theme.colors.surface,
-                        marginBottom: 10,
-                      }}
-                    >
-                      <Text
+                {!valid ? (
+                  <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+                    Informe um CEP válido (8 dígitos).
+                  </Text>
+                ) : options.length === 0 ? (
+                  <Text style={{ fontSize: 12, opacity: 0.7, color: theme.colors.text }}>
+                    Sem opções de frete para este CEP no mock.
+                  </Text>
+                ) : (
+                  options.map((o: ShippingOption) => {
+                    const active = o.id === selectedId;
+                    return (
+                      <Pressable
+                        key={o.id}
+                        onPress={() => setSelectedId(o.id as ShippingOptionId)}
                         style={{
-                          fontSize: 12,
-                          fontWeight: "bold",
-                          color: theme.colors.text,
+                          padding: 12,
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: active
+                            ? theme.colors.primary
+                            : theme.colors.divider,
+                          backgroundColor: theme.colors.surface,
+                          marginBottom: 10,
                         }}
                       >
-                        {o.method}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          opacity: 0.7,
-                          marginTop: 4,
-                          color: theme.colors.text,
-                        }}
-                      >
-                        {o.deadline} • {o.price > 0 ? formatBRL(o.price) : "—"}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "bold",
+                            color: theme.colors.text,
+                          }}
+                        >
+                          {o.title}
+                        </Text>
+
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            opacity: 0.7,
+                            marginTop: 4,
+                            color: theme.colors.text,
+                          }}
+                        >
+                          {o.deadline} • {o.price > 0 ? formatBRL(o.price) : "Frete grátis"}
+                        </Text>
+
+                        {o.subtitle ? (
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              opacity: 0.6,
+                              marginTop: 3,
+                              color: theme.colors.text,
+                            }}
+                          >
+                            {o.subtitle}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                )}
               </View>
 
               <Text
@@ -177,8 +214,7 @@ export default function ShippingScreen() {
                   color: theme.colors.text,
                 }}
               >
-                Integração futura: cálculo real por CEP. Por ora, opções
-                simuladas.
+                Integração futura: cálculo real por CEP. Por ora, opções simuladas.
               </Text>
             </>
           )}
@@ -196,19 +232,17 @@ export default function ShippingScreen() {
         >
           <Pressable
             onPress={handleContinue}
-            disabled={!draft || !valid}
+            disabled={!draft || !valid || !selected}
             style={{
               height: FOOTER_H,
               backgroundColor: theme.colors.success,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
-              opacity: draft && valid ? 1 : 0.5,
+              opacity: draft && valid && selected ? 1 : 0.5,
             }}
           >
-            <Text
-              style={{ color: "#000", fontWeight: "800", textAlign: "center" }}
-            >
+            <Text style={{ color: "#000", fontWeight: "800", textAlign: "center" }}>
               CONTINUAR
             </Text>
           </Pressable>
