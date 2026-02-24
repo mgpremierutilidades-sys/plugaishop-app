@@ -1,5 +1,10 @@
+# tools/autonomy-core/lib.ps1
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 function Read-Json([string]$Path) {
-  if (!(Test-Path $Path)) { return $null }
+  if (!(Test-Path -LiteralPath $Path)) { return $null }
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
 
@@ -8,33 +13,48 @@ function Write-Json([string]$Path, [object]$Value, [int]$Depth = 50) {
 }
 
 function Initialize-File([string]$Path, [string]$Message) {
-  if (!(Test-Path $Path)) { throw $Message }
+  if (!(Test-Path -LiteralPath $Path)) { throw $Message }
 }
 
-function Test-GitChange() {
+function Test-GitChanges {
   $out = git status --porcelain
   return ($out -and $out.Trim().Length -gt 0)
 }
 
-function Get-GitHeadSha() {
+# compat: alguns scripts antigos podem chamar no singular
+function Test-GitChange {
+  return (Test-GitChanges)
+}
+
+function Get-GitHeadSha {
   return (git rev-parse HEAD).Trim()
 }
 
-function Invoke-GitCommit([string]$Message, [string]$AuthorName = $null, [string]$AuthorEmail = $null) {
+function Invoke-GitCommit {
+  param(
+    [Parameter(Mandatory = $true)][string]$Message,
+    [string]$AuthorName = $null,
+    [string]$AuthorEmail = $null
+  )
+
   git add -A | Out-Null
+
   if ($AuthorName -and $AuthorEmail) {
     git -c user.name="$AuthorName" -c user.email="$AuthorEmail" commit -m $Message | Out-Null
   } else {
     git commit -m $Message | Out-Null
   }
-  return Get-GitHeadSha
+
+  return (Get-GitHeadSha)
 }
 
-function Protect-TrackCallsWithFlag(
-  [string]$FilePath,
-  [string]$FlagName,
-  [string]$TrackPrefix = "cart_"
-) {
+function Protect-TrackCallsWithFlag {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string]$FlagName,
+    [string]$TrackPrefix = "cart_"
+  )
+
   Initialize-File $FilePath ("Missing file: " + $FilePath)
 
   $lines = Get-Content -LiteralPath $FilePath
@@ -43,18 +63,10 @@ function Protect-TrackCallsWithFlag(
   for ($i = 0; $i -lt $lines.Count; $i++) {
     $line = $lines[$i]
 
-    # Só linhas com track("cart_...") (ou track('cart_...'))
     if ($line -match 'track\(\s*["' + "'" + ']' + [regex]::Escape($TrackPrefix)) {
-
       # Já está guardado?
-      if ($line -match [regex]::Escape("isFlagEnabled(`"$FlagName`")") -or
-          $line -match [regex]::Escape("isFlagEnabled('$FlagName')") -or
-          $line -match [regex]::Escape('isFlagEnabled("' + $FlagName + '")') -or
-          $line -match [regex]::Escape("isFlagEnabled(")) {
-        continue
-      }
+      if ($line -match 'isFlagEnabled\(') { continue }
 
-      # Converte "track(...);" -> "if (isFlagEnabled("ff")) track(...);"
       $lines[$i] = 'if (isFlagEnabled("' + $FlagName + '")) ' + $line.TrimStart()
       $changed = $true
     }
@@ -67,45 +79,29 @@ function Protect-TrackCallsWithFlag(
   return $changed
 }
 
-function Add-IsFlagEnabledImport([string]$FilePath) {
+function Add-IsFlagEnabledImport {
+  param([Parameter(Mandatory = $true)][string]$FilePath)
+
   Initialize-File $FilePath ("Missing file: " + $FilePath)
 
   $text = Get-Content -LiteralPath $FilePath -Raw
 
-  # Já importa?
-  if ($text -match 'isFlagEnabled') {
-    # Pode ser uso sem import; vamos checar import explícito
-    if ($text -match 'import\s*\{\s*isFlagEnabled\s*\}\s*from\s*["' + "'" + '].*/constants/flags["' + "'" + ']\s*;') {
-      return $false
-    }
-  }
-
   # Se não usa isFlagEnabled no arquivo, não faz nada
   if (!($text -match 'isFlagEnabled\(')) { return $false }
 
-  # Inserir import no topo, após a última linha de import existente
+  # Já existe import de constants/flags?
+  if ($text -match 'from\s*["' + "'" + '].*constants/flags["' + "'" + ']\s*;') { return $false }
+
   $lines = Get-Content -LiteralPath $FilePath
   $lastImportIdx = -1
   for ($i = 0; $i -lt $lines.Count; $i++) {
     if ($lines[$i] -match '^\s*import\s+') { $lastImportIdx = $i }
   }
 
+  # Heurística simples de caminho relativo
   $importLine = 'import { isFlagEnabled } from "../../constants/flags";'
-
-  # Se é cart.tsx (app/(tabs)/cart.tsx) o relative é ../../constants/flags (já usado)
-  if ($FilePath -match 'app[\\/]\(tabs\)[\\/]cart\.tsx$') {
-    $importLine = 'import { isFlagEnabled } from "../../constants/flags";'
-  }
-
-  # Se é context/CartContext.tsx, relative é ../constants/flags
-  if ($FilePath -match 'context[\\/]CartContext\.tsx$') {
-    $importLine = 'import { isFlagEnabled } from "../constants/flags";'
-  }
-
-  # Já existe import de flags com path diferente?
-  if ($text -match 'from\s*["' + "'" + '].*constants/flags["' + "'" + ']\s*;') {
-    return $false
-  }
+  if ($FilePath -match 'context[\\/]CartContext\.tsx$') { $importLine = 'import { isFlagEnabled } from "../constants/flags";' }
+  if ($FilePath -match 'app[\\/]\(tabs\)[\\/]checkout[\\/].*\.tsx$') { $importLine = 'import { isFlagEnabled } from "../../../constants/flags";' }
 
   $newLines = @()
   if ($lastImportIdx -ge 0) {

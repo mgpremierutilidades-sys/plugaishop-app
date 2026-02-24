@@ -2,6 +2,16 @@
   "v": 1,
   "queue": [
     {
+      "id": "AUTONOMY-101",
+      "title": "Autonomy healthcheck",
+      "status": "queued",
+      "type": "meta",
+      "created_utc": "2026-02-24T00:00:00Z",
+      "payload": {
+        "action": "autonomy_healthcheck_v1"
+      }
+    },
+    {
       "id": "AUTONOMY-000",
       "title": "Bootstrap autonomy core",
       "status": "done",

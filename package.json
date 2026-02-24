@@ -10,12 +10,16 @@
     "web": "expo start --web",
 
     "lint": "expo lint",
+    "lint:fix": "expo lint --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preflight": "npm run lint && npm run typecheck",
     "ci": "npm run preflight",
 
     "doctor": "expo doctor",
     "clean": "node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true });\"",
+
+    "autonomy": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/autonomy-core/runner.ps1",
+    "autofix": "pwsh -NoProfile -ExecutionPolicy Bypass -File ops/autofix-eslint-ts.ps1",
 
     "reset-project": "node ./scripts/reset-project.js"
   },

@@ -100,7 +100,7 @@ function Update-RunnerPauseOnFailures([string]$RunnerPath) {
 
   $insert = @"
 # AUTONOMY-011: pause on consecutive failures
-# Pausa execuÃ§Ã£o se consecutive_failures >= 3 (evita loop de rollback)
+# Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
 try {
   `$StatePath = Join-Path `$CoreDir "_state\state.json"
   if (Test-Path `$StatePath) {
@@ -460,6 +460,7 @@ try {
     default { throw "Unknown action: $action" }
   }
 
+  # ✅ AUTOCOMMIT (fix: use Test-GitChange as defined in lib.ps1)
   if ($autocommitEnabled -and (Test-GitChange)) {
     $msg = "autonomy(task): " + $task.id + " - " + $task.title
     $sha = Invoke-GitCommit -Message $msg -AuthorName $authorName -AuthorEmail $authorEmail
