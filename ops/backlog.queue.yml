@@ -1,3 +1,18 @@
+- id: APP-102
+  area: checkout
+  title: "Checkout: shipping.price em Review + evitar regressão"
+  target_files:
+    - app/(tabs)/checkout/review.tsx
+    - app/checkout/review.tsx
+    - app/(tabs)/checkout/payment.tsx
+    - app/checkout/payment.tsx
+    - tools/autonomy-core/executor.ps1
+  flag: 
+  metrics:
+    - checkout.review.shipping_price_fix
+  status: done
+  risk: low
+
 - id: TICK-0001
   area: home
   title: "Home: Achadinhos do Dia (shelf) com flag + métricas"
@@ -14,6 +29,7 @@
     - home.achadinhos.shelf_scroll
   status: done
   risk: low
+
 - id: TICK-0002
   area: trust
   title: "Reviews: Compra Verificada + filtro (flag + métricas)"
@@ -34,3 +50,4 @@
     - reviews.write_attempt
   status: blocked
   risk: low
+

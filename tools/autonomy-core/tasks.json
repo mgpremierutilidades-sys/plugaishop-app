@@ -1,25 +1,24 @@
-// PATH: tools/autonomy-core/_state/tasks.json
 {
   "v": 1,
   "queue": [
     {
-      "id": "AUTONOMY-201",
-      "title": "Autonomy pause on failures",
+      "id": "APP-102",
+      "title": "Fix checkout shipping price usage (shipping.price) + prevent regression in payment generator",
       "status": "queued",
-      "type": "meta",
+      "type": "app",
       "created_utc": "2026-02-24T00:00:00Z",
       "payload": {
-        "action": "autonomy_pause_on_failures_v1"
+        "action": "fix_checkout_shipping_price_v1"
       }
     },
     {
-      "id": "AUTONOMY-000",
-      "title": "Bootstrap autonomy core",
+      "id": "APP-101",
+      "title": "Fix checkout review discount undefined + defaults",
       "status": "done",
-      "type": "meta",
-      "created_utc": "2026-02-20T00:00:00Z",
+      "type": "app",
+      "created_utc": "2026-02-24T00:00:00Z",
       "payload": {
-        "note": "Inicialização do autonomy-core (infra)."
+        "action": "fix_checkout_review_discount_v1"
       }
     }
   ]

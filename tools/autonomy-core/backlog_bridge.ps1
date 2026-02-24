@@ -100,11 +100,12 @@ function Set-BacklogItem {
     if ($it.title) { $out.Add("  title: `"$($it.title)`"") }
     $out.Add("  target_files:")
     foreach ($f in @($it.target_files)) { $out.Add("    - $f") }
-    if ($it.flag) { $out.Add("  flag: $($it.flag)") }
+    if ($it.flag -ne $null) { $out.Add("  flag: $($it.flag)") }
     $out.Add("  metrics:")
     foreach ($m in @($it.metrics)) { $out.Add("    - $m") }
     $out.Add("  status: $($it.status)")
     if ($it.risk) { $out.Add("  risk: $($it.risk)") }
+    $out.Add("")
   }
 
   $tmp = "$yamlPath.tmp"
@@ -121,6 +122,15 @@ function Initialize-TasksObject([object]$t) {
   return $t
 }
 
+function Reset-TaskRunFields([object]$t) {
+  # Clear known runtime timestamps if they exist
+  foreach ($k in @("running_utc","failed_utc","completed_utc")) {
+    if ($t.PSObject.Properties.Name -contains $k) {
+      $t | Add-Member -NotePropertyName $k -NotePropertyValue $null -Force
+    }
+  }
+}
+
 function Import-BacklogItem() {
   $items = Get-BacklogItem -yamlPath $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
@@ -131,10 +141,24 @@ function Import-BacklogItem() {
 
   $tasks = Initialize-TasksObject (Get-JsonObject -p $TasksPath)
 
+  # If task already exists, requeue if needed (FAILED -> QUEUED)
   foreach ($t in @($tasks.queue)) {
-    if (($t.id+"") -eq ($pick.id+"")) { return }
+    if (($t.id+"") -ne ($pick.id+"")) { continue }
+
+    $st = ($t.status+"")
+    if ($st -eq "failed") {
+      $t.status = "queued"
+      Reset-TaskRunFields $t
+      Set-JsonObjectAtomic -p $TasksPath -obj $tasks -Depth 80
+
+      $pick.status = "in_progress"
+      Set-BacklogItem -yamlPath $BacklogPath -items $items
+    }
+
+    return
   }
 
+  # Otherwise add as new task
   $now = Get-UtcNowIso
   $task = [ordered]@{
     id = $pick.id
