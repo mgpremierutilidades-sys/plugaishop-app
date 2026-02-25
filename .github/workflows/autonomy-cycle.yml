@@ -1,13 +1,9 @@
-<<<<<<< HEAD
-# PATH: .github/workflows/autonomy-cycle.yml
-=======
->>>>>>> origin/main
 name: Autonomy Cycle (Backlog)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
@@ -39,7 +35,6 @@ jobs:
         run: npm ci --no-audit --fund=false
 
       - name: Configure git
-<<<<<<< HEAD
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -68,7 +63,7 @@ jobs:
           $thresholdSec = 900
           git fetch origin +refs/heads/autonomy/heartbeat:refs/remotes/origin/autonomy/heartbeat 2>$null
 
-          $has = git show-ref --verify --quiet "refs/remotes/origin/autonomy/heartbeat"
+          git show-ref --verify --quiet "refs/remotes/origin/autonomy/heartbeat"
           if ($LASTEXITCODE -ne 0) {
             Write-Host "No previous heartbeat branch found; skipping alarm."
             exit 0
@@ -88,9 +83,7 @@ jobs:
           $title = "AUTONOMY DOWN: heartbeat gap detected"
           $body  = "Detected heartbeat gap of ${delta}s (> ${thresholdSec}s).`n`n- Repo: $env:GITHUB_REPOSITORY`n- Workflow: $env:GITHUB_WORKFLOW`n- Trigger: $env:AUTONOMY_TRIGGER`n- Run: $env:GITHUB_RUN_ID"
 
-          try {
-            gh issue list --search "$title" --json number --limit 1 | Out-Null
-          } catch {}
+          try { gh issue list --search "$title" --json number --limit 1 | Out-Null } catch {}
 
           try {
             gh issue create --title $title --body $body --label "autopilot,autonomy-down" | Out-Null
@@ -99,12 +92,6 @@ jobs:
             Write-Host "Issue create failed (non-fatal): $($_.Exception.Message)"
           }
 
-=======
-        run: |
-          git config user.name "Plugaishop Autonomy"
-          git config user.email "autonomy@plugaishop.ai"
-
->>>>>>> origin/main
       - name: Prepare branches
         shell: pwsh
         run: |
@@ -126,7 +113,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-<<<<<<< HEAD
           AUTONOMY_TRIGGER: ${{ env.AUTONOMY_TRIGGER }}
 
       - name: Upload latest run summary (artifact)
@@ -186,8 +172,6 @@ jobs:
           }
 
           git worktree remove $tmp --force | Out-Null
-=======
->>>>>>> origin/main
 
       - name: Commit if changed
         id: commit
