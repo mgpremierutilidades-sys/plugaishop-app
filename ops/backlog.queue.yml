@@ -44,8 +44,151 @@
     - lib/analytics.ts
   flag: ff_order_success_v1
   metrics:
+<<<<<<< HEAD
     - order.success_view
     - order.continue_shopping_click
+=======
+    - reviews.section_view
+    - reviews.filter_verified_toggle
+    - reviews.badge_impression
+    - reviews.sort_change
+    - reviews.write_attempt
   status: done
+  risk: low
+
+- id: TICK-0003
+  area: trust
+  title: "Reviews: eventos ricos (card_click + list_render) com contexto"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.list_render
+    - reviews.card_click
+>>>>>>> origin/main
+  status: done
+  risk: low
+
+- id: TICK-0004
+  area: trust
+  title: "Reviews: ordenar padrão por 'recent' e expor count total no header"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.list_render
+  status: done
+  risk: low
+
+- id: TICK-0005
+  area: trust
+  title: "Reviews: CTA 'Escrever avaliação' com props de contexto (source/home) + métrica"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.write_attempt
+  status: blocked
+  risk: low
+
+- id: TICK-0006
+  area: trust
+  title: "Reviews: badge 'Compra verificada' track 1x por item (debounce por id)"
+  target_files:
+    - components/reviews/review-item.tsx
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.badge_impression
+  status: blocked
+  risk: low
+
+- id: TICK-0007
+  area: home
+  title: "Home: track de scroll de catálogo (throttle) + métrica"
+  target_files:
+    - app/(tabs)/index.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - home.catalog.scroll
+  status: blocked
+  risk: low
+
+- id: TICK-0008
+  area: home
+  title: "Home: track de busca (query length bucket) + métrica"
+  target_files:
+    - app/(tabs)/index.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - home.search.change
+  status: blocked
+  risk: low
+
+- id: TICK-0009
+  area: home
+  title: "ProductCard: track click com position e category (home grid)"
+  target_files:
+    - components/product-card.tsx
+    - lib/analytics.ts
+    - app/(tabs)/index.tsx
+  flag: 
+  metrics:
+    - home.product.card_click
+  status: blocked
+  risk: low
+
+- id: TICK-0010
+  area: trust
+  title: "Data reviews: ampliar dataset (10 itens) com mistura verified/unverified"
+  target_files:
+    - data/reviews.ts
+    - types/review.ts
+  flag: 
+  metrics:
+    - reviews.list_render
+  status: blocked
+  risk: low
+
+- id: TICK-0011
+  area: analytics
+  title: "Analytics: padronizar payload (event + ts + screen) no adapter track()"
+  target_files:
+    - lib/analytics.ts
+    - app/(tabs)/index.tsx
+  flag: 
+  metrics:
+    - analytics.event
+  status: blocked
+  risk: low
+
+- id: TICK-0012
+  area: trust
+  title: "Reviews: tornar filter toggle acessível (aria/role) + métrica de toggle"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.filter_verified_toggle
+  status: blocked
+  risk: low
+
+- id: TICK-0013
+  area: trust
+  title: "Reviews: track de mudança de sort com source e count"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.sort_change
+  status: blocked
   risk: low
 

@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 # PATH: .github/workflows/autonomy-cycle.yml
+=======
+>>>>>>> origin/main
 name: Autonomy Cycle (Backlog)
 
 on:
@@ -36,6 +39,7 @@ jobs:
         run: npm ci --no-audit --fund=false
 
       - name: Configure git
+<<<<<<< HEAD
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -95,6 +99,12 @@ jobs:
             Write-Host "Issue create failed (non-fatal): $($_.Exception.Message)"
           }
 
+=======
+        run: |
+          git config user.name "Plugaishop Autonomy"
+          git config user.email "autonomy@plugaishop.ai"
+
+>>>>>>> origin/main
       - name: Prepare branches
         shell: pwsh
         run: |
@@ -116,6 +126,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
+<<<<<<< HEAD
           AUTONOMY_TRIGGER: ${{ env.AUTONOMY_TRIGGER }}
 
       - name: Upload latest run summary (artifact)
@@ -175,6 +186,8 @@ jobs:
           }
 
           git worktree remove $tmp --force | Out-Null
+=======
+>>>>>>> origin/main
 
       - name: Commit if changed
         id: commit
