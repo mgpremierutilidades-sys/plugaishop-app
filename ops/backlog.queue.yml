@@ -48,6 +48,6 @@
     - reviews.badge_impression
     - reviews.sort_change
     - reviews.write_attempt
-  status: blocked
+  status: done
   risk: low
 
