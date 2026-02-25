@@ -100,7 +100,7 @@ function Set-BacklogItem {
     if ($it.title) { $out.Add("  title: `"$($it.title)`"") }
     $out.Add("  target_files:")
     foreach ($f in @($it.target_files)) { $out.Add("    - $f") }
-    if ($null -ne $it.flag) { $out.Add("  flag: $($it.flag)") }  # $null on the left
+    if ($null -ne $it.flag) { $out.Add("  flag: $($it.flag)") }
     $out.Add("  metrics:")
     foreach ($m in @($it.metrics)) { $out.Add("    - $m") }
     $out.Add("  status: $($it.status)")
@@ -130,20 +130,37 @@ function Reset-TaskRunFields([object]$t) {
   }
 }
 
+function Select-NextBacklogItem([object[]]$items) {
+  # 1) Normal: first queued
+  foreach ($it in $items) {
+    if (($it.status + "") -eq "queued") { return $it }
+  }
+
+  # 2) Autoqueue: first blocked with risk low
+  foreach ($it in $items) {
+    if (($it.status + "") -eq "blocked" -and (($it.risk + "") -eq "low")) {
+      $it.status = "queued"
+      return $it
+    }
+  }
+
+  return $null
+}
+
 function Import-BacklogItem() {
   $items = Get-BacklogItem -yamlPath $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
-  $pick = $null
-  foreach ($it in $items) { if (($it.status+"") -eq "queued") { $pick=$it; break } }
+  $pick = Select-NextBacklogItem $items
   if (-not $pick) { return }
 
   $tasks = Initialize-TasksObject (Get-JsonObject -p $TasksPath)
 
+  # If task already exists: requeue only when failed
   foreach ($t in @($tasks.queue)) {
-    if (($t.id+"") -ne ($pick.id+"")) { continue }
+    if (($t.id + "") -ne ($pick.id + "")) { continue }
 
-    $st = ($t.status+"")
+    $st = ($t.status + "")
     if ($st -eq "failed") {
       $t.status = "queued"
       Reset-TaskRunFields $t
@@ -156,6 +173,7 @@ function Import-BacklogItem() {
     return
   }
 
+  # Add as new task
   $now = Get-UtcNowIso
   $task = [ordered]@{
     id = $pick.id
@@ -196,7 +214,7 @@ function Sync-BacklogStatus() {
   foreach ($it in $items) {
     $id = $it.id.ToString()
     if (-not $map.ContainsKey($id)) { continue }
-    $st = ($map[$id].status+"")
+    $st = ($map[$id].status + "")
     if ($st -eq "done" -and $it.status -ne "done") { $it.status="done"; $changed=$true }
     if ($st -eq "failed" -and $it.status -ne "blocked") { $it.status="blocked"; $changed=$true }
   }
