@@ -1,188 +1,51 @@
-- id: APP-102
+- id: TICK-0201
+  area: pdp
+  title: "PDP v1: gallery + preço + frete estimado + CTA fixo + preview reviews"
+  target_files:
+    - app/product/[id].tsx
+    - components/pdp/gallery.tsx
+    - components/pdp/pdp-footer-cta.tsx
+    - lib/analytics.ts
+    - constants/flags.ts
+  flag: ff_pdp_v1
+  metrics:
+    - pdp.view
+    - pdp.add_to_cart_click
+    - pdp.buy_now_click
+    - pdp.reviews_open
+    - pdp.image_interaction
+  status: done
+  risk: medium
+
+- id: TICK-0202
   area: checkout
-  title: "Checkout: shipping.price em Review + evitar regressão"
+  title: "Checkout Flow v1: shipping + review + confirm order (stub)"
   target_files:
-    - app/(tabs)/checkout/review.tsx
+    - app/checkout/shipping.tsx
     - app/checkout/review.tsx
-    - app/(tabs)/checkout/payment.tsx
-    - app/checkout/payment.tsx
-    - tools/autonomy-core/executor.ps1
-  flag: 
-  metrics:
-    - checkout.review.shipping_price_fix
-  status: done
-  risk: low
-
-- id: TICK-0001
-  area: home
-  title: "Home: Achadinhos do Dia (shelf) com flag + métricas"
-  target_files:
-    - app/(tabs)/index.tsx
-    - components/product-card.tsx
+    - store/order-store.ts
+    - lib/analytics.ts
     - constants/flags.ts
-    - lib/analytics.ts
-    - data/catalog.ts
-  flag: ff_home_achadinhos_shelf
+  flag: ff_checkout_flow_v1
   metrics:
-    - home.achadinhos.impression
-    - home.achadinhos.card_click
-    - home.achadinhos.shelf_scroll
+    - checkout.shipping.view
+    - checkout.shipping.select
+    - checkout.review.view
+    - checkout.confirm_click
   status: done
-  risk: low
+  risk: medium
 
-- id: TICK-0002
-  area: trust
-  title: "Reviews: Compra Verificada + filtro (flag + métricas)"
+- id: TICK-0203
+  area: order
+  title: "Order Success v1: success screen + order summary + CTA"
   target_files:
-    - constants/flags.ts
+    - app/order/success.tsx
+    - store/order-store.ts
     - lib/analytics.ts
-    - data/reviews.ts
-    - types/review.ts
-    - components/reviews/review-item.tsx
-    - components/reviews/review-list.tsx
-    - app/(tabs)/index.tsx
-  flag: ff_reviews_verified_purchase_v1
+  flag: ff_order_success_v1
   metrics:
-    - reviews.section_view
-    - reviews.filter_verified_toggle
-    - reviews.badge_impression
-    - reviews.sort_change
-    - reviews.write_attempt
+    - order.success_view
+    - order.continue_shopping_click
   status: done
-  risk: low
-
-- id: TICK-0003
-  area: trust
-  title: "Reviews: eventos ricos (card_click + list_render) com contexto"
-  target_files:
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.list_render
-    - reviews.card_click
-  status: done
-  risk: low
-
-- id: TICK-0004
-  area: trust
-  title: "Reviews: ordenar padrão por 'recent' e expor count total no header"
-  target_files:
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.list_render
-  status: done
-  risk: low
-
-- id: TICK-0005
-  area: trust
-  title: "Reviews: CTA 'Escrever avaliação' com props de contexto (source/home) + métrica"
-  target_files:
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.write_attempt
-  status: blocked
-  risk: low
-
-- id: TICK-0006
-  area: trust
-  title: "Reviews: badge 'Compra verificada' track 1x por item (debounce por id)"
-  target_files:
-    - components/reviews/review-item.tsx
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.badge_impression
-  status: blocked
-  risk: low
-
-- id: TICK-0007
-  area: home
-  title: "Home: track de scroll de catálogo (throttle) + métrica"
-  target_files:
-    - app/(tabs)/index.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - home.catalog.scroll
-  status: blocked
-  risk: low
-
-- id: TICK-0008
-  area: home
-  title: "Home: track de busca (query length bucket) + métrica"
-  target_files:
-    - app/(tabs)/index.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - home.search.change
-  status: blocked
-  risk: low
-
-- id: TICK-0009
-  area: home
-  title: "ProductCard: track click com position e category (home grid)"
-  target_files:
-    - components/product-card.tsx
-    - lib/analytics.ts
-    - app/(tabs)/index.tsx
-  flag: 
-  metrics:
-    - home.product.card_click
-  status: blocked
-  risk: low
-
-- id: TICK-0010
-  area: trust
-  title: "Data reviews: ampliar dataset (10 itens) com mistura verified/unverified"
-  target_files:
-    - data/reviews.ts
-    - types/review.ts
-  flag: 
-  metrics:
-    - reviews.list_render
-  status: blocked
-  risk: low
-
-- id: TICK-0011
-  area: analytics
-  title: "Analytics: padronizar payload (event + ts + screen) no adapter track()"
-  target_files:
-    - lib/analytics.ts
-    - app/(tabs)/index.tsx
-  flag: 
-  metrics:
-    - analytics.event
-  status: blocked
-  risk: low
-
-- id: TICK-0012
-  area: trust
-  title: "Reviews: tornar filter toggle acessível (aria/role) + métrica de toggle"
-  target_files:
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.filter_verified_toggle
-  status: blocked
-  risk: low
-
-- id: TICK-0013
-  area: trust
-  title: "Reviews: track de mudança de sort com source e count"
-  target_files:
-    - components/reviews/review-list.tsx
-    - lib/analytics.ts
-  flag: 
-  metrics:
-    - reviews.sort_change
-  status: blocked
   risk: low
 

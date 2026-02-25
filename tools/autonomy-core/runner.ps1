@@ -24,6 +24,21 @@ $err = Join-Path $OutDir ("Invoke-" + $ts + ".err.log")
 
 $notes = New-Object System.Collections.Generic.List[string]
 
+# Mark schedule vs manual (and anything else)
+# Prefer explicit env AUTONOMY_TRIGGER if workflow sets it; fallback to GitHub event name.
+$trigger = $null
+try {
+  if ($env:AUTONOMY_TRIGGER -and $env:AUTONOMY_TRIGGER.Trim().Length -gt 0) {
+    $trigger = $env:AUTONOMY_TRIGGER.Trim()
+  } elseif ($env:GITHUB_EVENT_NAME -and $env:GITHUB_EVENT_NAME.Trim().Length -gt 0) {
+    $trigger = $env:GITHUB_EVENT_NAME.Trim()
+  } else {
+    $trigger = "unknown"
+  }
+} catch {
+  $trigger = "unknown"
+}
+
 function Read-Json([string]$Path) {
   if (!(Test-Path $Path)) { return $null }
   return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -44,7 +59,6 @@ function Invoke-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
   $exe  = "$env:ComSpec"
-  # NÃO use $args (variável automática). Use outro nome.
   $cliArgs = "/c " + $commandLine
 
   $p = Start-Process -FilePath $exe `
@@ -58,9 +72,6 @@ function Invoke-CmdLine([string]$commandLine) {
 }
 
 # Finaliza por ID (robusto: independe do objeto $ctrl)
-# - normaliza/trima IDs
-# - usa Add-Member para garantir completed_utc/failed_utc
-# - retorna bool indicando se atualizou mesmo
 function Complete-TaskById([string]$TaskId, [bool]$Ok) {
   if (-not $TaskId) { return $false }
 
@@ -120,16 +131,13 @@ $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 try {
   $migratePath = Join-Path $CoreDir "migrate.ps1"
   if (Test-Path $migratePath) {
-    # Não precisamos do output (evita warning mOut unused)
     $null = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
     $notes.Add("migrate_ran=true")
   } else {
     $notes.Add("migrate_missing=true")
   }
 } catch {
-  if ($null -eq $notes) {
-    $notes = New-Object System.Collections.Generic.List[string]
-  }
+  if ($null -eq $notes) { $notes = New-Object System.Collections.Generic.List[string] }
   $notes.Add("migrate_error=" + $_.Exception.Message)
 }
 
@@ -171,9 +179,9 @@ try {
 }
 
 $notes.Add("mode=" + $ctrl.mode)
+$notes.Add("trigger=" + $trigger)
 
 # AUTONOMY-011: pause on consecutive failures
-# Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
 try {
   $StatePath2 = Join-Path $CoreDir "_state\state.json"
   if (Test-Path $StatePath2) {
@@ -193,7 +201,7 @@ try {
   $notes.Add("pause_guard_error=" + $_.Exception.Message)
 }
 
-# ===== Executor (aplica ação real da task) =====
+# ===== Executor =====
 $executorOk = $true
 $committedSha = $null
 
@@ -208,7 +216,6 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
 
   $execText = ($execLines | ForEach-Object { $_.ToString() }) -join "`n"
 
-  # ===== Executor JSON parse (ROBUST: first '{' to last '}') =====
   $firstE = $execText.IndexOf("{")
   $lastE  = $execText.LastIndexOf("}")
   if ($firstE -lt 0 -or $lastE -le $firstE) {
@@ -223,7 +230,6 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
     foreach ($n in $exec.notes) { $notes.Add("exec:" + [string]$n) }
     if ($exec.committed_sha) { $committedSha = [string]$exec.committed_sha }
   }
-
 } else {
   $notes.Add("executor=skipped")
 }
@@ -258,7 +264,15 @@ if (-not $ok) {
 
 # ===== Update state =====
 $state.last_run_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
-$state.last_task_id = ($ctrl.task.id ?? $null)
+
+$state.last_task_id = $null
+try {
+  if ($ctrl -and ($ctrl.PSObject.Properties.Name -contains "task") -and $ctrl.task -and ($ctrl.task.PSObject.Properties.Name -contains "id")) {
+    $state.last_task_id = [string]$ctrl.task.id
+  }
+} catch {
+  $state.last_task_id = $null
+}
 
 if ($ok) {
   $state.last_result = "ok"
@@ -269,6 +283,37 @@ if ($ok) {
 }
 
 Write-Json $StatePath $state 50
+
+# ===== Heartbeat (local file; workflow versions it in autonomy/heartbeat) =====
+try {
+  $hbPath = Join-Path $StateDir "heartbeat.json"
+
+  $runId = ""
+  $wf = ""
+  $ref = ""
+  $sha = ""
+  if ($env:GITHUB_RUN_ID) { $runId = [string]$env:GITHUB_RUN_ID }
+  if ($env:GITHUB_WORKFLOW) { $wf = [string]$env:GITHUB_WORKFLOW }
+  if ($env:GITHUB_REF) { $ref = [string]$env:GITHUB_REF }
+  if ($env:GITHUB_SHA) { $sha = [string]$env:GITHUB_SHA }
+
+  $hb = @{
+    v = 1
+    heartbeat_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+    trigger = $trigger
+    result = $state.last_result
+    last_task_id = $state.last_task_id
+    run_id = $runId
+    workflow = $wf
+    ref = $ref
+    sha = $sha
+  }
+
+  Write-Json $hbPath $hb 10
+  $notes.Add("heartbeat_written=true")
+} catch {
+  $notes.Add("heartbeat_error=" + $_.Exception.Message)
+}
 
 # ===== Finalize task (by last_task_id + recovery + logging) =====
 try {
@@ -282,7 +327,6 @@ try {
     $notes.Add("task_finalize_skipped=no_last_task_id")
   }
 
-  # Recovery: se ainda existir algum "running" e o run foi ok, fecha o 1º running
   if (-not $finalized -and $ok) {
     $tasksNow = Read-Json $TasksPath
     if ($tasksNow -and $tasksNow.queue) {
@@ -327,10 +371,24 @@ try {
 }
 
 # ===== Report via JSON =====
+$runId2 = ""
+$wf2 = ""
+$ref2 = ""
+$sha2 = ""
+if ($env:GITHUB_RUN_ID) { $runId2 = [string]$env:GITHUB_RUN_ID }
+if ($env:GITHUB_WORKFLOW) { $wf2 = [string]$env:GITHUB_WORKFLOW }
+if ($env:GITHUB_REF) { $ref2 = [string]$env:GITHUB_REF }
+if ($env:GITHUB_SHA) { $sha2 = [string]$env:GITHUB_SHA }
+
 $runSummary = @{
   result = $state.last_result
   branch = $branch
   last_task_id = $state.last_task_id
+  trigger = $trigger
+  run_id = $runId2
+  workflow = $wf2
+  ref = $ref2
+  sha = $sha2
   gates = @{
     lint = $lintResult
     typecheck = $typeResult
@@ -340,6 +398,9 @@ $runSummary = @{
 
 $runSummaryPath = Join-Path $OutDir ("runSummary-" + $ts + ".json")
 Write-Json $runSummaryPath $runSummary 20
+
+$latestRunSummaryPath = Join-Path $OutDir "latest_run_summary.json"
+Write-Json $latestRunSummaryPath $runSummary 20
 
 & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") `
   -OutDir $OutDir -RunSummaryPath $runSummaryPath

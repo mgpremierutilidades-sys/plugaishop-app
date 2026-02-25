@@ -1,3 +1,4 @@
+# PATH: .github/workflows/autonomy-cycle.yml
 name: Autonomy Cycle (Backlog)
 
 on:
@@ -35,9 +36,64 @@ jobs:
         run: npm ci --no-audit --fund=false
 
       - name: Configure git
+        shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           git config user.name "Plugaishop Autonomy"
           git config user.email "autonomy@plugaishop.ai"
+
+      - name: Set AUTONOMY_TRIGGER
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $t = "unknown"
+          if ("${{ github.event_name }}" -eq "schedule") { $t = "schedule" }
+          elseif ("${{ github.event_name }}" -eq "workflow_dispatch") { $t = "manual" }
+          else { $t = "${{ github.event_name }}" }
+          "AUTONOMY_TRIGGER=$t" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # Best-effort "DOWN" signal: if we detect a long gap since last heartbeat commit, open an Issue.
+      - name: Alarm - detect heartbeat gap (> 15 min)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $thresholdSec = 900
+          git fetch origin +refs/heads/autonomy/heartbeat:refs/remotes/origin/autonomy/heartbeat 2>$null
+
+          $has = git show-ref --verify --quiet "refs/remotes/origin/autonomy/heartbeat"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "No previous heartbeat branch found; skipping alarm."
+            exit 0
+          }
+
+          $lastCt = git log -1 --format=%ct origin/autonomy/heartbeat
+          if (-not $lastCt) { exit 0 }
+
+          $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          $delta = $now - [int64]$lastCt
+
+          if ($delta -le $thresholdSec) {
+            Write-Host "Heartbeat OK (delta=${delta}s)."
+            exit 0
+          }
+
+          $title = "AUTONOMY DOWN: heartbeat gap detected"
+          $body  = "Detected heartbeat gap of ${delta}s (> ${thresholdSec}s).`n`n- Repo: $env:GITHUB_REPOSITORY`n- Workflow: $env:GITHUB_WORKFLOW`n- Trigger: $env:AUTONOMY_TRIGGER`n- Run: $env:GITHUB_RUN_ID"
+
+          try {
+            gh issue list --search "$title" --json number --limit 1 | Out-Null
+          } catch {}
+
+          try {
+            gh issue create --title $title --body $body --label "autopilot,autonomy-down" | Out-Null
+            Write-Host "Issue created: $title"
+          } catch {
+            Write-Host "Issue create failed (non-fatal): $($_.Exception.Message)"
+          }
 
       - name: Prepare branches
         shell: pwsh
@@ -60,6 +116,65 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
+          AUTONOMY_TRIGGER: ${{ env.AUTONOMY_TRIGGER }}
+
+      - name: Upload latest run summary (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomy-latest-run
+          path: tools/autonomy-core/_out/latest_run_summary.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Heartbeat branch (always)
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $hb = "tools/autonomy-core/_state/heartbeat.json"
+          if (-not (Test-Path $hb)) {
+            New-Item -ItemType Directory -Force -Path "tools/autonomy-core/_state" | Out-Null
+            $obj = @{
+              v = 1
+              heartbeat_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+              trigger = $env:AUTONOMY_TRIGGER
+              note = "heartbeat_fallback_created_by_workflow"
+              run_id = $env:GITHUB_RUN_ID
+            }
+            ($obj | ConvertTo-Json -Depth 10) | Out-File -FilePath $hb -Encoding UTF8 -Force
+          }
+
+          $tmp = Join-Path $env:RUNNER_TEMP "hb-worktree"
+          if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+          git worktree add $tmp origin/main | Out-Null
+
+          Push-Location $tmp
+          try {
+            git checkout -B autonomy/heartbeat | Out-Null
+            New-Item -ItemType Directory -Force -Path "tools/autonomy-core/_state" | Out-Null
+          } finally {
+            Pop-Location
+          }
+
+          Copy-Item -Force $hb (Join-Path $tmp "tools/autonomy-core/_state/heartbeat.json")
+
+          Push-Location $tmp
+          try {
+            git add -A
+            git commit -m "chore(autonomy): heartbeat $env:GITHUB_RUN_ID" | Out-Null
+            git push -u origin autonomy/heartbeat --force | Out-Null
+          } catch {
+            Write-Host "Heartbeat push failed (non-fatal): $($_.Exception.Message)"
+          } finally {
+            Pop-Location
+          }
+
+          git worktree remove $tmp --force | Out-Null
 
       - name: Commit if changed
         id: commit

@@ -1,3 +1,4 @@
+# PATH: tools/autonomy-core/backlog_bridge.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TasksPath,
@@ -169,7 +170,6 @@ function Import-BacklogItem() {
       $pick.status = "in_progress"
       Set-BacklogItem -yamlPath $BacklogPath -items $items
     }
-
     return
   }
 
