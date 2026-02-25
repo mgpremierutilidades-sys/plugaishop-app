@@ -86,13 +86,34 @@ scripts/chatgpt/
 # Local powershell helpers (se forem só locais)
 ############################
 scripts/ps/
+
+############################
 # Autonomy outputs (never commit)
+############################
 scripts/ai/_out/bundle_*/
 scripts/ai/_out/bundle-*/
 scripts/ai/_out/*.zip
 
+############################
 # Export bundles (never commit)
+############################
 _autonomy_bundle/
 tools/autonomy-core/_out/*.zip
 tools/autonomy-core/_out/bundle_*/
 tools/autonomy-core/_out/bundle-*/
+
+############################
+# Local share/output (bridge/bundles/patches)
+############################
+_share/
+
+############################
+# Python
+############################
+__pycache__/
+*.pyc
+
+# Python tooling caches (optional)
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
