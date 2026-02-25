@@ -51,3 +51,16 @@
   status: done
   risk: low
 
+- id: TICK-0003
+  area: trust
+  title: "Reviews: eventos ricos (card_click + list_render) com contexto (position/productId/verified/sort/filter)"
+  target_files:
+    - components/reviews/review-list.tsx
+    - lib/analytics.ts
+  flag: 
+  metrics:
+    - reviews.list_render
+    - reviews.card_click
+  status: done
+  risk: low
+

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import theme from "../../constants/theme";
@@ -18,6 +18,8 @@ type Props = {
 export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge }: Props) {
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [sort, setSort] = useState<Sort>("recent");
+
+  const lastRenderKey = useRef<string>("");
 
   useEffect(() => {
     track("reviews.section_view");
@@ -39,6 +41,20 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
     return list;
   }, [reviews, enableVerifiedFilter, onlyVerified, sort]);
 
+  useEffect(() => {
+    const key = `${filtered.length}|${sort}|${onlyVerified}|${enableVerifiedFilter}|${enableVerifiedBadge}`;
+    if (lastRenderKey.current === key) return;
+    lastRenderKey.current = key;
+
+    track("reviews.list_render", {
+      count: filtered.length,
+      sort,
+      onlyVerified,
+      enableVerifiedFilter,
+      enableVerifiedBadge,
+    });
+  }, [filtered.length, sort, onlyVerified, enableVerifiedFilter, enableVerifiedBadge]);
+
   function toggleVerified() {
     const next = !onlyVerified;
     setOnlyVerified(next);
@@ -49,6 +65,17 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
     const next: Sort = sort === "recent" ? "rating" : "recent";
     setSort(next);
     track("reviews.sort_change", { sort: next });
+  }
+
+  function onCardClick(r: Review, index: number) {
+    track("reviews.card_click", {
+      id: r.id,
+      productId: r.productId,
+      verifiedPurchase: r.verifiedPurchase,
+      position: index,
+      sort,
+      onlyVerified,
+    });
   }
 
   return (
@@ -73,10 +100,10 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
       ) : null}
 
       <View style={styles.list}>
-        {filtered.map((r) => (
+        {filtered.map((r, idx) => (
           <Pressable
             key={r.id}
-            onPress={() => track("reviews.badge_impression", { id: r.id })}
+            onPress={() => onCardClick(r, idx)}
             accessibilityRole="button"
           >
             <ReviewItem review={r} showVerifiedBadge={enableVerifiedBadge} />

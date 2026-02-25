@@ -1,7 +1,6 @@
 # tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
-  # runner.ps1 passes JSON string (NOT file path)
   [Parameter(Mandatory=$true)][string]$TaskJson,
   [Parameter(Mandatory=$true)][string]$MetricsPath
 )
@@ -38,7 +37,6 @@ function Get-RepoPath([string]$Relative) {
   return (Join-Path $RepoRoot $Relative)
 }
 
-# -------- result contract --------
 $result = [ordered]@{
   ok = $false
   did_change = $false
@@ -48,7 +46,6 @@ $result = [ordered]@{
   task_id = $null
 }
 
-# -------- parse task json string --------
 $task = $null
 try {
   $task = $TaskJson | ConvertFrom-Json
@@ -65,7 +62,7 @@ $result.action = $action
 $result.task_id = $task.id
 
 # -----------------------------
-# Generators (single-quoted here-strings to avoid ${...} expansion)
+# Generators
 # -----------------------------
 function New-TypesReviewTs() {
   return @'
@@ -195,9 +192,9 @@ const styles = StyleSheet.create({
 '@
 }
 
-function New-ComponentsReviewListTsx() {
+function New-ComponentsReviewListTsx_V2_EventsRich() {
   return @'
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import theme from "../../constants/theme";
@@ -217,6 +214,8 @@ type Props = {
 export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge }: Props) {
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [sort, setSort] = useState<Sort>("recent");
+
+  const lastRenderKey = useRef<string>("");
 
   useEffect(() => {
     track("reviews.section_view");
@@ -238,6 +237,20 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
     return list;
   }, [reviews, enableVerifiedFilter, onlyVerified, sort]);
 
+  useEffect(() => {
+    const key = `${filtered.length}|${sort}|${onlyVerified}|${enableVerifiedFilter}|${enableVerifiedBadge}`;
+    if (lastRenderKey.current === key) return;
+    lastRenderKey.current = key;
+
+    track("reviews.list_render", {
+      count: filtered.length,
+      sort,
+      onlyVerified,
+      enableVerifiedFilter,
+      enableVerifiedBadge,
+    });
+  }, [filtered.length, sort, onlyVerified, enableVerifiedFilter, enableVerifiedBadge]);
+
   function toggleVerified() {
     const next = !onlyVerified;
     setOnlyVerified(next);
@@ -248,6 +261,17 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
     const next: Sort = sort === "recent" ? "rating" : "recent";
     setSort(next);
     track("reviews.sort_change", { sort: next });
+  }
+
+  function onCardClick(r: Review, index: number) {
+    track("reviews.card_click", {
+      id: r.id,
+      productId: r.productId,
+      verifiedPurchase: r.verifiedPurchase,
+      position: index,
+      sort,
+      onlyVerified,
+    });
   }
 
   return (
@@ -272,10 +296,10 @@ export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge 
       ) : null}
 
       <View style={styles.list}>
-        {filtered.map((r) => (
+        {filtered.map((r, idx) => (
           <Pressable
             key={r.id}
-            onPress={() => track("reviews.badge_impression", { id: r.id })}
+            onPress={() => onCardClick(r, idx)}
             accessibilityRole="button"
           >
             <ReviewItem review={r} showVerifiedBadge={enableVerifiedBadge} />
@@ -332,118 +356,24 @@ const styles = StyleSheet.create({
 }
 
 # -----------------------------
-# Patch helpers (idempotent) - approved verbs
+# Patch helpers
 # -----------------------------
-function Set-FlagInFlagsTs([string]$FlagsPath) {
-  $txt = Read-FileRaw $FlagsPath
-  if (-not $txt) { throw "Missing flags.ts at: $FlagsPath" }
-
-  if ($txt -match "ff_reviews_verified_purchase_v1") {
-    $result.notes += "TICK-0002: flags.ts already contains ff_reviews_verified_purchase_v1 (no-op)"
-    return $false
-  }
-
-  $txt2 = $txt
-
-  $txt2 = [regex]::Replace(
-    $txt2,
-    "(\|\s*`"ff_cart_persist_v1`")\s*;",
-    '$1' + "`r`n  | `"ff_reviews_verified_purchase_v1`";",
-    [System.Text.RegularExpressions.RegexOptions]::Singleline
-  )
-
-  if ($txt2 -match "const\s+DEFAULT_FLAGS") {
-    $txt2 = [regex]::Replace(
-      $txt2,
-      "(\s*ff_cart_persist_v1:\s*true,\s*)(\r?\n\};)",
-      '$1' + "`r`n  // rollout`r`n  ff_reviews_verified_purchase_v1: false,`r`n$2",
-      [System.Text.RegularExpressions.RegexOptions]::Singleline
-    )
-  }
-
-  $changed = Write-FileIfChanged -Path $FlagsPath -Content $txt2
+function Set-ReviewListEventsRich([string]$Path) {
+  $content = New-ComponentsReviewListTsx_V2_EventsRich
+  $changed = Write-FileIfChanged -Path $Path -Content $content
   if ($changed) {
     $result.did_change = $true
-    $result.notes += "TICK-0002: flags.ts updated (added ff_reviews_verified_purchase_v1 default=false)"
-    return $true
-  }
-
-  $result.notes += "TICK-0002: flags.ts patch no-op"
-  return $false
-}
-
-function Set-HomeReviewsSection([string]$HomePath) {
-  $txt = Read-FileRaw $HomePath
-  if (-not $txt) { throw "Missing home index at: $HomePath" }
-
-  if ($txt -match "components/reviews/review-list" -and $txt -match "<ReviewList") {
-    $result.notes += "TICK-0002: home already has ReviewList section (no-op)"
-    return $false
-  }
-
-  $txt2 = $txt
-
-  if ($txt2 -notmatch 'from "\.\./\.\./components/reviews/review-list"') {
-    $txt2 = $txt2 -replace 'import \{ ThemedView \} from "\.\./\.\./components/themed-view";',
-      "import { ThemedView } from `"../../components/themed-view`";`r`nimport { ReviewList } from `"../../components/reviews/review-list`";"
-  }
-  if ($txt2 -notmatch 'from "\.\./\.\./data/reviews"') {
-    $txt2 = $txt2 -replace 'import \{ categories, products \} from "\.\./\.\./constants/products";',
-      "import { categories, products } from `"../../constants/products`";`r`nimport { reviews } from `"../../data/reviews`";"
-  }
-  if ($txt2 -notmatch 'from "\.\./\.\./constants/flags"') {
-    $txt2 = $txt2 -replace 'import \{ categories, products \} from "\.\./\.\./constants/products";',
-      "import { categories, products } from `"../../constants/products`";`r`nimport { isFlagEnabled } from `"../../constants/flags`";"
-  }
-
-  if ($txt2 -notmatch "const ffVerified") {
-    $txt2 = $txt2 -replace "(\}\s*\)\;\s*\r?\n\r?\n\s*return\s*\()",
-      "});`r`n`r`n  const ffVerified = isFlagEnabled(`"ff_reviews_verified_purchase_v1`");`r`n`r`n  return ("
-  }
-
-  $needle = "</ThemedView>`r`n`r`n        <ThemedView style={styles.searchSection}>"
-  if ($txt2 -match [regex]::Escape($needle)) {
-    $insert = @"
-</ThemedView>
-
-        {/* Reviews (TICK-0002) */}
-        <ThemedView>
-          <ReviewList
-            reviews={reviews}
-            enableVerifiedFilter={ffVerified}
-            enableVerifiedBadge={ffVerified}
-          />
-        </ThemedView>
-
-        <ThemedView style={styles.searchSection}>
-"@
-    $txt2 = $txt2 -replace [regex]::Escape($needle), $insert
+    $result.notes += "TICK-0003: updated components/reviews/review-list.tsx (events rich)"
   } else {
-    $result.notes += "TICK-0002: home insertion point not found; no-op (safe)"
-    return $false
+    $result.notes += "TICK-0003: review-list.tsx already ok (no-op)"
   }
-
-  $changed = Write-FileIfChanged -Path $HomePath -Content $txt2
-  if ($changed) {
-    $result.did_change = $true
-    $result.notes += "TICK-0002: home updated (ReviewList section + imports)"
-    return $true
-  }
-
-  $result.notes += "TICK-0002: home patch no-op"
-  return $false
 }
 
-# -----------------------------
-# TICK-0002 handler
-# -----------------------------
 function Invoke-Tick0002ReviewsVerifiedV1() {
   $typesReview = Get-RepoPath "types/review.ts"
   $dataReviews = Get-RepoPath "data/reviews.ts"
   $reviewItem  = Get-RepoPath "components/reviews/review-item.tsx"
   $reviewList  = Get-RepoPath "components/reviews/review-list.tsx"
-  $flagsPath   = Get-RepoPath "constants/flags.ts"
-  $homePath    = Get-AppTabsIndexPath
 
   $c1 = Write-FileIfChanged -Path $typesReview -Content (New-TypesReviewTs)
   if ($c1) { $result.did_change = $true; $result.notes += "TICK-0002: created types/review.ts" } else { $result.notes += "TICK-0002: types/review.ts exists (no-op)" }
@@ -454,11 +384,18 @@ function Invoke-Tick0002ReviewsVerifiedV1() {
   $c3 = Write-FileIfChanged -Path $reviewItem -Content (New-ComponentsReviewItemTsx)
   if ($c3) { $result.did_change = $true; $result.notes += "TICK-0002: created components/reviews/review-item.tsx" } else { $result.notes += "TICK-0002: review-item.tsx exists (no-op)" }
 
-  $c4 = Write-FileIfChanged -Path $reviewList -Content (New-ComponentsReviewListTsx)
-  if ($c4) { $result.did_change = $true; $result.notes += "TICK-0002: created components/reviews/review-list.tsx" } else { $result.notes += "TICK-0002: review-list.tsx exists (no-op)" }
+  if (-not (Test-Path $reviewList)) {
+    $c4 = Write-FileIfChanged -Path $reviewList -Content (New-ComponentsReviewListTsx_V2_EventsRich)
+    if ($c4) { $result.did_change = $true; $result.notes += "TICK-0002: created components/reviews/review-list.tsx" }
+  } else {
+    $result.notes += "TICK-0002: review-list.tsx exists (no-op)"
+  }
+}
 
-  $null = Set-FlagInFlagsTs $flagsPath
-  $null = Set-HomeReviewsSection $homePath
+function Invoke-Tick0003ReviewsEventsRichV1() {
+  $reviewList = Get-RepoPath "components/reviews/review-list.tsx"
+  if (-not (Test-Path $reviewList)) { throw "TICK-0003 requires components/reviews/review-list.tsx" }
+  Set-ReviewListEventsRich $reviewList
 }
 
 # -----------------------------
@@ -472,10 +409,8 @@ function Invoke-BacklogDispatchV1() {
 
   switch ($bid) {
     "TICK-0002" { Invoke-Tick0002ReviewsVerifiedV1; break }
-    default {
-      $result.notes += ("backlog_dispatch:no_handler_for=" + $bid)
-      break
-    }
+    "TICK-0003" { Invoke-Tick0003ReviewsEventsRichV1; break }
+    default { $result.notes += ("backlog_dispatch:no_handler_for=" + $bid); break }
   }
 }
 
