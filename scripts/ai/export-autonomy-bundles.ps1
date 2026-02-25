@@ -68,45 +68,38 @@ function Resolve-RepoRoot([string]$MaybeRoot) {
   Fail "Não consegui detectar RepoRoot. Rode dentro do repo ou passe -RepoRoot."
 }
 
-function Normalize-RelPath([string]$Root, [string]$PathLike) {
-  if ([string]::IsNullOrWhiteSpace($PathLike)) { return $null }
-  $full = $PathLike
-  if (-not [System.IO.Path]::IsPathRooted($PathLike)) {
-    $full = Join-Path $Root $PathLike
-  }
-  return (Resolve-Path -LiteralPath $full -ErrorAction Stop).Path
-}
-
 function Ensure-Dir([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
   }
 }
 
-function Get-FilesByPatterns([string]$Root, [string[]]$Patterns, [string]$Label) {
+function Get-FilesByPatterns([string]$Root, [string[]]$Patterns) {
   $found = New-Object System.Collections.Generic.List[string]
   foreach ($p in $Patterns) {
-    # Pattern pode ser path direto (com/sem wildcard)
     $literal = Join-Path $Root $p
 
-    # Se for path sem wildcard e existir, pega direto
+    # path sem wildcard
     if ($p -notmatch '[\*\?]' -and (Test-Path -LiteralPath $literal)) {
       $found.Add((Resolve-Path -LiteralPath $literal).Path)
       continue
     }
 
-    # Se tiver wildcard, usa Get-ChildItem com -Filter (quando possível) e fallback
+    # wildcard: tenta varrer recursivamente a partir do diretório pai quando possível
     $dir = Split-Path -Parent $literal
-    $leaf = Split-Path -Leaf $literal
-
+    if (-not $dir) { $dir = $Root }
     if (Test-Path -LiteralPath $dir) {
       $items = Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -like $literal }
       foreach ($it in $items) { $found.Add($it.FullName) }
+    } else {
+      # fallback: varre repo todo (último recurso)
+      $items2 = Get-ChildItem -Path $Root -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like $literal }
+      foreach ($it2 in $items2) { $found.Add($it2.FullName) }
     }
   }
 
-  # Dedup + ordena
   return $found | Sort-Object -Unique
 }
 
@@ -116,19 +109,8 @@ function Require-AtLeastOne([string[]]$Files, [string]$What) {
   }
 }
 
-function Require-AllExist([string]$Root, [string[]]$Paths, [string]$What) {
-  foreach ($p in $Paths) {
-    $literal = Join-Path $Root $p
-    if ($p -match '[\*\?]') { continue } # wildcard validado em patterns
-    if (-not (Test-Path -LiteralPath $literal)) {
-      Fail "Arquivo obrigatório não encontrado ($What): $p"
-    }
-  }
-}
-
 function Copy-IntoStaging([string]$Root, [string]$StageDir, [string[]]$Files) {
   foreach ($f in $Files) {
-    # Preserva estrutura relativa ao repo
     $rel = $f.Substring($Root.Length).TrimStart('\','/')
     $dest = Join-Path $StageDir $rel
     $destDir = Split-Path -Parent $dest
@@ -164,28 +146,30 @@ if ($OverridesFile) {
 # =============================
 # Definição de bundles (padrões)
 # =============================
-# Observação: usamos padrões amplos e também paths diretos conhecidos.
-# Se o seu repo tiver paths diferentes, use -OverridesFile.
+# NOTA CRÍTICA: NÃO assumimos backlog.queue.yml na raiz.
+# A fila pode estar em ops/ (como seu VS Code mostra), ou em outro lugar.
+# Fail-fast só se NÃO encontrarmos fila em lugar nenhum.
 
 $bundleSpec = [ordered]@{
   "01-Core" = @{
-    RequiredExact = @(
-      "backlog.queue.yml" # se estiver na raiz; se não, patterns abaixo cobrem
-    )
     Patterns = @(
-      "backlog.queue.yml",
       "ops/backlog.queue.yml",
+      "backlog.queue.yml",
       "**/backlog.queue.yml",
       "**/backlog_bridge.ps1",
       "**/executor.ps1",
       "**/rollback.ps1",
       "**/report.ps1"
     )
+    CriticalFindOne = @(
+      "ops/backlog.queue.yml",
+      "backlog.queue.yml",
+      "**/backlog.queue.yml"
+    )
     Notes = "Fila + bridge + executor + rollback + report"
   }
 
   "02-WorkerLoop" = @{
-    RequiredExact = @()
     Patterns = @(
       "scripts/ai/*worker*.ps1",
       "scripts/ai/*loop*.ps1",
@@ -200,12 +184,10 @@ $bundleSpec = [ordered]@{
   }
 
   "03-Gates-CI" = @{
-    RequiredExact = @(
+    Patterns = @(
       "package.json",
       "tsconfig.json",
-      "eslint.config.js"
-    )
-    Patterns = @(
+      "eslint.config.js",
       ".github/workflows/*.yml",
       ".github/workflows/*.yaml",
       "scripts/ai/fix-all.ps1",
@@ -220,7 +202,6 @@ $bundleSpec = [ordered]@{
   }
 
   "04-Orchestrator-Data" = @{
-    RequiredExact = @()
     Patterns = @(
       "tools/maxximus-orchestrator/data/metrics.json",
       "tools/maxximus-orchestrator/data/state.json",
@@ -233,25 +214,14 @@ $bundleSpec = [ordered]@{
   }
 }
 
-# Aplica overrides (substitui lista por bundle, se informado)
+# Aplica overrides (substitui/estende lista por bundle, se informado)
 if ($over) {
-  foreach ($k in @("Core","Queue","Worker","Gates","CI","Metadata")) { } # só para referência
-
-  # Map simples: keys do JSON -> bundles
-  if ($over.Core) { $bundleSpec["01-Core"].Patterns = @($over.Core) }
-  if ($over.Queue) { $bundleSpec["01-Core"].Patterns += @($over.Queue) }
-  if ($over.Worker) { $bundleSpec["02-WorkerLoop"].Patterns = @($over.Worker) }
-  if ($over.Gates) { $bundleSpec["03-Gates-CI"].Patterns += @($over.Gates) }
-  if ($over.CI) { $bundleSpec["03-Gates-CI"].Patterns += @($over.CI) }
-  if ($over.Metadata) { $bundleSpec["03-Gates-CI"].Patterns += @($over.Metadata) }
-}
-
-# Validar required exact básicos (quando fazem sentido)
-foreach ($b in $bundleSpec.Keys) {
-  $req = $bundleSpec[$b].RequiredExact
-  if ($req -and $req.Count -gt 0) {
-    Require-AllExist -Root $root -Paths $req -What ("RequiredExact in " + $b)
-  }
+  if ($over.Core)    { $bundleSpec["01-Core"].Patterns = @($over.Core) }
+  if ($over.Queue)   { $bundleSpec["01-Core"].Patterns += @($over.Queue) }
+  if ($over.Worker)  { $bundleSpec["02-WorkerLoop"].Patterns = @($over.Worker) }
+  if ($over.Gates)   { $bundleSpec["03-Gates-CI"].Patterns += @($over.Gates) }
+  if ($over.CI)      { $bundleSpec["03-Gates-CI"].Patterns += @($over.CI) }
+  if ($over.Metadata){ $bundleSpec["03-Gates-CI"].Patterns += @($over.Metadata) }
 }
 
 # Preparar saída
@@ -264,12 +234,24 @@ Ensure-Dir $stageRoot
 
 $manifest = [ordered]@{
   createdAt = (Get-Date).ToString("o")
-  repoRoot = $root
-  outDir = $out
-  bundles = @()
+  repoRoot  = $root
+  outDir    = $out
+  bundles   = @()
+  critical  = [ordered]@{}
 }
 
 $hashLines = New-Object System.Collections.Generic.List[string]
+
+Write-Section "VALIDANDO ARQUIVOS CRÍTICOS (FILA)"
+# Confirma que existe backlog.queue.yml em algum lugar (não gera zip parcial se não existir)
+$coreCritical = Get-FilesByPatterns -Root $root -Patterns ([string[]]$bundleSpec["01-Core"].CriticalFindOne)
+if (-not $IncludeNodeModules) {
+  $coreCritical = $coreCritical | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
+}
+Require-AtLeastOne -Files $coreCritical -What "backlog.queue.yml (fila de tarefas)"
+$queuePicked = $coreCritical | Select-Object -First 1
+$manifest.critical["queueFile"] = $queuePicked
+Write-Host ("Fila encontrada: " + $queuePicked) -ForegroundColor Green
 
 Write-Section "COLETANDO ARQUIVOS E GERANDO ZIPs"
 
@@ -281,10 +263,9 @@ foreach ($bundleName in $bundleSpec.Keys) {
   Write-Host ("-> Bundle: " + $bundleName) -ForegroundColor Cyan
   Write-Host ("   " + $spec.Notes) -ForegroundColor Gray
 
-  $files = Get-FilesByPatterns -Root $root -Patterns $patterns -Label $bundleName
+  $files = Get-FilesByPatterns -Root $root -Patterns $patterns
   $files = $files | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
-  # Opcional: excluir node_modules por segurança/tempo
   if (-not $IncludeNodeModules) {
     $files = $files | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
   }
@@ -302,12 +283,12 @@ foreach ($bundleName in $bundleSpec.Keys) {
   $hashLines.Add(($zipHash + "  " + (Split-Path -Leaf $zipPath))) | Out-Null
 
   $manifest.bundles += [ordered]@{
-    name = $bundleName
-    notes = $spec.Notes
+    name      = $bundleName
+    notes     = $spec.Notes
     fileCount = ($files | Measure-Object).Count
-    zip = (Split-Path -Leaf $zipPath)
-    sha256 = $zipHash
-    examples = ($files | Select-Object -First 8)
+    zip       = (Split-Path -Leaf $zipPath)
+    sha256    = $zipHash
+    examples  = ($files | Select-Object -First 10)
   }
 
   Write-Host ("   OK: " + (Split-Path -Leaf $zipPath)) -ForegroundColor Green
@@ -316,15 +297,16 @@ foreach ($bundleName in $bundleSpec.Keys) {
 
 # Manifest + hashes
 $manifestPath = Join-Path $out ("manifest-" + $timestamp + ".json")
-$hashPath = Join-Path $out ("hashes-" + $timestamp + ".sha256")
+$hashPath     = Join-Path $out ("hashes-" + $timestamp + ".sha256")
 
-($manifest | ConvertTo-Json -Depth 20) | Out-File -LiteralPath $manifestPath -Encoding UTF8
+($manifest | ConvertTo-Json -Depth 40) | Out-File -LiteralPath $manifestPath -Encoding UTF8
 $hashLines | Out-File -LiteralPath $hashPath -Encoding ASCII
 
 Write-Section "RESULTADO"
-Write-Host ("OutDir: " + $out) -ForegroundColor Green
+Write-Host ("OutDir:   " + $out) -ForegroundColor Green
 Write-Host ("Manifest: " + (Split-Path -Leaf $manifestPath)) -ForegroundColor Green
 Write-Host ("Hashes:   " + (Split-Path -Leaf $hashPath)) -ForegroundColor Green
+
 Write-Host ""
 Write-Host "Envie estes arquivos:" -ForegroundColor Yellow
 Get-ChildItem -LiteralPath $out -Filter ("*"+$timestamp+"*") | Select-Object Name, Length | Format-Table -AutoSize
