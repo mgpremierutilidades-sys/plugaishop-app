@@ -1,18 +1,9 @@
 param(
   [string]$ProjectRoot = (Resolve-Path ".").Path,
-
-  # Local mode: loop/poll
   [int]$LoopSeconds = 30,
-
-  # GitHub Actions mode: process only this issue and exit
   [int]$IssueNumber = 0,
-
-  # GitHub repo "owner/name" (overrides config + auto-detect)
   [string]$Repo = "",
-
-  # Force single-cycle execution (useful in CI)
   [switch]$Once,
-
   [switch]$Fast
 )
 
@@ -20,81 +11,66 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-function Ensure-Dir([string]$p) { if (-not (Test-Path $p)) { New-Item -ItemType Directory -Force -Path $p | Out-Null } }
 function Write-Log([string]$msg) { Write-Host ("[GH-QUEUE] " + $msg) }
 
-function Require-Cmd([string]$name) {
+function New-DirectoryIfMissing([string]$p) {
+  if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Force -Path $p | Out-Null }
+}
+
+function Assert-Cmd([string]$name) {
   $cmd = Get-Command $name -ErrorAction SilentlyContinue
   if (-not $cmd) { throw "Required command not found: $name" }
 }
 
-function Load-Config([string]$cfgPath) {
-  if (-not (Test-Path $cfgPath)) { throw "Missing config.json: $cfgPath" }
-  return (Get-Content $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json)
-}
-
-function Save-Config([string]$cfgPath, [object]$cfg) {
-  ($cfg | ConvertTo-Json -Depth 50) | Set-Content -Path $cfgPath -Encoding UTF8
-}
-
-function Ensure-ConfigKeys([object]$cfg) {
-  # cria sub-objetos se não existirem
-  if ($null -eq $cfg.PSObject.Properties["queue"]) { $cfg | Add-Member -Force NoteProperty queue ([pscustomobject]@{}) }
-  if ($null -eq $cfg.PSObject.Properties["git"])   { $cfg | Add-Member -Force NoteProperty git   ([pscustomobject]@{}) }
-  if ($null -eq $cfg.PSObject.Properties["branch"]) { $cfg | Add-Member -Force NoteProperty branch "main" }
-
-  # defaults queue
-  $cfg.queue | Add-Member -Force NoteProperty label_queue      "ai:queue"
-  $cfg.queue | Add-Member -Force NoteProperty label_processing "ai:processing"
-  $cfg.queue | Add-Member -Force NoteProperty label_done       "ai:done"
-  $cfg.queue | Add-Member -Force NoteProperty label_failed     "ai:failed"
-  $cfg.queue | Add-Member -Force NoteProperty poll_seconds     30
-  $cfg.queue | Add-Member -Force NoteProperty max_per_cycle    1
-  if ($null -eq $cfg.queue.PSObject.Properties["repo"]) { $cfg.queue | Add-Member -Force NoteProperty repo "" }
-
-  # defaults git
-  $cfg.git | Add-Member -Force NoteProperty remote         "origin"
-  $cfg.git | Add-Member -Force NoteProperty base_branch    $cfg.branch
-  $cfg.git | Add-Member -Force NoteProperty pr_base_branch $cfg.branch
-  $cfg.git | Add-Member -Force NoteProperty branch_prefix  "ai/issue"
-  $cfg.git | Add-Member -Force NoteProperty commit_prefix  "ai:"
-  $cfg.git | Add-Member -Force NoteProperty user_name      "ai-bot"
-  $cfg.git | Add-Member -Force NoteProperty user_email     "ai-bot@users.noreply.github.com"
-
-  return $cfg
-}
-
-function Extract-Patch([string]$body) {
-  if ([string]::IsNullOrWhiteSpace($body)) { return $null }
-
-  # Preferred: HTML markers
-  $m = [regex]::Match($body, '(?s)<!--\s*PATCH:BEGIN\s*-->\s*(.*?)\s*<!--\s*PATCH:END\s*-->', 'IgnoreCase')
-  if ($m.Success) { return $m.Groups[1].Value.Trim() }
-
-  # Alternative: ```ps1 ... ```
-  $m2 = [regex]::Match($body, '(?s)```(?:powershell|ps1|pwsh)\s*(.*?)\s*```', 'IgnoreCase')
-  if ($m2.Success) { return $m2.Groups[1].Value.Trim() }
-
-  # Fallback: ``` ... ```
-  $m3 = [regex]::Match($body, '(?s)```\s*(.*?)\s*```', 'IgnoreCase')
-  if ($m3.Success) { return $m3.Groups[1].Value.Trim() }
-
-  return $null
-}
-
-function Slug([string]$s) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return "work" }
-  $t = $s.ToLowerInvariant()
-  $t = [regex]::Replace($t, '[^a-z0-9]+', '-').Trim('-')
-  if ($t.Length -gt 40) { $t = $t.Substring(0,40).Trim('-') }
-  if ([string]::IsNullOrWhiteSpace($t)) { return "work" }
-  return $t
-}
-
-function Run-OrFail([string]$cmd) {
+function Invoke-OrFail([string]$cmd) {
   Write-Log ("$ " + $cmd)
-  cmd /c $cmd
+  if ($IsWindows) {
+    cmd /c $cmd
+    if ($LASTEXITCODE -ne 0) { throw "Command failed ($LASTEXITCODE): $cmd" }
+    return
+  }
+
+  bash -lc $cmd
   if ($LASTEXITCODE -ne 0) { throw "Command failed ($LASTEXITCODE): $cmd" }
+}
+
+function Invoke-WithRetry([scriptblock]$Action, [int]$Max = 3, [int]$SleepSec = 10) {
+  for ($i=1; $i -le $Max; $i++) {
+    try { & $Action; return }
+    catch {
+      Write-Log ("Retry $i/$Max failed: " + $_.Exception.Message)
+      if ($i -eq $Max) { throw }
+      Start-Sleep -Seconds $SleepSec
+    }
+  }
+}
+
+function Git-RollbackClean() {
+  try {
+    Invoke-OrFail "git reset --hard HEAD"
+    Invoke-OrFail "git clean -fd"
+  } catch {
+    Write-Log ("Rollback cleanup failed (best-effort): " + $_.Exception.Message)
+  }
+}
+
+function Ensure-LocalGitExcludes() {
+  # Não comita lixo local
+  $excludePath = Join-Path $ProjectRoot ".git/info/exclude"
+  $rules = @(
+    "_autonomy_bundle/",
+    "scripts/ai/_out/bundle_*/",
+    "scripts/ai/_out/bundle-*/",
+    "scripts/ai/_out/*.zip",
+    "tools/autonomy-core/_out/*.zip"
+  )
+  $existing = ""
+  if (Test-Path -LiteralPath $excludePath) { $existing = (Get-Content -LiteralPath $excludePath -Raw -ErrorAction SilentlyContinue) }
+  foreach ($r in $rules) {
+    if ($existing -notmatch [regex]::Escape($r)) {
+      Add-Content -LiteralPath $excludePath -Value $r
+    }
+  }
 }
 
 function Detect-RepoFromGit() {
@@ -110,146 +86,81 @@ function Detect-RepoFromGit() {
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
 Set-Location $ProjectRoot
 
-$aiDir = Join-Path $ProjectRoot "scripts\ai"
-$inDir = Join-Path $aiDir "_in"
+$aiDir  = Join-Path $ProjectRoot "scripts/ai"
+$inDir  = Join-Path $aiDir "_in"
 $outDir = Join-Path $aiDir "_out"
-Ensure-Dir $aiDir; Ensure-Dir $inDir; Ensure-Dir $outDir
+New-DirectoryIfMissing $aiDir
+New-DirectoryIfMissing $inDir
+New-DirectoryIfMissing $outDir
 
-Require-Cmd "git"
-Require-Cmd "gh"
-Require-Cmd "node"
-Require-Cmd "pwsh"
+Assert-Cmd "git"
+Assert-Cmd "gh"
+Assert-Cmd "node"
+Assert-Cmd "pwsh"
+if (-not $IsWindows) { Assert-Cmd "bash" }
 
-# Avoid interactive/pager/update noise
 $env:GH_PAGER = "cat"
 $env:GH_NO_UPDATE_NOTIFIER = "1"
 $env:GIT_TERMINAL_PROMPT = "0"
 
-# Basic gh auth check (Actions usa GH_TOKEN)
 try { gh auth status | Out-Null } catch { throw "gh not authenticated (set GH_TOKEN or run: gh auth login)" }
 
-$cfgPath = Join-Path $aiDir "config.json"
-$cfg = Load-Config $cfgPath
-$cfg = Ensure-ConfigKeys $cfg
-Save-Config $cfgPath $cfg
+Ensure-LocalGitExcludes
 
 # Resolve repo
 $repo = $Repo
-if ([string]::IsNullOrWhiteSpace($repo)) { $repo = $cfg.queue.repo }
 if ([string]::IsNullOrWhiteSpace($repo)) { $repo = Detect-RepoFromGit }
-if ([string]::IsNullOrWhiteSpace($repo)) { throw "Repo not resolved. Provide -Repo owner/name or set config.json queue.repo" }
+if ([string]::IsNullOrWhiteSpace($repo)) { throw "Repo not resolved. Provide -Repo owner/name or set remote.origin.url" }
 
-$labelQueue = $cfg.queue.label_queue
-$labelProcessing = $cfg.queue.label_processing
-$labelDone = $cfg.queue.label_done
-$labelFailed = $cfg.queue.label_failed
+$baseBranch = "main"
 
-$branchPrefix = $cfg.git.branch_prefix
-$commitPrefix = $cfg.git.commit_prefix
-$baseBranch = $cfg.git.pr_base_branch
+# Labels
+$labelQueue = "ai:queue"
+$labelProcessing = "ai:processing"
+$labelDone = "ai:done"
+$labelFail = "ai:failed"
 
-if ([string]::IsNullOrWhiteSpace($baseBranch)) {
-  try {
-    $ref = (git symbolic-ref refs/remotes/origin/HEAD)
-    $baseBranch = ($ref -replace '^refs/remotes/origin/', '')
-  } catch { $baseBranch = "main" }
-}
+function Process-Issue([int]$n) {
+  Invoke-WithRetry -Max 3 -SleepSec 10 -Action {
+    Git-RollbackClean
 
-if ($Fast) { $LoopSeconds = 5 }
+    $issue = gh issue view $n -R $repo --json number,title,url,body --jq "{number:.number,title:.title,url:.url,body:(.body // \"\")}" | ConvertFrom-Json
+    $title = $issue.title
+    $url = $issue.url
 
-Write-Log ("BOOT | Repo=$repo | IssueNumber=$IssueNumber | LoopSeconds=$LoopSeconds | Once=" + $Once.IsPresent + " | Fast=" + $Fast.IsPresent)
+    Write-Log ("Processing #" + $n + " " + $title)
 
-function Get-IssueToProcess() {
-  if ($IssueNumber -gt 0) {
-    # valida se tem label queue (ou processing), senão sai
-    $ij = gh issue view $IssueNumber -R $repo --json number,title,labels,body,url
-    $iv = $ij | ConvertFrom-Json
-    $labels = @($iv.labels | ForEach-Object { $_.name })
-    if (($labels -contains $labelQueue) -or ($labels -contains $labelProcessing)) { return $iv }
-    Write-Log ("Issue #" + $IssueNumber + " does not have label " + $labelQueue + " (skipping).")
-    return $null
-  }
+    # Branch per issue
+    Invoke-OrFail ("git fetch origin " + $baseBranch)
+    Invoke-OrFail ("git checkout -B " + $baseBranch + " origin/" + $baseBranch)
 
-  $issuesJson = gh issue list -R $repo --label $labelQueue --state open --limit 20 --json number,title,createdAt
-  $issues = $issuesJson | ConvertFrom-Json
-  if (-not $issues -or $issues.Count -eq 0) { return $null }
+    $safe = ("issue-" + $n)
+    $branch = ("autonomy/" + $safe)
+    Invoke-OrFail ("git checkout -B " + $branch)
 
-  $picked = $issues | Sort-Object createdAt | Select-Object -First 1
-  $ij = gh issue view $picked.number -R $repo --json number,title,labels,body,url
-  return ($ij | ConvertFrom-Json)
-}
+    # Execução do ciclo (usa scripts do repo)
+    # Aqui você já tem pipeline/runner: mantemos o contrato.
+    Invoke-OrFail ("npm run autonomy")
 
-while ($true) {
-  $issue = $null
-  try {
-    $issue = Get-IssueToProcess
-    if ($null -eq $issue) {
-      if ($Once -or $IssueNumber -gt 0) { exit 0 }
-      Start-Sleep -Seconds $LoopSeconds
-      continue
-    }
-
-    $n = [int]$issue.number
-    $title = [string]$issue.title
-    $slug = Slug $title
-    $url = [string]$issue.url
-    $body = [string]$issue.body
-
-    Write-Log ("Picked issue #" + $n + " - " + $title)
-
-    # Move to processing (best effort lock)
-    try {
-      gh issue edit $n -R $repo --add-label $labelProcessing --remove-label $labelQueue | Out-Null
-    } catch {
-      Write-Log ("Could not relabel issue #" + $n + " (continuing): " + $_.Exception.Message)
-    }
-
-    $patchText = Extract-Patch $body
-    if ([string]::IsNullOrWhiteSpace($patchText)) {
-      gh issue comment $n -R $repo --body ("Nao achei patch no corpo da issue. Use markers PATCH:BEGIN/END ou ```ps1. " + $url) | Out-Null
-      gh issue edit $n -R $repo --add-label $labelFailed | Out-Null
-      if ($Once -or $IssueNumber -gt 0) { exit 0 }
-      Start-Sleep -Seconds $LoopSeconds
-      continue
-    }
-
-    $patchPath = Join-Path $inDir ("patch_issue_" + $n + ".ps1")
-    Set-Content -Encoding UTF8 -Path $patchPath -Value $patchText
-    Write-Log ("Patch written: " + $patchPath)
-
-    # Create branch
-    $branch = ($branchPrefix + "-" + $n + "-" + $slug)
-    Run-OrFail ("git checkout -B " + $branch)
-
-    # Apply patch + gates
-    $runner = Join-Path $aiDir "run_ai_patch.ps1"
-    if (-not (Test-Path $runner)) { throw "Missing runner: $runner" }
-
-    $runnerCmd = 'pwsh -NoProfile -ExecutionPolicy Bypass -File "' + $runner + '" -ProjectRoot "' + $ProjectRoot + '" -PatchFile "' + $patchPath + '"'
-    if ($Fast) { $runnerCmd += " -Fast" }
-    Run-OrFail $runnerCmd
-
-    # Commit if changes
-    $changed = (git status --porcelain)
-    if ([string]::IsNullOrWhiteSpace($changed)) {
-      gh issue comment $n -R $repo --body ("Patch aplicado mas nao gerou diff. Nada para commitar. " + $url) | Out-Null
+    # Se não mudou nada, marca como done e volta
+    $status = (git status --porcelain)
+    if ([string]::IsNullOrWhiteSpace($status)) {
+      Write-Log "No changes detected."
       gh issue edit $n -R $repo --add-label $labelDone --remove-label $labelProcessing | Out-Null
-      Run-OrFail ("git checkout " + $baseBranch)
-      if ($Once -or $IssueNumber -gt 0) { exit 0 }
-      Start-Sleep -Seconds $LoopSeconds
-      continue
+      Invoke-OrFail ("git checkout " + $baseBranch)
+      return
     }
 
-    Run-OrFail "git add -A"
-    $msg = ($commitPrefix + " Issue #" + $n + " - " + $title)
-    $msg = $msg.Replace('"','')
-    Run-OrFail ('git commit -m "' + $msg + '"')
+    Invoke-OrFail "git add -A"
 
-    Run-OrFail ("git push -u origin " + $branch + " --force-with-lease")
+    $msg = ("chore(autonomy): #" + $n + " " + $title).Replace('"','')
+    Invoke-OrFail ('git commit -m "' + $msg + '"')
 
-    # PR
+    Invoke-OrFail ("git push -u origin " + $branch + " --force-with-lease")
+
+    # PR best-effort
     $prTitle = ("[AI] #" + $n + " " + $title)
-    $prBody = ("Automated by GH Queue Worker.`n`nCloses #" + $n + "`nSource: " + $url)
+    $prBody  = ("Automated by GH Queue Worker.`n`nCloses #" + $n + "`nSource: " + $url)
     $prUrl = ""
     try {
       $prUrl = gh pr create -R $repo --title $prTitle --body $prBody --base $baseBranch --head $branch
@@ -264,11 +175,41 @@ while ($true) {
     }
 
     gh issue edit $n -R $repo --add-label $labelDone --remove-label $labelProcessing | Out-Null
-    Run-OrFail ("git checkout " + $baseBranch)
+    Invoke-OrFail ("git checkout " + $baseBranch)
+  }
+}
 
-    if ($Once -or $IssueNumber -gt 0) { exit 0 }
+while ($true) {
+  try {
+    if ($IssueNumber -gt 0) {
+      Process-Issue -n $IssueNumber
+      exit 0
+    }
+
+    # Local mode: poll issues labeled ai:queue
+    $json = gh issue list -R $repo --label $labelQueue --state open --limit 10 --json number --jq ".[].number"
+    $nums = @()
+    if (-not [string]::IsNullOrWhiteSpace($json)) { $nums = $json -split "`n" | Where-Object { $_ } | ForEach-Object { [int]$_ } }
+
+    foreach ($n in $nums) {
+      try {
+        gh issue edit $n -R $repo --add-label $labelProcessing --remove-label $labelQueue | Out-Null
+      } catch {}
+
+      try {
+        Process-Issue -n $n
+      } catch {
+        Write-Log ("ERROR issue #" + $n + ": " + $_.Exception.Message)
+        try { gh issue edit $n -R $repo --add-label $labelFail --remove-label $labelProcessing | Out-Null } catch {}
+        try { gh issue comment $n -R $repo --body ("Falha no worker: " + $_.Exception.Message) | Out-Null } catch {}
+        Git-RollbackClean
+      }
+    }
+
+    if ($Once) { exit 0 }
   } catch {
-    Write-Log ("ERROR: " + $_.Exception.Message)
+    Write-Log ("FATAL LOOP ERROR: " + $_.Exception.Message)
+    Git-RollbackClean
     if ($Once -or $IssueNumber -gt 0) { exit 1 }
   }
 
