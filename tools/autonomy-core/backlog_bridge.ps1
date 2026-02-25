@@ -100,7 +100,7 @@ function Set-BacklogItem {
     if ($it.title) { $out.Add("  title: `"$($it.title)`"") }
     $out.Add("  target_files:")
     foreach ($f in @($it.target_files)) { $out.Add("    - $f") }
-    if ($it.flag -ne $null) { $out.Add("  flag: $($it.flag)") }
+    if ($null -ne $it.flag) { $out.Add("  flag: $($it.flag)") }  # $null on the left
     $out.Add("  metrics:")
     foreach ($m in @($it.metrics)) { $out.Add("    - $m") }
     $out.Add("  status: $($it.status)")
@@ -123,7 +123,6 @@ function Initialize-TasksObject([object]$t) {
 }
 
 function Reset-TaskRunFields([object]$t) {
-  # Clear known runtime timestamps if they exist
   foreach ($k in @("running_utc","failed_utc","completed_utc")) {
     if ($t.PSObject.Properties.Name -contains $k) {
       $t | Add-Member -NotePropertyName $k -NotePropertyValue $null -Force
@@ -141,7 +140,6 @@ function Import-BacklogItem() {
 
   $tasks = Initialize-TasksObject (Get-JsonObject -p $TasksPath)
 
-  # If task already exists, requeue if needed (FAILED -> QUEUED)
   foreach ($t in @($tasks.queue)) {
     if (($t.id+"") -ne ($pick.id+"")) { continue }
 
@@ -158,7 +156,6 @@ function Import-BacklogItem() {
     return
   }
 
-  # Otherwise add as new task
   $now = Get-UtcNowIso
   $task = [ordered]@{
     id = $pick.id

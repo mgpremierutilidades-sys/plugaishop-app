@@ -18,7 +18,7 @@ function Read-FileRaw([string]$Path) {
 
 function New-DirIfMissing([string]$DirPath) {
   if (-not $DirPath) { return }
-  if (-not (Test-Path $DirPath)) { New-Item -ItemType Directory -Path $DirPath | Out-Null }
+  if (-not (Test-Path $DirPath)) { New-Item -ItemType Directory -Path $DirPath -Force | Out-Null }
 }
 
 function Write-FileIfChanged([string]$Path, [string]$Content) {
@@ -30,17 +30,12 @@ function Write-FileIfChanged([string]$Path, [string]$Content) {
   return $true
 }
 
-function Get-AppTabsCheckoutPath([string]$FileName) {
-  $p = Join-Path $RepoRoot "app"
-  $p = Join-Path $p "(tabs)"
-  $p = Join-Path $p "checkout"
-  return (Join-Path $p $FileName)
+function Get-AppTabsIndexPath() {
+  return (Join-Path (Join-Path (Join-Path $RepoRoot "app") "(tabs)") "index.tsx")
 }
 
-function Get-AppCheckoutPath([string]$FileName) {
-  $p = Join-Path $RepoRoot "app"
-  $p = Join-Path $p "checkout"
-  return (Join-Path $p $FileName)
+function Get-RepoPath([string]$Relative) {
+  return (Join-Path $RepoRoot $Relative)
 }
 
 # -------- result contract --------
@@ -70,181 +65,418 @@ $result.action = $action
 $result.task_id = $task.id
 
 # -----------------------------
-# Generators
+# Generators (single-quoted here-strings to avoid ${...} expansion)
 # -----------------------------
-function New-CheckoutPaymentTsx() {
-  # IMPORTANT: use single-quoted here-string to prevent PowerShell from expanding ${...} in JS template strings
+function New-TypesReviewTs() {
   return @'
-// app/(tabs)/checkout/payment.tsx
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
-
-import theme from "../../../constants/theme";
-import type { OrderDraft } from "../../../types/order";
-import { loadOrderDraft, saveOrderDraft } from "../../../utils/orderStorage";
-
-function formatBRL(value: number) {
-  const n = Number.isFinite(value) ? value : 0;
-  return `R$ ${n.toFixed(2)}`.replace(".", ",");
+export type Review = {
+  id: string;
+  productId: string;
+  userName: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  text: string;
+  createdAtIso: string;
+  verifiedPurchase: boolean;
+};
+'@
 }
 
-export default function Payment() {
-  const [order, setOrder] = useState<OrderDraft | null>(null);
-  const subtotal = useMemo(() => Number(order?.subtotal ?? 0), [order]);
-  const shippingPrice = useMemo(() => Number(order?.shipping?.price ?? 0), [order]);
-  const total = useMemo(() => subtotal + shippingPrice, [subtotal, shippingPrice]);
+function New-DataReviewsTs() {
+  return @'
+import type { Review } from "../types/review";
 
-  useEffect(() => {
-    loadOrderDraft().then((o) => setOrder(o));
-  }, []);
-
-  async function handleContinue() {
-    if (!order) return;
-    await saveOrderDraft({
-      ...order,
-      payment: { method: "pix", status: "pending" },
-    });
-    router.push("/checkout/review" as any);
+export const reviews: Review[] = [
+  {
+    id: "rev_001",
+    productId: "prod_001",
+    userName: "Ana",
+    rating: 5,
+    text: "Chegou rápido e a qualidade é ótima.",
+    createdAtIso: "2026-02-10T12:00:00Z",
+    verifiedPurchase: true
+  },
+  {
+    id: "rev_002",
+    productId: "prod_002",
+    userName: "Carlos",
+    rating: 4,
+    text: "Bom custo-benefício. Recomendo.",
+    createdAtIso: "2026-02-12T16:20:00Z",
+    verifiedPurchase: false
+  },
+  {
+    id: "rev_003",
+    productId: "prod_003",
+    userName: "Marina",
+    rating: 5,
+    text: "Excelente! Compraria novamente.",
+    createdAtIso: "2026-02-15T09:10:00Z",
+    verifiedPurchase: true
   }
+];
+'@
+}
 
+function New-ComponentsReviewItemTsx() {
+  return @'
+import { View, StyleSheet } from "react-native";
+
+import theme from "../../constants/theme";
+import type { Review } from "../../types/review";
+import { ThemedText } from "../themed-text";
+
+type Props = {
+  review: Review;
+  showVerifiedBadge: boolean;
+};
+
+function Stars({ rating }: { rating: number }) {
+  const r = Math.max(1, Math.min(5, rating));
+  const full = "★".repeat(r);
+  const empty = "☆".repeat(5 - r);
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 20, fontWeight: "700", color: theme.colors.text }}>
-          Pagamento
-        </Text>
+    <ThemedText type="caption" style={{ color: theme.colors.warning }}>
+      {full}
+      <ThemedText type="caption" style={{ color: theme.colors.muted }}>
+        {empty}
+      </ThemedText>
+    </ThemedText>
+  );
+}
 
-        <View style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: theme.colors.surface }}>
-          <Text style={{ color: theme.colors.text, fontWeight: "600" }}>Resumo</Text>
-          <Text style={{ marginTop: 8, color: theme.colors.muted }}>
-            Subtotal: {formatBRL(subtotal)}
-          </Text>
-          <Text style={{ marginTop: 4, color: theme.colors.muted }}>
-            Frete: {formatBRL(shippingPrice)}
-          </Text>
-          <Text style={{ marginTop: 8, color: theme.colors.text, fontWeight: "700" }}>
-            Total: {formatBRL(total)}
-          </Text>
-        </View>
-
-        <View style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: theme.colors.surface }}>
-          <Text style={{ color: theme.colors.text, fontWeight: "600" }}>Método</Text>
-          <Text style={{ marginTop: 8, color: theme.colors.muted }}>
-            Pix (mock)
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={handleContinue}
-          style={{
-            marginTop: 24,
-            backgroundColor: theme.colors.primary,
-            paddingVertical: 14,
-            borderRadius: 14,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "white", fontWeight: "700" }}>Continuar</Text>
-        </Pressable>
+export function ReviewItem({ review, showVerifiedBadge }: Props) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.row}>
+        <ThemedText type="defaultSemiBold">{review.userName}</ThemedText>
+        <Stars rating={review.rating} />
       </View>
+
+      {showVerifiedBadge && review.verifiedPurchase ? (
+        <View style={styles.badge}>
+          <ThemedText type="caption" style={styles.badgeText}>
+            Compra verificada
+          </ThemedText>
+        </View>
+      ) : null}
+
+      <ThemedText type="bodySmall" style={styles.text}>
+        {review.text}
+      </ThemedText>
+
+      <ThemedText type="caption" style={styles.date}>
+        {new Date(review.createdAtIso).toLocaleDateString()}
+      </ThemedText>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  badge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: theme.colors.success,
+  },
+  badgeText: { color: "#000", fontWeight: "700" },
+  text: { color: theme.colors.text, opacity: 0.9 },
+  date: { color: theme.colors.muted },
+});
+'@
+}
+
+function New-ComponentsReviewListTsx() {
+  return @'
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+
+import theme from "../../constants/theme";
+import type { Review } from "../../types/review";
+import { track } from "../../lib/analytics";
+import { ThemedText } from "../themed-text";
+import { ReviewItem } from "./review-item";
+
+type Sort = "recent" | "rating";
+
+type Props = {
+  reviews: Review[];
+  enableVerifiedFilter: boolean;
+  enableVerifiedBadge: boolean;
+};
+
+export function ReviewList({ reviews, enableVerifiedFilter, enableVerifiedBadge }: Props) {
+  const [onlyVerified, setOnlyVerified] = useState(false);
+  const [sort, setSort] = useState<Sort>("recent");
+
+  useEffect(() => {
+    track("reviews.section_view");
+  }, []);
+
+  const filtered = useMemo(() => {
+    let list = reviews.slice();
+
+    if (enableVerifiedFilter && onlyVerified) {
+      list = list.filter((r) => r.verifiedPurchase);
+    }
+
+    if (sort === "recent") {
+      list.sort((a, b) => (a.createdAtIso < b.createdAtIso ? 1 : -1));
+    } else {
+      list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    }
+
+    return list;
+  }, [reviews, enableVerifiedFilter, onlyVerified, sort]);
+
+  function toggleVerified() {
+    const next = !onlyVerified;
+    setOnlyVerified(next);
+    track("reviews.filter_verified_toggle", { enabled: next });
+  }
+
+  function cycleSort() {
+    const next: Sort = sort === "recent" ? "rating" : "recent";
+    setSort(next);
+    track("reviews.sort_change", { sort: next });
+  }
+
+  return (
+    <View style={styles.wrap}>
+      <View style={styles.headerRow}>
+        <ThemedText type="sectionTitle">Avaliações</ThemedText>
+
+        <Pressable onPress={cycleSort} style={styles.pill} accessibilityRole="button">
+          <ThemedText type="caption" style={styles.pillText}>
+            Ordenar: {sort === "recent" ? "Recentes" : "Nota"}
+          </ThemedText>
+        </Pressable>
+      </View>
+
+      {enableVerifiedFilter ? (
+        <Pressable onPress={toggleVerified} style={styles.toggle} accessibilityRole="button">
+          <View style={[styles.dot, onlyVerified ? styles.dotOn : null]} />
+          <ThemedText type="caption" style={{ color: theme.colors.text }}>
+            Somente compra verificada
+          </ThemedText>
+        </Pressable>
+      ) : null}
+
+      <View style={styles.list}>
+        {filtered.map((r) => (
+          <Pressable
+            key={r.id}
+            onPress={() => track("reviews.badge_impression", { id: r.id })}
+            accessibilityRole="button"
+          >
+            <ReviewItem review={r} showVerifiedBadge={enableVerifiedBadge} />
+          </Pressable>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={() => track("reviews.write_attempt")}
+        style={styles.writeBtn}
+        accessibilityRole="button"
+      >
+        <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
+          Escrever avaliação (mock)
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { marginTop: 14, gap: 10 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  pill: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pillText: { color: theme.colors.text },
+  toggle: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dot: {
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surface,
+  },
+  dotOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  list: { gap: 10 },
+  writeBtn: {
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+});
 '@
 }
 
 # -----------------------------
-# Tasks
+# Patch helpers (idempotent) - approved verbs
 # -----------------------------
-function Invoke-CheckoutPaymentV1([bool]$CreateIfMissing) {
-  $file = Get-AppTabsCheckoutPath "payment.tsx"
-  if (-not $CreateIfMissing -and (-not (Test-Path $file))) {
-    $result.notes += "checkout/payment.tsx: missing; skip (no create in this action context)"
-    return
+function Set-FlagInFlagsTs([string]$FlagsPath) {
+  $txt = Read-FileRaw $FlagsPath
+  if (-not $txt) { throw "Missing flags.ts at: $FlagsPath" }
+
+  if ($txt -match "ff_reviews_verified_purchase_v1") {
+    $result.notes += "TICK-0002: flags.ts already contains ff_reviews_verified_purchase_v1 (no-op)"
+    return $false
   }
 
-  $content = New-CheckoutPaymentTsx
-  $changed = Write-FileIfChanged -Path $file -Content $content
+  $txt2 = $txt
+
+  $txt2 = [regex]::Replace(
+    $txt2,
+    "(\|\s*`"ff_cart_persist_v1`")\s*;",
+    '$1' + "`r`n  | `"ff_reviews_verified_purchase_v1`";",
+    [System.Text.RegularExpressions.RegexOptions]::Singleline
+  )
+
+  if ($txt2 -match "const\s+DEFAULT_FLAGS") {
+    $txt2 = [regex]::Replace(
+      $txt2,
+      "(\s*ff_cart_persist_v1:\s*true,\s*)(\r?\n\};)",
+      '$1' + "`r`n  // rollout`r`n  ff_reviews_verified_purchase_v1: false,`r`n$2",
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+  }
+
+  $changed = Write-FileIfChanged -Path $FlagsPath -Content $txt2
   if ($changed) {
-    $result.notes += "checkout/payment.tsx: updated"
     $result.did_change = $true
+    $result.notes += "TICK-0002: flags.ts updated (added ff_reviews_verified_purchase_v1 default=false)"
+    return $true
+  }
+
+  $result.notes += "TICK-0002: flags.ts patch no-op"
+  return $false
+}
+
+function Set-HomeReviewsSection([string]$HomePath) {
+  $txt = Read-FileRaw $HomePath
+  if (-not $txt) { throw "Missing home index at: $HomePath" }
+
+  if ($txt -match "components/reviews/review-list" -and $txt -match "<ReviewList") {
+    $result.notes += "TICK-0002: home already has ReviewList section (no-op)"
+    return $false
+  }
+
+  $txt2 = $txt
+
+  if ($txt2 -notmatch 'from "\.\./\.\./components/reviews/review-list"') {
+    $txt2 = $txt2 -replace 'import \{ ThemedView \} from "\.\./\.\./components/themed-view";',
+      "import { ThemedView } from `"../../components/themed-view`";`r`nimport { ReviewList } from `"../../components/reviews/review-list`";"
+  }
+  if ($txt2 -notmatch 'from "\.\./\.\./data/reviews"') {
+    $txt2 = $txt2 -replace 'import \{ categories, products \} from "\.\./\.\./constants/products";',
+      "import { categories, products } from `"../../constants/products`";`r`nimport { reviews } from `"../../data/reviews`";"
+  }
+  if ($txt2 -notmatch 'from "\.\./\.\./constants/flags"') {
+    $txt2 = $txt2 -replace 'import \{ categories, products \} from "\.\./\.\./constants/products";',
+      "import { categories, products } from `"../../constants/products`";`r`nimport { isFlagEnabled } from `"../../constants/flags`";"
+  }
+
+  if ($txt2 -notmatch "const ffVerified") {
+    $txt2 = $txt2 -replace "(\}\s*\)\;\s*\r?\n\r?\n\s*return\s*\()",
+      "});`r`n`r`n  const ffVerified = isFlagEnabled(`"ff_reviews_verified_purchase_v1`");`r`n`r`n  return ("
+  }
+
+  $needle = "</ThemedView>`r`n`r`n        <ThemedView style={styles.searchSection}>"
+  if ($txt2 -match [regex]::Escape($needle)) {
+    $insert = @"
+</ThemedView>
+
+        {/* Reviews (TICK-0002) */}
+        <ThemedView>
+          <ReviewList
+            reviews={reviews}
+            enableVerifiedFilter={ffVerified}
+            enableVerifiedBadge={ffVerified}
+          />
+        </ThemedView>
+
+        <ThemedView style={styles.searchSection}>
+"@
+    $txt2 = $txt2 -replace [regex]::Escape($needle), $insert
   } else {
-    $result.notes += "checkout/payment.tsx: already ok (no-op)"
+    $result.notes += "TICK-0002: home insertion point not found; no-op (safe)"
+    return $false
   }
+
+  $changed = Write-FileIfChanged -Path $HomePath -Content $txt2
+  if ($changed) {
+    $result.did_change = $true
+    $result.notes += "TICK-0002: home updated (ReviewList section + imports)"
+    return $true
+  }
+
+  $result.notes += "TICK-0002: home patch no-op"
+  return $false
 }
 
-function Invoke-FixCheckoutReviewDiscountV1() {
-  $targets = @(
-    @{ name="tabs";   path=(Get-AppTabsCheckoutPath "review.tsx"); storageImport='from "../../../utils/orderStorage"'; patchImport='from "../../../utils/orderDraftPatch"'; },
-    @{ name="legacy"; path=(Get-AppCheckoutPath "review.tsx");     storageImport='from "../../utils/orderStorage"';    patchImport='from "../../utils/orderDraftPatch"'; }
-  )
+# -----------------------------
+# TICK-0002 handler
+# -----------------------------
+function Invoke-Tick0002ReviewsVerifiedV1() {
+  $typesReview = Get-RepoPath "types/review.ts"
+  $dataReviews = Get-RepoPath "data/reviews.ts"
+  $reviewItem  = Get-RepoPath "components/reviews/review-item.tsx"
+  $reviewList  = Get-RepoPath "components/reviews/review-list.tsx"
+  $flagsPath   = Get-RepoPath "constants/flags.ts"
+  $homePath    = Get-AppTabsIndexPath
 
-  foreach ($t in $targets) {
-    $file = $t.path
-    $txt = Read-FileRaw $file
-    if (-not $txt) { $result.notes += ("APP-101: missing " + $t.name + " review: " + $file); continue }
+  $c1 = Write-FileIfChanged -Path $typesReview -Content (New-TypesReviewTs)
+  if ($c1) { $result.did_change = $true; $result.notes += "TICK-0002: created types/review.ts" } else { $result.notes += "TICK-0002: types/review.ts exists (no-op)" }
 
-    if ($txt -match "patchOrderDraft\(" -and $txt -match "saveOrderDraft\(") {
-      $result.notes += ("APP-101: " + $t.name + " already uses patchOrderDraft (no-op)")
-      continue
-    }
+  $c2 = Write-FileIfChanged -Path $dataReviews -Content (New-DataReviewsTs)
+  if ($c2) { $result.did_change = $true; $result.notes += "TICK-0002: created data/reviews.ts" } else { $result.notes += "TICK-0002: data/reviews.ts exists (no-op)" }
 
-    if ($txt -notmatch "patchOrderDraft") {
-      if ($txt -match [regex]::Escape($t.storageImport)) {
-        $txt = [regex]::Replace(
-          $txt,
-          "(import\s+\{\s*loadOrderDraft,\s*saveOrderDraft\s*\}\s+$([regex]::Escape($t.storageImport));)",
-          '$1' + "`n" + 'import { patchOrderDraft } ' + $t.patchImport + ';',
-          [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
-        )
-      }
-    }
+  $c3 = Write-FileIfChanged -Path $reviewItem -Content (New-ComponentsReviewItemTsx)
+  if ($c3) { $result.did_change = $true; $result.notes += "TICK-0002: created components/reviews/review-item.tsx" } else { $result.notes += "TICK-0002: review-item.tsx exists (no-op)" }
 
-    $pattern = "await\s+saveOrderDraft\(\s*\{\s*[\s\S]*?\}\s*\)\s*;?"
-    if ($txt -match $pattern) {
-      $txt = [regex]::Replace(
-        $txt,
-        $pattern,
-        'await saveOrderDraft(patchOrderDraft(order, { discount, payment: order.payment ?? { method: "pix", status: "pending" } }) as any);',
-        [System.Text.RegularExpressions.RegexOptions]::Singleline
-      )
+  $c4 = Write-FileIfChanged -Path $reviewList -Content (New-ComponentsReviewListTsx)
+  if ($c4) { $result.did_change = $true; $result.notes += "TICK-0002: created components/reviews/review-list.tsx" } else { $result.notes += "TICK-0002: review-list.tsx exists (no-op)" }
 
-      $changed = Write-FileIfChanged -Path $file -Content $txt
-      if ($changed) { $result.did_change = $true; $result.notes += ("APP-101: patched " + $t.name) }
-      else { $result.notes += ("APP-101: " + $t.name + " no-op") }
-    } else {
-      $result.notes += ("APP-101: " + $t.name + " did not match saveOrderDraft pattern; no-op (safe)")
-    }
-  }
+  $null = Set-FlagInFlagsTs $flagsPath
+  $null = Set-HomeReviewsSection $homePath
 }
 
-function Invoke-FixCheckoutShippingPriceV1() {
-  $targets = @(
-    @{ name="tabs";   path=(Get-AppTabsCheckoutPath "review.tsx") },
-    @{ name="legacy"; path=(Get-AppCheckoutPath "review.tsx") }
-  )
+# -----------------------------
+# Backlog dispatch
+# -----------------------------
+function Invoke-BacklogDispatchV1() {
+  if ($null -eq $task.payload.backlog) { throw "backlog_dispatch_v1 requires payload.backlog" }
 
-  foreach ($t in $targets) {
-    $file = $t.path
-    $txt = Read-FileRaw $file
-    if (-not $txt) { $result.notes += ("APP-102: missing " + $t.name + " review: " + $file); continue }
+  $bid = [string]$task.payload.backlog.id
+  $result.notes += ("backlog_dispatch:id=" + $bid)
 
-    $txt2 = $txt
-    $txt2 = $txt2 -replace "Number\(order\?\.(shipping)\s*\?\?\s*0\)", "Number(order?.shipping?.price ?? 0)"
-    $txt2 = $txt2 -replace "theme\.colors\.card", "theme.colors.surface"
-
-    $changed = Write-FileIfChanged -Path $file -Content $txt2
-    if ($changed) {
-      $result.did_change = $true
-      $result.notes += ("APP-102: patched " + $t.name + " review (shipping.price + surface)")
-    } else {
-      $result.notes += ("APP-102: " + $t.name + " already ok (no-op)")
+  switch ($bid) {
+    "TICK-0002" { Invoke-Tick0002ReviewsVerifiedV1; break }
+    default {
+      $result.notes += ("backlog_dispatch:no_handler_for=" + $bid)
+      break
     }
   }
-
-  # prevent regression: only update payment.tsx if it already exists
-  Invoke-CheckoutPaymentV1 $false
 }
 
 # -----------------------------
@@ -252,9 +484,7 @@ function Invoke-FixCheckoutShippingPriceV1() {
 # -----------------------------
 try {
   switch ($action) {
-    "checkout_payment_v1" { Invoke-CheckoutPaymentV1 $true }
-    "fix_checkout_review_discount_v1" { Invoke-FixCheckoutReviewDiscountV1 }
-    "fix_checkout_shipping_price_v1" { Invoke-FixCheckoutShippingPriceV1 }
+    "backlog_dispatch_v1" { Invoke-BacklogDispatchV1 }
     default { throw "Unknown action: $action" }
   }
   $result.ok = $true

@@ -2,19 +2,16 @@ import { Image } from "expo-image";
 import { Link } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
+import { ReviewList } from "../../components/reviews/review-list";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
+import { isFlagEnabled } from "../../constants/flags";
 import { categories, products } from "../../constants/products";
+import { reviews } from "../../data/reviews";
 import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
@@ -46,11 +43,12 @@ export default function HomeScreen() {
     });
   }, [query, selectedCategory]);
 
+  const ffVerified = isFlagEnabled("ff_reviews_verified_purchase_v1");
+
   return (
     <>
       <StatusBar style="light" />
 
-      {/* ✅ Banner do topo: intocado */}
       <ParallaxScrollView
         headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
         headerImage={
@@ -61,7 +59,6 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* ✅ REMOVIDO: texto de marca duplicada abaixo do banner */}
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">Boas-vindas</ThemedText>
           <ThemedText type="bodySmall">
@@ -69,7 +66,6 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
 
-        {/* ✅ Hero mais compacto e SEM usar banner-splash (evita “imagem no meio”) */}
         <ThemedView style={styles.heroCard}>
           <View style={{ flex: 1, gap: 6 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
@@ -87,7 +83,6 @@ export default function HomeScreen() {
             </Link>
           </View>
 
-          {/* ✅ Placeholder neutro: não duplica branding e não vira “quadrado preto” */}
           <View style={styles.heroPlaceholder}>
             <View style={styles.heroLine} />
             <View style={[styles.heroLine, { width: 54 }]} />
@@ -95,13 +90,19 @@ export default function HomeScreen() {
           </View>
         </ThemedView>
 
-        {/* ✅ Seção de busca + chips compactos */}
+        {/* Reviews (TICK-0002) */}
+        <ThemedView>
+          <ReviewList
+            reviews={reviews}
+            enableVerifiedFilter={ffVerified}
+            enableVerifiedBadge={ffVerified}
+          />
+        </ThemedView>
+
         <ThemedView style={styles.searchSection}>
           <View style={styles.sectionHeader}>
             <ThemedText type="sectionTitle">Catálogo</ThemedText>
-            <ThemedText type="caption">
-              {filteredProducts.length} itens
-            </ThemedText>
+            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
           </View>
 
           <TextInput
@@ -137,7 +138,6 @@ export default function HomeScreen() {
                   onPress={() => setSelectedCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
-                  {/* ✅ Sem numberOfLines => sem reticências */}
                   <ThemedText
                     type="caption"
                     style={[
@@ -153,7 +153,6 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
-        {/* ✅ Grid 2 colunas (mais produtos por tela) */}
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.gridItem}>
@@ -168,7 +167,6 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        {/* ✅ Dica compacta (mantém a funcionalidade, menos espaço) */}
         <ThemedView style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica</ThemedText>
           <ThemedText type="bodySmall">
@@ -265,8 +263,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#CBD5E1",
     marginRight: 8,
-
-    // ✅ evita “…”: deixa o chip crescer em altura se precisar quebrar linha
     minHeight: 34,
     maxWidth: 140,
     alignItems: "center",
