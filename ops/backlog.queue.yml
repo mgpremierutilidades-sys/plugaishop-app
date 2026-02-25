@@ -85,7 +85,7 @@
   flag: 
   metrics:
     - reviews.write_attempt
-  status: blocked
+  status: done
   risk: low
 
 - id: TICK-0006
@@ -98,7 +98,7 @@
   flag: 
   metrics:
     - reviews.badge_impression
-  status: blocked
+  status: in_progress
   risk: low
 
 - id: TICK-0007
