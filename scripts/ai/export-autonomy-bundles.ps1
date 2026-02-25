@@ -11,16 +11,6 @@ Uso:
 
 Opcional (override de paths/padrões):
   pwsh -File .\scripts\ai\export-autonomy-bundles.ps1 -OverridesFile ".\scripts\ai\autonomy-overrides.json"
-
-Formato de overrides JSON:
-{
-  "Core": ["tools/autonomy-core/executor.ps1"],
-  "Queue": ["ops/backlog.queue.yml"],
-  "Worker": ["scripts/ai/queue-worker.ps1"],
-  "Gates": ["scripts/ci/smoke.mjs"],
-  "CI": [".github/workflows/ci.yml"],
-  "Metadata": ["package.json"]
-}
 #>
 
 [CmdletBinding()]
@@ -68,7 +58,7 @@ function Resolve-RepoRoot([string]$MaybeRoot) {
   Fail "Não consegui detectar RepoRoot. Rode dentro do repo ou passe -RepoRoot."
 }
 
-function Ensure-Dir([string]$Path) {
+function New-DirectoryIfMissing([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
   }
@@ -88,6 +78,7 @@ function Get-FilesByPatterns([string]$Root, [string[]]$Patterns) {
     # wildcard: tenta varrer recursivamente a partir do diretório pai quando possível
     $dir = Split-Path -Parent $literal
     if (-not $dir) { $dir = $Root }
+
     if (Test-Path -LiteralPath $dir) {
       $items = Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -like $literal }
@@ -103,18 +94,20 @@ function Get-FilesByPatterns([string]$Root, [string[]]$Patterns) {
   return $found | Sort-Object -Unique
 }
 
-function Require-AtLeastOne([string[]]$Files, [string]$What) {
-  if (-not $Files -or $Files.Count -lt 1) {
+function Assert-HasItems([object]$Items, [string]$What) {
+  $arr = @($Items)
+  if (-not $arr -or $arr.Count -lt 1) {
     Fail "Nenhum arquivo encontrado para: $What"
   }
 }
 
-function Copy-IntoStaging([string]$Root, [string]$StageDir, [string[]]$Files) {
-  foreach ($f in $Files) {
-    $rel = $f.Substring($Root.Length).TrimStart('\','/')
+function Copy-IntoStaging([string]$Root, [string]$StageDir, [object]$Files) {
+  foreach ($f in @($Files)) {
+    if (-not $f) { continue }
+    $rel = $f.ToString().Substring($Root.Length).TrimStart('\','/')
     $dest = Join-Path $StageDir $rel
     $destDir = Split-Path -Parent $dest
-    Ensure-Dir $destDir
+    New-DirectoryIfMissing $destDir
     Copy-Item -LiteralPath $f -Destination $dest -Force
   }
 }
@@ -126,8 +119,12 @@ function New-Zip([string]$ZipPath, [string]$StageDir) {
   Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $ZipPath -Force
 }
 
-function Sha256File([string]$FilePath) {
+function Get-Sha256([string]$FilePath) {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $FilePath).Hash.ToLowerInvariant()
+}
+
+function Get-Count([object]$Items) {
+  return (@($Items) | Measure-Object).Count
 }
 
 Write-Section "EXPORT AUTONOMY BUNDLES"
@@ -142,13 +139,6 @@ if ($OverridesFile) {
   $over = Get-Content -LiteralPath $ovPath -Raw | ConvertFrom-Json
   Write-Host ("Overrides carregados: " + $OverridesFile) -ForegroundColor Green
 }
-
-# =============================
-# Definição de bundles (padrões)
-# =============================
-# NOTA CRÍTICA: NÃO assumimos backlog.queue.yml na raiz.
-# A fila pode estar em ops/ (como seu VS Code mostra), ou em outro lugar.
-# Fail-fast só se NÃO encontrarmos fila em lugar nenhum.
 
 $bundleSpec = [ordered]@{
   "01-Core" = @{
@@ -216,21 +206,21 @@ $bundleSpec = [ordered]@{
 
 # Aplica overrides (substitui/estende lista por bundle, se informado)
 if ($over) {
-  if ($over.Core)    { $bundleSpec["01-Core"].Patterns = @($over.Core) }
-  if ($over.Queue)   { $bundleSpec["01-Core"].Patterns += @($over.Queue) }
-  if ($over.Worker)  { $bundleSpec["02-WorkerLoop"].Patterns = @($over.Worker) }
-  if ($over.Gates)   { $bundleSpec["03-Gates-CI"].Patterns += @($over.Gates) }
-  if ($over.CI)      { $bundleSpec["03-Gates-CI"].Patterns += @($over.CI) }
-  if ($over.Metadata){ $bundleSpec["03-Gates-CI"].Patterns += @($over.Metadata) }
+  if ($over.Core)     { $bundleSpec["01-Core"].Patterns = @($over.Core) }
+  if ($over.Queue)    { $bundleSpec["01-Core"].Patterns += @($over.Queue) }
+  if ($over.Worker)   { $bundleSpec["02-WorkerLoop"].Patterns = @($over.Worker) }
+  if ($over.Gates)    { $bundleSpec["03-Gates-CI"].Patterns += @($over.Gates) }
+  if ($over.CI)       { $bundleSpec["03-Gates-CI"].Patterns += @($over.CI) }
+  if ($over.Metadata) { $bundleSpec["03-Gates-CI"].Patterns += @($over.Metadata) }
 }
 
 # Preparar saída
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $out = Join-Path $root $OutDir
-Ensure-Dir $out
+New-DirectoryIfMissing $out
 
 $stageRoot = Join-Path $out ("_stage_" + $timestamp)
-Ensure-Dir $stageRoot
+New-DirectoryIfMissing $stageRoot
 
 $manifest = [ordered]@{
   createdAt = (Get-Date).ToString("o")
@@ -243,13 +233,15 @@ $manifest = [ordered]@{
 $hashLines = New-Object System.Collections.Generic.List[string]
 
 Write-Section "VALIDANDO ARQUIVOS CRÍTICOS (FILA)"
-# Confirma que existe backlog.queue.yml em algum lugar (não gera zip parcial se não existir)
 $coreCritical = Get-FilesByPatterns -Root $root -Patterns ([string[]]$bundleSpec["01-Core"].CriticalFindOne)
+
 if (-not $IncludeNodeModules) {
-  $coreCritical = $coreCritical | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
+  $coreCritical = @($coreCritical) | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
 }
-Require-AtLeastOne -Files $coreCritical -What "backlog.queue.yml (fila de tarefas)"
-$queuePicked = $coreCritical | Select-Object -First 1
+
+Assert-HasItems -Items $coreCritical -What "backlog.queue.yml (fila de tarefas)"
+
+$queuePicked = @($coreCritical) | Select-Object -First 1
 $manifest.critical["queueFile"] = $queuePicked
 Write-Host ("Fila encontrada: " + $queuePicked) -ForegroundColor Green
 
@@ -264,35 +256,37 @@ foreach ($bundleName in $bundleSpec.Keys) {
   Write-Host ("   " + $spec.Notes) -ForegroundColor Gray
 
   $files = Get-FilesByPatterns -Root $root -Patterns $patterns
-  $files = $files | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+  $files = @($files) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 
   if (-not $IncludeNodeModules) {
-    $files = $files | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
+    $files = @($files) | Where-Object { $_ -notmatch '[\\/]node_modules[\\/]' }
   }
 
-  Require-AtLeastOne -Files $files -What ("Bundle " + $bundleName)
+  Assert-HasItems -Items $files -What ("Bundle " + $bundleName)
 
   $stageDir = Join-Path $stageRoot $bundleName
-  Ensure-Dir $stageDir
+  New-DirectoryIfMissing $stageDir
   Copy-IntoStaging -Root $root -StageDir $stageDir -Files $files
 
   $zipPath = Join-Path $out ("plugaishop-" + $bundleName + "-" + $timestamp + ".zip")
   New-Zip -ZipPath $zipPath -StageDir $stageDir
 
-  $zipHash = Sha256File -FilePath $zipPath
+  $zipHash = Get-Sha256 -FilePath $zipPath
   $hashLines.Add(($zipHash + "  " + (Split-Path -Leaf $zipPath))) | Out-Null
+
+  $fileCount = Get-Count -Items $files
 
   $manifest.bundles += [ordered]@{
     name      = $bundleName
     notes     = $spec.Notes
-    fileCount = ($files | Measure-Object).Count
+    fileCount = $fileCount
     zip       = (Split-Path -Leaf $zipPath)
     sha256    = $zipHash
-    examples  = ($files | Select-Object -First 10)
+    examples  = (@($files) | Select-Object -First 10)
   }
 
   Write-Host ("   OK: " + (Split-Path -Leaf $zipPath)) -ForegroundColor Green
-  Write-Host ("   Files: " + ($files.Count)) -ForegroundColor Green
+  Write-Host ("   Files: " + $fileCount) -ForegroundColor Green
 }
 
 # Manifest + hashes
@@ -311,7 +305,7 @@ Write-Host ""
 Write-Host "Envie estes arquivos:" -ForegroundColor Yellow
 Get-ChildItem -LiteralPath $out -Filter ("*"+$timestamp+"*") | Select-Object Name, Length | Format-Table -AutoSize
 
-# Cleanup staging (mantém somente ZIPs + manifest + hashes)
+# Cleanup staging
 try {
   Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
 } catch { }
