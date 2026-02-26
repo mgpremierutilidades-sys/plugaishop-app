@@ -28,10 +28,6 @@ function Write-FileIfChanged([string]$Path, [string]$Content) {
   return $true
 }
 
-function Get-AppTabsIndexPath() {
-  return (Join-Path (Join-Path (Join-Path $RepoRoot "app") "(tabs)") "index.tsx")
-}
-
 function Get-RepoPath([string]$Relative) {
   return (Join-Path $RepoRoot $Relative)
 }
@@ -61,7 +57,7 @@ $result.action = $action
 $result.task_id = $task.id
 
 # -----------------------------
-# Generators
+# Generators (existing ticks)
 # -----------------------------
 function New-TypesReviewTs() {
   return @'
@@ -355,7 +351,145 @@ const styles = StyleSheet.create({
 }
 
 # -----------------------------
-# Patch helpers
+# ISSUE-* plan & skeleton
+# -----------------------------
+function Get-IssueId([string]$backlogId) {
+  if (-not $backlogId) { return $null }
+  $m = [regex]::Match($backlogId, '^ISSUE-(\d+)$')
+  if (-not $m.Success) { return $null }
+  return [int]$m.Groups[1].Value
+}
+
+function New-IssuePlanMarkdown([object]$bl, [string]$taskId) {
+  $now = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+
+  $title = ""
+  $area = ""
+  $risk = ""
+  $flag = ""
+  $targets = @()
+
+  if ($bl) {
+    if ($bl.title) { $title = [string]$bl.title }
+    if ($bl.area)  { $area = [string]$bl.area }
+    if ($bl.risk)  { $risk = [string]$bl.risk }
+    if ($bl.flag)  { $flag = [string]$bl.flag }
+    if ($bl.target_files) { $targets = @($bl.target_files) }
+  }
+
+  if (-not $title) { $title = $taskId }
+  if (-not $area)  { $area = "backlog" }
+  if (-not $risk)  { $risk = "low" }
+  if (-not $flag)  { $flag = "automation-remote-workflow" }
+
+  $targetsBlock = "- (none)"
+  if ($targets -and $targets.Count -gt 0) {
+    $targetsBlock = ($targets | ForEach-Object { "- " + $_ }) -join "`n"
+  }
+
+  return @"
+# Autonomy Plan — $taskId
+
+- **UTC:** $now
+- **Title:** $title
+- **Area:** $area
+- **Risk:** $risk
+- **Flag:** $flag
+
+## Context
+
+Este arquivo foi gerado automaticamente a partir de um item de backlog proveniente de Issue.  
+Objetivo: criar um plano executável e um skeleton mínimo para iniciar implementação sem quebrar CI.
+
+## Target files (from backlog)
+
+$targetsBlock
+
+## Plan (MVP)
+
+1. Confirmar escopo e restrições (paths permitidos, flags, risco).
+2. Preparar skeleton de arquivos (sem alterar runtime crítico).
+3. Implementar em passos pequenos (feature-flag quando aplicável).
+4. Garantir gates: lint/typecheck.
+5. Gerar PR com auto-merge.
+
+## Acceptance Criteria
+
+- `npm run lint` passa
+- `npm run typecheck` passa
+- Não cria PR state-only
+- Mudanças dentro do escopo permitido (scope guard)
+
+## Notes
+
+- Este documento é o “contrato” inicial. A implementação deve evoluir em PRs pequenos.
+"@
+}
+
+function New-IssueSkeletonJson([object]$bl, [string]$taskId) {
+  $obj = [ordered]@{
+    v = 1
+    task_id = $taskId
+    generated_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+    backlog = [ordered]@{
+      id = $taskId
+      area = ($bl.area ?? "backlog")
+      title = ($bl.title ?? $taskId)
+      risk = ($bl.risk ?? "low")
+      flag = ($bl.flag ?? "automation-remote-workflow")
+      target_files = @($bl.target_files ?? @())
+      metrics = @($bl.metrics ?? @())
+    }
+    skeleton = [ordered]@{
+      mode = "plan_only"
+      next = @(
+        "Implement handler-specific steps for this ISSUE in executor.ps1",
+        "Or map ISSUE -> TICK in ops/backlog.queue.yml"
+      )
+    }
+  }
+  return ($obj | ConvertTo-Json -Depth 30)
+}
+
+function Invoke-IssuePlanAndSkeletonV1([object]$bl) {
+  $taskId = [string]$task.payload.backlog.id
+  $issueNo = Get-IssueId $taskId
+
+  if (-not $issueNo) {
+    $result.notes += "ISSUE handler: invalid id format (expected ISSUE-<n>)"
+    return
+  }
+
+  $docsDir = Get-RepoPath "docs/autonomy"
+  New-DirIfMissing $docsDir
+
+  $planPath = Get-RepoPath ("docs/autonomy/{0}.plan.md" -f $taskId)
+  $skelPath = Get-RepoPath ("docs/autonomy/{0}.skeleton.json" -f $taskId)
+
+  $plan = New-IssuePlanMarkdown -bl $bl -taskId $taskId
+  $skel = New-IssueSkeletonJson -bl $bl -taskId $taskId
+
+  $c1 = Write-FileIfChanged -Path $planPath -Content $plan
+  if ($c1) { $result.did_change = $true; $result.notes += "ISSUE: wrote plan md -> docs/autonomy/$taskId.plan.md" } else { $result.notes += "ISSUE: plan already up-to-date (no-op)" }
+
+  $c2 = Write-FileIfChanged -Path $skelPath -Content $skel
+  if ($c2) { $result.did_change = $true; $result.notes += "ISSUE: wrote skeleton json -> docs/autonomy/$taskId.skeleton.json" } else { $result.notes += "ISSUE: skeleton already up-to-date (no-op)" }
+
+  # Optional: add a lightweight pointer file for humans
+  $ptrPath = Get-RepoPath ("docs/autonomy/{0}.targets.txt" -f $taskId)
+  $targets = @()
+  if ($bl.target_files) { $targets = @($bl.target_files) }
+  $ptr = ""
+  if ($targets.Count -gt 0) { $ptr = ($targets | ForEach-Object { $_.ToString() }) -join "`n" } else { $ptr = "(none)" }
+
+  $c3 = Write-FileIfChanged -Path $ptrPath -Content $ptr
+  if ($c3) { $result.did_change = $true; $result.notes += "ISSUE: wrote targets -> docs/autonomy/$taskId.targets.txt" } else { $result.notes += "ISSUE: targets already up-to-date (no-op)" }
+
+  $result.notes += "ISSUE handler complete: plan+skeleton generated (implementation next)."
+}
+
+# -----------------------------
+# Existing ticks
 # -----------------------------
 function Set-ReviewListEventsRich([string]$Path) {
   $content = New-ComponentsReviewListTsx_V2_EventsRich
@@ -403,8 +537,14 @@ function Invoke-Tick0003ReviewsEventsRichV1() {
 function Invoke-BacklogDispatchV1() {
   if ($null -eq $task.payload.backlog) { throw "backlog_dispatch_v1 requires payload.backlog" }
 
-  $bid = [string]$task.payload.backlog.id
+  $bl = $task.payload.backlog
+  $bid = [string]$bl.id
   $result.notes += ("backlog_dispatch:id=" + $bid)
+
+  if ($bid -match '^ISSUE-\d+$') {
+    Invoke-IssuePlanAndSkeletonV1 -bl $bl
+    return
+  }
 
   switch ($bid) {
     "TICK-0002" { Invoke-Tick0002ReviewsVerifiedV1; break }
@@ -429,7 +569,7 @@ try {
 }
 
 # -----------------------------
-# Scope guard + Autocommit
+# Scope guard + Autocommit (kept, approved verbs)
 # -----------------------------
 try {
   $metrics = Read-Json $MetricsPath
