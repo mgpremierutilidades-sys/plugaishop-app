@@ -44,15 +44,8 @@
     - lib/analytics.ts
   flag: ff_order_success_v1
   metrics:
-<<<<<<< HEAD
     - order.success_view
     - order.continue_shopping_click
-=======
-    - reviews.section_view
-    - reviews.filter_verified_toggle
-    - reviews.badge_impression
-    - reviews.sort_change
-    - reviews.write_attempt
   status: done
   risk: low
 
@@ -62,11 +55,10 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.list_render
     - reviews.card_click
->>>>>>> origin/main
   status: done
   risk: low
 
@@ -76,7 +68,7 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.list_render
   status: done
@@ -88,7 +80,7 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.write_attempt
   status: blocked
@@ -101,7 +93,7 @@
     - components/reviews/review-item.tsx
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.badge_impression
   status: blocked
@@ -113,7 +105,7 @@
   target_files:
     - app/(tabs)/index.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - home.catalog.scroll
   status: blocked
@@ -124,8 +116,8 @@
   title: "Home: track de busca (query length bucket) + métrica"
   target_files:
     - app/(tabs)/index.tsx
-    - lib/analytics.ts
-  flag: 
+  - lib/analytics.ts
+  flag:
   metrics:
     - home.search.change
   status: blocked
@@ -138,7 +130,7 @@
     - components/product-card.tsx
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag: 
+  flag:
   metrics:
     - home.product.card_click
   status: blocked
@@ -150,7 +142,7 @@
   target_files:
     - data/reviews.ts
     - types/review.ts
-  flag: 
+  flag:
   metrics:
     - reviews.list_render
   status: blocked
@@ -162,7 +154,7 @@
   target_files:
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag: 
+  flag:
   metrics:
     - analytics.event
   status: blocked
@@ -174,7 +166,7 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.filter_verified_toggle
   status: blocked
@@ -186,9 +178,8 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag: 
+  flag:
   metrics:
     - reviews.sort_change
   status: blocked
   risk: low
-
