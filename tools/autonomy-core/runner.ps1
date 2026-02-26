@@ -1,4 +1,3 @@
-# PATH: tools/autonomy-core/runner.ps1
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path ".").Path
@@ -24,8 +23,6 @@ $err = Join-Path $OutDir ("Invoke-" + $ts + ".err.log")
 
 $notes = New-Object System.Collections.Generic.List[string]
 
-# Mark schedule vs manual (and anything else)
-# Prefer explicit env AUTONOMY_TRIGGER if workflow sets it; fallback to GitHub event name.
 $trigger = $null
 try {
   if ($env:AUTONOMY_TRIGGER -and $env:AUTONOMY_TRIGGER.Trim().Length -gt 0) {
@@ -54,7 +51,6 @@ function Initialize-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
   Copy-Item -LiteralPath $SeedPath -Destination $RuntimePath -Force
 }
 
-# npm via cmd.exe (evita shims Win32)
 function Invoke-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
@@ -71,7 +67,6 @@ function Invoke-CmdLine([string]$commandLine) {
   return $p.ExitCode
 }
 
-# Finaliza por ID (robusto: independe do objeto $ctrl)
 function Complete-TaskById([string]$TaskId, [bool]$Ok) {
   if (-not $TaskId) { return $false }
 
@@ -114,11 +109,9 @@ function Complete-TaskById([string]$TaskId, [bool]$Ok) {
   return $updated
 }
 
-# ===== Ensure runtime state/tasks exist =====
 Initialize-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
 Initialize-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
 
-# ===== Load state/metrics =====
 $state = Read-Json $StatePath
 if ($null -eq $state) { throw "Runtime state.json unreadable: $StatePath" }
 
@@ -127,7 +120,6 @@ if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-# MIG-001: run migrations before controller
 try {
   $migratePath = Join-Path $CoreDir "migrate.ps1"
   if (Test-Path $migratePath) {
@@ -141,7 +133,6 @@ try {
   $notes.Add("migrate_error=" + $_.Exception.Message)
 }
 
-# ===== Backlog Bridge (ops/backlog.queue.yml -> tasks.json) =====
 try {
   $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
   $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
@@ -158,7 +149,6 @@ try {
   $notes.Add("backlog_bridge_import_error=" + $_.Exception.Message)
 }
 
-# ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
 
@@ -181,7 +171,6 @@ try {
 $notes.Add("mode=" + $ctrl.mode)
 $notes.Add("trigger=" + $trigger)
 
-# AUTONOMY-011: pause on consecutive failures
 try {
   $StatePath2 = Join-Path $CoreDir "_state\state.json"
   if (Test-Path $StatePath2) {
@@ -201,7 +190,6 @@ try {
   $notes.Add("pause_guard_error=" + $_.Exception.Message)
 }
 
-# ===== Executor =====
 $executorOk = $true
 $committedSha = $null
 
@@ -234,7 +222,6 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
   $notes.Add("executor=skipped")
 }
 
-# ===== Gates =====
 $lintResult = "skipped"
 $typeResult = "skipped"
 
@@ -253,7 +240,6 @@ if ($metrics.gates.typecheck.enabled -eq $true) {
 $gatesOk = ($lintResult -eq "ok" -or $lintResult -eq "skipped") -and ($typeResult -eq "ok" -or $typeResult -eq "skipped")
 $ok = $executorOk -and $gatesOk
 
-# ===== Rollback if enabled + commit exists + gates failed =====
 if (-not $ok) {
   if ($metrics.rollback.enabled -eq $true -and $committedSha) {
     $notes.Add("rollback_attempt=" + $committedSha)
@@ -262,7 +248,6 @@ if (-not $ok) {
   }
 }
 
-# ===== Update state =====
 $state.last_run_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
 
 $state.last_task_id = $null
@@ -284,7 +269,6 @@ if ($ok) {
 
 Write-Json $StatePath $state 50
 
-# ===== Heartbeat (local file; workflow versions it in autonomy/heartbeat) =====
 try {
   $hbPath = Join-Path $StateDir "heartbeat.json"
 
@@ -315,7 +299,6 @@ try {
   $notes.Add("heartbeat_error=" + $_.Exception.Message)
 }
 
-# ===== Finalize task (by last_task_id + recovery + logging) =====
 try {
   $finalized = $false
 
@@ -353,7 +336,6 @@ try {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
 }
 
-# ===== Backlog Bridge Sync (tasks -> ops/backlog.queue.yml) =====
 try {
   $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
   $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
@@ -370,7 +352,6 @@ try {
   $notes.Add("backlog_bridge_sync_error=" + $_.Exception.Message)
 }
 
-# ===== Report via JSON =====
 $runId2 = ""
 $wf2 = ""
 $ref2 = ""
@@ -404,6 +385,29 @@ Write-Json $latestRunSummaryPath $runSummary 20
 
 & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") `
   -OutDir $OutDir -RunSummaryPath $runSummaryPath
+
+try {
+  $keep = 30
+  if ($metrics.report -and $metrics.report.keep_last) { $keep = [int]$metrics.report.keep_last }
+  if ($keep -lt 5) { $keep = 5 }
+
+  function Remove-OldFilesByPattern([string]$dir, [string]$pattern, [int]$keep) {
+    if (-not (Test-Path $dir)) { return }
+    $files = Get-ChildItem -Path $dir -File -Filter $pattern | Sort-Object LastWriteTimeUtc -Descending
+    if ($files.Count -le $keep) { return }
+    $toDelete = $files | Select-Object -Skip $keep
+    foreach ($f in $toDelete) {
+      try { Remove-Item -LiteralPath $f.FullName -Force } catch {}
+    }
+  }
+
+  Remove-OldFilesByPattern -dir $OutDir -pattern "report-*.md" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "Invoke-*.log" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "Invoke-*.err.log" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "runSummary-*.json" -keep $keep
+} catch {
+  $notes.Add("prune_error=" + $_.Exception.Message)
+}
 
 if (-not $ok) {
   Write-Information "[autonomy] FAILED. See logs in tools/autonomy-core/_out/" -InformationAction Continue

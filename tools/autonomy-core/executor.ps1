@@ -1,4 +1,3 @@
-# tools/autonomy-core/executor.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TaskJson,
@@ -427,6 +426,83 @@ try {
   $result.ok = $false
   $result.errors += $_.Exception.Message
   $result.notes += ("executor: exception thrown: " + $_.Exception.Message)
+}
+
+# -----------------------------
+# Scope guard + Autocommit
+# -----------------------------
+try {
+  $metrics = Read-Json $MetricsPath
+  if ($null -eq $metrics) { throw "metrics.json unreadable at: $MetricsPath" }
+
+  function Get-ChangedPaths {
+    $out = git status --porcelain
+    if (-not $out) { return @() }
+    $lines = ($out -split "`n") | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ -ne "" }
+    $paths = @()
+    foreach ($l in $lines) {
+      if ($l.Length -lt 4) { continue }
+      $paths += $l.Substring(3).Trim()
+    }
+    return $paths
+  }
+
+  $changedPaths = Get-ChangedPaths
+
+  if ($changedPaths.Count -gt 0 -and $metrics.scope) {
+    $allow = @()
+    $deny  = @()
+
+    if ($metrics.scope.allow_paths) { $allow = @($metrics.scope.allow_paths) }
+    if ($metrics.scope.deny_paths)  { $deny  = @($metrics.scope.deny_paths) }
+
+    function Test-PathAllowed([string]$p, [string[]]$allow, [string[]]$deny) {
+      foreach ($d in $deny) {
+        if ($d -and $p.StartsWith($d)) { return $false }
+      }
+      foreach ($a in $allow) {
+        if ($a -and $p.StartsWith($a)) { return $true }
+      }
+      return $false
+    }
+
+    $violations = @()
+    foreach ($p in $changedPaths) {
+      $pp = ($p -replace "\\","/")  # normalize
+      if (-not (Test-PathAllowed $pp $allow $deny)) { $violations += $pp }
+    }
+
+    if ($violations.Count -gt 0) {
+      $result.ok = $false
+      $result.errors += ("Scope violation: changes outside allow_paths: " + ($violations -join ", "))
+      $result.notes  += "executor: scope_guard_failed"
+      try { git reset --hard | Out-Null } catch {}
+    }
+  }
+
+  if ($result.ok -eq $true -and $result.did_change -eq $true) {
+    $auto = $metrics.autocommit
+    $enabled = $false
+    if ($auto -and $auto.enabled -eq $true) { $enabled = $true }
+
+    if ($enabled) {
+      $msg = "chore(autonomy): " + $result.task_id
+      if ($task -and $task.title) { $msg = $msg + " - " + [string]$task.title }
+
+      $authorName  = $auto.author_name
+      $authorEmail = $auto.author_email
+
+      $sha = Invoke-GitCommit -Message $msg -AuthorName $authorName -AuthorEmail $authorEmail
+      $result | Add-Member -NotePropertyName committed_sha -NotePropertyValue $sha -Force
+      $result.notes += ("executor: committed_sha=" + $sha)
+    } else {
+      $result.notes += "executor: autocommit_disabled"
+    }
+  } else {
+    $result.notes += "executor: autocommit_skipped"
+  }
+} catch {
+  $result.notes += ("executor: autocommit_error=" + $_.Exception.Message)
 }
 
 $result | ConvertTo-Json -Depth 50
