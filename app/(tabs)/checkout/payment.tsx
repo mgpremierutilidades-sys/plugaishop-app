@@ -1,4 +1,4 @@
-﻿// app/(tabs)/checkout/payment.tsx
+// app/(tabs)/checkout/payment.tsx
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
