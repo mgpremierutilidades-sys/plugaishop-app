@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -112,6 +112,10 @@ export default function HomeScreen() {
             }
             value={query}
             onChangeText={setQuery}
+            onFocus={() => {
+              // ISSUE #55: a busca “vive” em /search
+              router.push("/search");
+            }}
             style={[
               styles.searchInput,
               {
