@@ -21,45 +21,27 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout (for reading backlog)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
       - name: Resolve issue number to close
         id: resolve
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-
           title="$PR_TITLE"
           issue_num=""
 
-          # 1) From PR title: contains ISSUE-123
           if echo "$title" | grep -Eo 'ISSUE-[0-9]+' >/dev/null 2>&1; then
             tok="$(echo "$title" | grep -Eo 'ISSUE-[0-9]+' | head -n1)"
             issue_num="${tok#ISSUE-}"
           fi
 
-          # 2) Fallback: parse backlog.queue.yml for issue_number under that id
-          if [ -z "$issue_num" ] && [ -f "ops/backlog.queue.yml" ]; then
-            # Try to find first "issue_number:" near an "id: ISSUE-<n>" block
-            # If title contains ISSUE- we already would have caught. Otherwise we do nothing.
-            issue_num=""
-          fi
-
-          if [ -z "$issue_num" ]; then
-            echo "issue_number=" >> "$GITHUB_OUTPUT"
-            echo "No linked issue detected. Skipping."
-            exit 0
-          fi
-
           echo "issue_number=$issue_num" >> "$GITHUB_OUTPUT"
-          echo "Resolved issue: #$issue_num"
+          if [ -n "$issue_num" ]; then
+            echo "Resolved issue: #$issue_num"
+          else
+            echo "No linked issue detected."
+          fi
 
       - name: Close issue + comment
         if: steps.resolve.outputs.issue_number != ''
@@ -71,14 +53,8 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           set -euo pipefail
-
           num="$ISSUE_NUMBER"
 
-          # Comment
           gh issue comment "$num" --body "✅ PR mergeado automaticamente: ${PR_URL}"
-
-          # Add label (best-effort)
           gh issue edit "$num" --add-label "autopilot-done" || true
-
-          # Close
           gh issue close "$num"
