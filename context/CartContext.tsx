@@ -13,6 +13,7 @@ import type { Product } from "../data/catalog";
 import { products } from "../data/catalog";
 import { track } from "../lib/analytics";
 import { storageGetJSON, storageSetJSON } from "../lib/storage";
+import { computeCartTotals } from "../utils/cartTotals";
 
 export type CartItem = {
   product: Product;
@@ -323,7 +324,22 @@ export function useCart() {
     );
   }, [snap.items]);
 
-  const total = subtotal;
+  const totals = useMemo(() => {
+    return computeCartTotals({ subtotal, qty: totalQty });
+  }, [subtotal, totalQty]);
+
+  useEffect(() => {
+    if (!isFlagEnabled("ff_cart_analytics_v1")) return;
+    try {
+      track("cart_totals_computed", {
+        items_count: snap.items.length,
+        qty: totalQty,
+        subtotal: totals.subtotal,
+        freight: totals.freight,
+        total: totals.total,
+      });
+    } catch {}
+  }, [snap.items.length, totalQty, totals.subtotal, totals.freight, totals.total]);
 
   return {
     items: snap.items,
@@ -332,7 +348,9 @@ export function useCart() {
 
     totalQty,
     subtotal,
-    total,
+
+    freight: totals.freight,
+    total: totals.total,
 
     addItem: (product: Product, qtyDelta: number = 1) =>
       addOrInc(product, Math.max(1, Math.abs(qtyDelta))),
