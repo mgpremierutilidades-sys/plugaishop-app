@@ -56,7 +56,6 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.list_render
     - reviews.card_click
@@ -69,7 +68,6 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.list_render
   status: done
@@ -81,10 +79,9 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.write_attempt
-  status: blocked
+  status: in_progress
   risk: low
 
 - id: TICK-0006
@@ -94,7 +91,6 @@
     - components/reviews/review-item.tsx
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.badge_impression
   status: blocked
@@ -106,7 +102,6 @@
   target_files:
     - app/(tabs)/index.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - home.catalog.scroll
   status: blocked
@@ -118,7 +113,6 @@
   target_files:
     - app/(tabs)/index.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - home.search.change
   status: blocked
@@ -131,7 +125,6 @@
     - components/product-card.tsx
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag:
   metrics:
     - home.product.card_click
   status: blocked
@@ -143,7 +136,6 @@
   target_files:
     - data/reviews.ts
     - types/review.ts
-  flag:
   metrics:
     - reviews.list_render
   status: blocked
@@ -155,7 +147,6 @@
   target_files:
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag:
   metrics:
     - analytics.event
   status: blocked
@@ -167,7 +158,6 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.filter_verified_toggle
   status: blocked
@@ -179,7 +169,6 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
   metrics:
     - reviews.sort_change
   status: blocked
@@ -196,7 +185,7 @@
   metrics:
     - category_view
     - category_product_click
-  status: queued
+  status: done
   risk: low
 
 - id: TICK-0101
@@ -309,3 +298,4 @@
     - add_to_cart
   status: blocked
   risk: low
+
