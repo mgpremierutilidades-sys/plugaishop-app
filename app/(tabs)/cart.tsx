@@ -19,6 +19,7 @@ import { useCart } from "../../context/CartContext";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
+import { computeCartTotals } from "../../utils/cartTotals";
 import { formatCurrency } from "../../utils/formatCurrency";
 
 const FONT_BODY = "OpenSans_400Regular";
@@ -83,7 +84,7 @@ export default function CartTab() {
     fn();
   }, []);
 
-  // Fallback local (se carrinho estiver vazio / sem persistência ainda)
+  // Seed ONLY como fallback (quando contexto não existe)
   const seededRows = useMemo<Row[]>(() => {
     const base = (products as Product[]).slice(0, 6);
     return base.map((p, idx) => ({
@@ -104,13 +105,14 @@ export default function CartTab() {
     if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_view");
   }, []);
 
-  // Normaliza a fonte observada (satisfaz exhaustive-deps sem depender do objeto inteiro)
   const ctxItems = useMemo(() => {
     return (cartCtx?.items ??
       cartCtx?.cartItems ??
       cartCtx?.cart ??
       null) as unknown;
   }, [cartCtx?.items, cartCtx?.cartItems, cartCtx?.cart]);
+
+  const ctxReady = !!cartCtx?.ready;
 
   // Reflete itens reais do carrinho (rehydration/persist)
   useEffect(() => {
@@ -137,14 +139,20 @@ export default function CartTab() {
           })
           .filter(Boolean) as Row[];
 
-        if (mapped.length) setLocalRows(mapped);
+        // ✅ persistência robusta: quando o carrinho REAL está pronto,
+        // até "vazio" deve refletir vazio (não manter seed).
+        if (ctxReady) {
+          setLocalRows(mapped);
+        } else if (mapped.length) {
+          setLocalRows(mapped);
+        }
       }
     } catch (e: any) {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_rows_map_fail", { message: String(e?.message ?? e) });
       }
     }
-  }, [ctxItems, seededRows]);
+  }, [ctxItems, ctxReady]);
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
@@ -242,6 +250,17 @@ export default function CartTab() {
     }, 0);
   }, [localRows, selected]);
 
+  const selectedQty = useMemo(() => {
+    return localRows.reduce((acc, r) => {
+      if (!selected[r.id]) return acc;
+      return acc + r.qty;
+    }, 0);
+  }, [localRows, selected]);
+
+  const totals = useMemo(() => {
+    return computeCartTotals({ subtotal: selectedSubtotal, qty: selectedQty });
+  }, [selectedSubtotal, selectedQty]);
+
   const sections: CartSection[] = useMemo(() => {
     return [{ title: "Produtos", data: localRows }];
   }, [localRows]);
@@ -328,6 +347,8 @@ export default function CartTab() {
     );
   };
 
+  const empty = localRows.length === 0;
+
   return (
     <ThemedView style={styles.container}>
       <AppHeader
@@ -342,30 +363,64 @@ export default function CartTab() {
         }
       />
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(i) => i.id}
-        renderItem={renderRow}
-        renderSectionHeader={() => null}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+      {empty ? (
+        <ThemedView style={styles.emptyBox}>
+          <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
+          <ThemedText style={styles.emptySub}>
+            Adicione itens para calcular subtotal, frete e total.
+          </ThemedText>
+
+          <Pressable
+            onPress={() => router.push("/(tabs)/explore")}
+            style={styles.emptyCta}
+          >
+            <ThemedText style={styles.emptyCtaText}>Explorar produtos</ThemedText>
+          </Pressable>
+        </ThemedView>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(i) => i.id}
+          renderItem={renderRow}
+          renderSectionHeader={() => null}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
 
       <View style={styles.footerBar}>
-        <View style={styles.totalBox}>
-          <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
-          <ThemedText style={styles.totalValue}>
-            {formatCurrency(selectedSubtotal)}
-          </ThemedText>
+        <View style={styles.summaryBox}>
+          <View style={styles.summaryRow}>
+            <ThemedText style={styles.summaryLabel}>Subtotal</ThemedText>
+            <ThemedText style={styles.summaryValue}>
+              {formatCurrency(totals.subtotal)}
+            </ThemedText>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <ThemedText style={styles.summaryLabel}>Frete (mock)</ThemedText>
+            <ThemedText style={styles.summaryValue}>
+              {formatCurrency(totals.freight)}
+            </ThemedText>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryRow}>
+            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+            <ThemedText style={styles.totalValue}>
+              {formatCurrency(totals.total)}
+            </ThemedText>
+          </View>
         </View>
 
         <Pressable
           onPress={() => {
-            if (isFlagEnabled("ff_cart_analytics_v1"))
-              track("cart_checkout_start");
+            if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_checkout_start");
             router.push("/(tabs)/checkout");
           }}
-          style={styles.footerBtn}
+          style={[styles.footerBtn, empty && styles.footerBtnDisabled]}
+          disabled={empty}
         >
           <ThemedText style={styles.footerBtnText}>CONTINUAR</ThemedText>
         </Pressable>
@@ -377,7 +432,7 @@ export default function CartTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
 
-  listContent: { paddingHorizontal: 14, paddingBottom: 140, paddingTop: 12 },
+  listContent: { paddingHorizontal: 14, paddingBottom: 190, paddingTop: 12 },
 
   card: {
     backgroundColor: theme.colors.surface,
@@ -455,6 +510,28 @@ const styles = StyleSheet.create({
   removeBtn: { marginLeft: "auto", paddingHorizontal: 10, paddingVertical: 8 },
   remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
 
+  emptyBox: {
+    marginTop: 16,
+    marginHorizontal: 14,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    gap: 8,
+  },
+  emptyTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
+  emptySub: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.7 },
+  emptyCta: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#0a7ea4",
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  emptyCtaText: { color: "#fff", fontFamily: FONT_BODY_BOLD, fontSize: 12 },
+
   footerBar: {
     position: "absolute",
     left: 14,
@@ -463,15 +540,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  totalBox: {
+  summaryBox: {
     backgroundColor: "#F59E0B",
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    gap: 6,
+  },
+  summaryRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+  summaryLabel: { fontSize: 12, fontFamily: FONT_BODY, color: "#000" },
+  summaryValue: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
+  summaryDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.12)" },
+
   totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
@@ -481,6 +567,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#3F5A3A",
     alignItems: "center",
     justifyContent: "center",
+  },
+  footerBtnDisabled: {
+    opacity: 0.5,
   },
   footerBtnText: {
     fontSize: 16,
