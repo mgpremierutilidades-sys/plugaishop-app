@@ -1,11 +1,10 @@
 import React from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 
-// Import do módulo existente (pode ter default ou named export)
 import * as CollapsibleModule from "./collapsible";
 
 type Props = {
-  title?: React.ReactNode;
+  title?: string; // ✅ text-safe
   initiallyExpanded?: boolean;
   children?: React.ReactNode;
 };
@@ -26,10 +25,14 @@ const Resolved = resolveCollapsible();
 export function SafeCollapsible(props: Props) {
   if (Resolved) return <Resolved {...props} />;
 
-  // Fallback seguro (sem crash)
+  // Fallback seguro
   return (
     <View>
-      {props?.title ? <View style={{ marginBottom: 8 }}>{props.title}</View> : null}
+      {props?.title ? (
+        <View style={{ marginBottom: 8 }}>
+          <Text>{props.title}</Text>
+        </View>
+      ) : null}
       <View>{props?.children}</View>
     </View>
   );

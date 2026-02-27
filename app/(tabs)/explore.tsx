@@ -6,29 +6,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ProductCard } from "../../components/product-card";
 import IconSymbolDefault from "../../components/ui/icon-symbol";
+import { SafeCollapsible } from "../../components/ui/safe-collapsible";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
-
-// Collapsible blindado (sem require, lint-safe)
-import * as CollapsibleModule from "../../components/ui/collapsible";
-const CollapsibleComp =
-  (CollapsibleModule as any)?.default ??
-  (CollapsibleModule as any)?.Collapsible;
-
-const SafeCollapsible =
-  CollapsibleComp ??
-  function FallbackCollapsible(props: any) {
-    return (
-      <View>
-        {props?.title ? (
-          <View style={{ marginBottom: 8 }}>{props.title}</View>
-        ) : null}
-        <View>{props?.children}</View>
-      </View>
-    );
-  };
 
 type CategoryItem = { id: string; name: string };
 
@@ -62,7 +44,7 @@ export default function ExploreScreen() {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = (p.category ?? "").trim();
+      const raw = String(p.category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -161,14 +143,8 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.section}>
-          <SafeCollapsible
-            title={
-              <View style={styles.collapseTitle}>
-                <Text style={styles.collapseTitleText}>Dicas e novidades</Text>
-              </View>
-            }
-            initiallyExpanded={false}
-          >
+          {/* ✅ title text-safe para evitar crash se o Collapsible renderizar dentro de <Text> */}
+          <SafeCollapsible title="Dicas e novidades" initiallyExpanded={false}>
             <Text style={styles.helperText}>
               Promoções, avisos e conteúdo leve podem ficar aqui.
             </Text>
@@ -252,16 +228,6 @@ const styles = StyleSheet.create({
   },
   categoryName: { fontSize: 12, color: theme.colors.text, textAlign: "center" },
 
-  collapseTitle: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  collapseTitleText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    fontWeight: "700",
-  },
   helperText: { fontSize: 12, color: theme.colors.textMuted, marginTop: 8 },
 
   productsGrid: {
@@ -271,6 +237,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  // mantém 2 colunas
   productItem: {
     width: "48%",
   },
