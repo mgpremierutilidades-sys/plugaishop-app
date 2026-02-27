@@ -1,7 +1,14 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import IconSymbolDefault from "../../components/ui/icon-symbol";
@@ -10,6 +17,7 @@ import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
+import { formatCurrency } from "../../utils/formatCurrency";
 
 type CategoryItem = { id: string; name: string };
 
@@ -24,6 +32,7 @@ function toCategoryId(name: string) {
 
 function categoryIconName(categoryName: string) {
   const n = (categoryName || "").toLowerCase();
+
   if (n.includes("eletro") && !n.includes("eletrod")) return "tv-outline";
   if (n.includes("eletrod")) return "flash-outline";
   if (n.includes("inform")) return "laptop-outline";
@@ -33,6 +42,7 @@ function categoryIconName(categoryName: string) {
   if (n.includes("pet")) return "paw-outline";
   if (n.includes("beleza") || n.includes("perf")) return "sparkles-outline";
   if (n.includes("acess")) return "pricetag-outline";
+
   return "pricetag-outline";
 }
 
@@ -40,8 +50,8 @@ export default function ExploreScreen() {
   const mainCategories = useMemo<CategoryItem[]>(() => {
     const map = new Map<string, CategoryItem>();
 
-    for (const p of products as Product[]) {
-      const raw = String(p?.category ?? "").trim();
+    for (const p of products) {
+      const raw = String(p.category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -72,10 +82,7 @@ export default function ExploreScreen() {
     return Array.from(map.values());
   }, []);
 
-  const featured = useMemo<Product[]>(
-    () => (products as Product[]).slice(0, 12),
-    [],
-  );
+  const featured = useMemo<Product[]>(() => products.slice(0, 12), []);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -87,6 +94,7 @@ export default function ExploreScreen() {
         <Pressable
           style={styles.headerAction}
           onPress={() => {
+            // ISSUE #52: entrypoint do Explore para /search
             try {
               track("explore_search_entry_clicked", { source: "header_button" });
             } catch {}
@@ -113,10 +121,7 @@ export default function ExploreScreen() {
                   key={c.id}
                   style={styles.categoryCard}
                   onPress={() =>
-                    router.push({
-                      pathname: "/category/[id]" as any,
-                      params: { id: c.id },
-                    })
+                    router.push(`/category/${c.id}` as unknown as any)
                   }
                 >
                   <View style={styles.categoryIconWrap}>
@@ -155,17 +160,25 @@ export default function ExploreScreen() {
           <View style={styles.productsGrid}>
             {featured.map((p) => (
               <Pressable
-                key={String(p.id)}
+                key={p.id}
                 style={styles.productCard}
-                onPress={() =>
+                onPress={() => {
+                  const pid = String(p.id);
                   router.push({
                     pathname: "/product/[id]" as any,
-                    params: { id: String(p.id), source: "explore" },
-                  })
-                }
+                    params: { id: pid, source: "explore" },
+                  });
+                }}
               >
+                <Image
+                  source={{ uri: String(p.image ?? "") }}
+                  style={styles.productImage}
+                />
                 <Text style={styles.productTitle} numberOfLines={2}>
                   {String(p.title ?? "Produto")}
+                </Text>
+                <Text style={styles.productPrice}>
+                  {formatCurrency(Number(p.price ?? 0))}
                 </Text>
               </Pressable>
             ))}
@@ -198,7 +211,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  headerActionText: { fontSize: 12, fontWeight: "700", color: theme.colors.text },
+  headerActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
 
   content: { padding: 16, paddingBottom: 28 },
 
@@ -247,5 +264,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
+  productImage: {
+    width: "100%",
+    height: 120,
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
   productTitle: { fontSize: 12, color: theme.colors.text, marginBottom: 6 },
+  productPrice: { fontSize: 12, color: theme.colors.primary },
 });
