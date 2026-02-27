@@ -1,22 +1,15 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ProductCard } from "../../components/product-card";
 import IconSymbolDefault from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
-import { formatCurrency } from "../../utils/formatCurrency";
 
 // Collapsible blindado (sem require, lint-safe)
 import * as CollapsibleModule from "../../components/ui/collapsible";
@@ -69,7 +62,7 @@ export default function ExploreScreen() {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = ((p as any).category ?? "").trim();
+      const raw = (p.category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -187,28 +180,9 @@ export default function ExploreScreen() {
 
           <View style={styles.productsGrid}>
             {featured.map((p) => (
-              <Pressable
-                key={(p as any).id}
-                style={styles.productCard}
-                onPress={() => {
-                  const pid = String((p as any).id);
-                  router.push({
-                    pathname: "/product/[id]" as any,
-                    params: { id: pid, source: "explore" },
-                  });
-                }}
-              >
-                <Image
-                  source={{ uri: (p as any).image }}
-                  style={styles.productImage}
-                />
-                <Text style={styles.productTitle} numberOfLines={2}>
-                  {(p as any).title}
-                </Text>
-                <Text style={styles.productPrice}>
-                  {formatCurrency((p as any).price)}
-                </Text>
-              </Pressable>
+              <View key={p.id} style={styles.productItem}>
+                <ProductCard product={p} source="explore" />
+              </View>
             ))}
           </View>
         </View>
@@ -296,21 +270,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-  productCard: {
+
+  productItem: {
     width: "48%",
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
   },
-  productImage: {
-    width: "100%",
-    height: 120,
-    borderRadius: 12,
-    marginBottom: 10,
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  productTitle: { fontSize: 12, color: theme.colors.text, marginBottom: 6 },
-  productPrice: { fontSize: 12, color: theme.colors.primary },
 });
