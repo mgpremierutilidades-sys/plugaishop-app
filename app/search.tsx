@@ -1,15 +1,21 @@
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 
 import { ProductCard } from "../components/product-card";
 import { ThemedText } from "../components/themed-text";
 import { ThemedView } from "../components/themed-view";
 import { categories, products } from "../constants/products";
 import theme from "../constants/theme";
-import { track } from "../lib/analytics";
 import { useColorScheme } from "../hooks/use-color-scheme";
+import { track } from "../lib/analytics";
 
 export default function SearchScreen() {
   const colorScheme = useColorScheme() ?? "light";
@@ -113,14 +119,16 @@ export default function SearchScreen() {
 
           <View style={styles.sectionHeader}>
             <ThemedText type="sectionTitle">Resultados</ThemedText>
-            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
+            <ThemedText type="caption">
+              {filteredProducts.length} itens
+            </ThemedText>
           </View>
         </ThemedView>
 
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.gridItem}>
-              <ProductCard product={product} />
+              <ProductCard product={product} source="search" />
             </View>
           ))}
 
