@@ -190,9 +190,13 @@ export default function ExploreScreen() {
               <Pressable
                 key={(p as any).id}
                 style={styles.productCard}
-                onPress={() =>
-                  router.push(`/product/${(p as any).id}` as unknown as any)
-                }
+                onPress={() => {
+                  const pid = String((p as any).id);
+                  router.push({
+                    pathname: "/product/[id]" as any,
+                    params: { id: pid, source: "explore" },
+                  });
+                }}
               >
                 <Image
                   source={{ uri: (p as any).image }}
