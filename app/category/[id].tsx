@@ -1,7 +1,14 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
@@ -43,7 +50,10 @@ export default function CategoryScreen() {
   useEffect(() => {
     if (!categoryId) return;
     try {
-      track("category_viewed", { category_id: categoryId, items_count: filtered.length });
+      track("category_viewed", {
+        category_id: categoryId,
+        items_count: filtered.length,
+      });
     } catch {}
   }, [categoryId, filtered.length]);
 
@@ -66,9 +76,7 @@ export default function CategoryScreen() {
         {filtered.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>Sem itens nesta categoria</Text>
-            <Text style={styles.emptySub}>
-              Tente outra categoria no Explorar.
-            </Text>
+            <Text style={styles.emptySub}>Tente outra categoria no Explorar.</Text>
 
             <Pressable
               onPress={() => router.push("/(tabs)/explore")}
@@ -90,7 +98,12 @@ export default function CategoryScreen() {
                       product_id: String(p.id),
                     });
                   } catch {}
-                  router.push(`/product/${String(p.id)}` as unknown as any);
+
+                  const pid = String(p.id);
+                  router.push({
+                    pathname: "/product/[id]" as any,
+                    params: { id: pid, source: "category" },
+                  });
                 }}
               >
                 <Image
@@ -101,7 +114,9 @@ export default function CategoryScreen() {
                 <Text style={styles.cardTitle} numberOfLines={2}>
                   {String(p.title ?? "Produto")}
                 </Text>
-                <Text style={styles.price}>{formatCurrency(Number(p.price ?? 0))}</Text>
+                <Text style={styles.price}>
+                  {formatCurrency(Number(p.price ?? 0))}
+                </Text>
               </Pressable>
             ))}
           </View>
