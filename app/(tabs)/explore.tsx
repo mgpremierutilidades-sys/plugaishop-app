@@ -15,6 +15,7 @@ import IconSymbolDefault from "../../components/ui/icon-symbol";
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
+import { track } from "../../lib/analytics";
 import { formatCurrency } from "../../utils/formatCurrency";
 
 // Collapsible blindado (sem require, lint-safe)
@@ -111,7 +112,16 @@ export default function ExploreScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Explorar</Text>
 
-        <Pressable style={styles.headerAction} onPress={() => {}}>
+        <Pressable
+          style={styles.headerAction}
+          onPress={() => {
+            // ISSUE #52: entrypoint do Explore para /search
+            try {
+              track("explore_search_entry_clicked", { source: "header_button" });
+            } catch {}
+            router.push("/search");
+          }}
+        >
           <Text style={styles.headerActionText}>Buscar</Text>
         </Pressable>
       </View>
