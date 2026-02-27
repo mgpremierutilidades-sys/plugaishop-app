@@ -11,7 +11,7 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 
 type ProductCardProps = {
   product: Product;
-  source?: "home" | "explore" | "unknown";
+  source?: "home" | "explore" | "search" | "category" | "unknown";
 };
 
 function formatBRL(value: number) {
@@ -61,7 +61,10 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
   }
 
   return (
-    <Pressable onPress={handleOpen} style={({ pressed }) => pressed ? { opacity: 0.96 } : null}>
+    <Pressable
+      onPress={handleOpen}
+      style={({ pressed }) => (pressed ? { opacity: 0.96 } : null)}
+    >
       <ThemedView
         style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
       >
