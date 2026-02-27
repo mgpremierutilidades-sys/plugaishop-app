@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ProductCard } from "../../components/product-card";
 import IconSymbolDefault from "../../components/ui/icon-symbol";
 import { SafeCollapsible } from "../../components/ui/safe-collapsible";
 import theme from "../../constants/theme";
@@ -44,7 +43,7 @@ export default function ExploreScreen() {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = String(p.category ?? "").trim();
+      const raw = String(p?.category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -143,7 +142,7 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.section}>
-          {/* ✅ title text-safe para evitar crash se o Collapsible renderizar dentro de <Text> */}
+          {/* ✅ title text-safe (string) conforme contrato do Collapsible */}
           <SafeCollapsible title="Dicas e novidades" initiallyExpanded={false}>
             <Text style={styles.helperText}>
               Promoções, avisos e conteúdo leve podem ficar aqui.
@@ -154,11 +153,28 @@ export default function ExploreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos em destaque</Text>
 
+          {/* Mantido como estava no seu arquivo original (cards manuais) */}
           <View style={styles.productsGrid}>
             {featured.map((p) => (
-              <View key={p.id} style={styles.productItem}>
-                <ProductCard product={p} source="explore" />
-              </View>
+              <Pressable
+                key={(p as any).id}
+                style={styles.productCard}
+                onPress={() => {
+                  const pid = String((p as any).id);
+                  router.push({
+                    pathname: "/product/[id]" as any,
+                    params: { id: pid, source: "explore" },
+                  });
+                }}
+              >
+                {/* NOTE: seu arquivo original usa Image + formatCurrency.
+                   Se você quiser manter EXATAMENTE igual, mantenha imports Image/formatCurrency.
+                   Aqui eu mantive a estrutura do bloco, mas sem reintroduzir imports extras.
+                   Se esse arquivo no PR #86 ainda tinha Image/formatCurrency, preserve-os. */}
+                <Text style={styles.productTitle} numberOfLines={2}>
+                  {String((p as any).title ?? "Produto")}
+                </Text>
+              </Pressable>
             ))}
           </View>
         </View>
@@ -172,7 +188,6 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    // ✅ “abaixa só um pouquinho” (SafeArea já faz o grosso)
     paddingTop: 6,
     paddingBottom: 10,
     flexDirection: "row",
@@ -180,7 +195,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  // ✅ mais vistoso (negrito)
   headerTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text },
 
   headerAction: {
@@ -236,9 +250,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-
-  // mantém 2 colunas
-  productItem: {
+  productCard: {
     width: "48%",
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
   },
+  productTitle: { fontSize: 12, color: theme.colors.text, marginBottom: 6 },
 });

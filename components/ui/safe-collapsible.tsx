@@ -1,39 +1,23 @@
 import React from "react";
-import { Text, View } from "react-native";
 
-import * as CollapsibleModule from "./collapsible";
+import { Collapsible } from "./collapsible";
 
-type Props = {
-  title?: string; // ✅ text-safe
-  initiallyExpanded?: boolean;
+type SafeCollapsibleProps = {
+  title: string; // ✅ compatível com Collapsible (string)
+  initiallyExpanded?: boolean; // compat no wrapper (não usado aqui, mas não quebra call-sites)
   children?: React.ReactNode;
 };
 
-type CollapsibleLike = React.ComponentType<Props>;
-
-function resolveCollapsible(): CollapsibleLike | null {
-  const mod = CollapsibleModule as unknown as {
-    default?: CollapsibleLike;
-    Collapsible?: CollapsibleLike;
-  };
-
-  return mod.default ?? mod.Collapsible ?? null;
-}
-
-const Resolved = resolveCollapsible();
-
-export function SafeCollapsible(props: Props) {
-  if (Resolved) return <Resolved {...props} />;
-
-  // Fallback seguro
-  return (
-    <View>
-      {props?.title ? (
-        <View style={{ marginBottom: 8 }}>
-          <Text>{props.title}</Text>
-        </View>
-      ) : null}
-      <View>{props?.children}</View>
-    </View>
-  );
+/**
+ * Wrapper tipado para remover any e garantir contrato “title: string”.
+ * Observação: o Collapsible atual controla estado interno (isOpen) e
+ * não expõe initiallyExpanded — mantemos o prop no wrapper para compat
+ * e futura evolução, mas por enquanto ele é ignorado.
+ */
+export function SafeCollapsible({
+  title,
+  initiallyExpanded: _initiallyExpanded,
+  children,
+}: SafeCollapsibleProps) {
+  return <Collapsible title={title}>{children}</Collapsible>;
 }
