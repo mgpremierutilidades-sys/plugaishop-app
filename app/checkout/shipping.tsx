@@ -5,9 +5,13 @@ import { track } from "../../lib/analytics";
 export default function CheckoutShippingShim() {
   useEffect(() => {
     try {
-      track("checkout_route_shim_redirect", { from: "/checkout/shipping", to: "/(tabs)/checkout/shipping" });
+      track("checkout_route_shim_redirect", {
+        from: "/checkout/shipping",
+        to: "/(tabs)/checkout/shipping",
+      });
     } catch {}
     router.replace("/(tabs)/checkout/shipping" as any);
   }, []);
+
   return null;
 }
