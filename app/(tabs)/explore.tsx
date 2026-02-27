@@ -62,7 +62,7 @@ export default function ExploreScreen() {
     const map = new Map<string, CategoryItem>();
 
     for (const p of products as Product[]) {
-      const raw = ((p as any).category ?? "").trim();
+      const raw = (p.category ?? "").trim();
       if (!raw) continue;
 
       const id = toCategoryId(raw);
@@ -179,9 +179,9 @@ export default function ExploreScreen() {
           <Text style={styles.sectionTitle}>Produtos em destaque</Text>
 
           <View style={styles.productsGrid}>
-            {featured.map((p: any) => (
-              <View key={String(p.id)} style={styles.productItem}>
-                <ProductCard product={p as any} source="explore" />
+            {featured.map((p) => (
+              <View key={p.id} style={styles.productItem}>
+                <ProductCard product={p} source="explore" />
               </View>
             ))}
           </View>
@@ -271,7 +271,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  // mantém 2 colunas, sem mudar a estética do grid
   productItem: {
     width: "48%",
   },
