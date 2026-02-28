@@ -161,7 +161,6 @@ export default function ExploreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos em destaque</Text>
 
-          {/* ✅ cards manuais preservados (imagem + preço), sem any */}
           <View style={styles.productsGrid}>
             {featured.map((p) => (
               <Pressable
