@@ -1,4 +1,4 @@
-// app/checkout/_layout.tsx
+// app/(tabs)/checkout/_layout.tsx
 import { Stack } from "expo-router";
 
 export default function CheckoutLayout() {
@@ -6,7 +6,6 @@ export default function CheckoutLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#F5F7FA" },
         animation: "slide_from_right",
       }}
     >
