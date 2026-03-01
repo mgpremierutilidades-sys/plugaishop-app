@@ -24,7 +24,7 @@ function ok(msg) {
 
 if (!fs.existsSync(HOME_FILE)) {
   fail(
-    "Não encontrei app/(tabs)/index.tsx. Ajuste o path do guard ou verifique o repo.",
+    "Não encontrei app/(tabs)/index.tsx. Ajuste o path do guard ou verifique o repo."
   );
 }
 
@@ -61,10 +61,12 @@ const banned = [
 const hits = banned.filter((r) => r.test.test(src));
 
 if (hits.length > 0) {
-  const details = hits.map((h) => `- [${h.id}] ${h.message}`).join("\n");
+  const details = hits
+    .map((h) => `- [${h.id}] ${h.message}`)
+    .join("\n");
 
   fail(
-    `Foram detectadas regressões de "marca duplicada" na Home:\n\n${details}\n\nComo corrigir:\n- Remova o título/branding duplicado do corpo\n- Mantenha a marca apenas no banner do topo\n- Use elementos neutros no hero (sem logo)\n`,
+    `Foram detectadas regressões de "marca duplicada" na Home:\n\n${details}\n\nComo corrigir:\n- Remova o título/branding duplicado do corpo\n- Mantenha a marca apenas no banner do topo\n- Use elementos neutros no hero (sem logo)\n`
   );
 }
 
