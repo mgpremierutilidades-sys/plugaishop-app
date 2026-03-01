@@ -1,72 +1,84 @@
 import type { Shipping } from "../types/order";
-import { normalizeCEP, isValidCEP } from "./cep";
+import { isValidCEP, normalizeCEP } from "./cep";
 
-export type ShippingOption = Shipping & {
-  id: "pac" | "sedex" | "express";
-};
+/**
+ * Cotação mock determinística por CEP + subtotal
+ * - Não usa rede
+ * - Sempre retorna o mesmo resultado para o mesmo CEP
+ */
+export function getShippingQuote(params: {
+  cep: string;
+  subtotal: number;
+}): Shipping | null {
+  const cep = normalizeCEP(params.cep);
+  if (!isValidCEP(cep)) return null;
 
-function baseByRegion(cep8: string): number {
-  // Heurística simples por faixa de CEP (mock)
-  // 0–3: Sudeste / 4–6: Sul / 7–9: Centro-Oeste/Norte/Nordeste (aprox.)
-  const first = Number(cep8[0] ?? 9);
-  if (first <= 3) return 24.9;
-  if (first <= 6) return 29.9;
-  return 34.9;
+  const subtotal = Number.isFinite(params.subtotal) ? params.subtotal : 0;
+
+  // hash simples e determinístico
+  let h = 0;
+  for (let i = 0; i < cep.length; i++) h = (h * 31 + cep.charCodeAt(i)) >>> 0;
+
+  // região mock: usa prefixo como influência
+  const prefix = Number(cep.slice(0, 3)); // 0..999
+  const regionFactor = (prefix % 10) / 10; // 0.0..0.9
+
+  // preço base + variação
+  const base = 14.9 + regionFactor * 9.5; // 14.90..23.45
+  const jitter = (h % 700) / 100; // 0.00..6.99
+  const price = Math.max(0, base + jitter);
+
+  // frete grátis mock por subtotal
+  const freeThreshold = 199.0;
+  const finalPrice = subtotal >= freeThreshold ? 0 : Number(price.toFixed(2));
+
+  // prazo mock
+  const days = 2 + (h % 6); // 2..7
+  const deadline = `${days} dias úteis`;
+
+  const method = finalPrice === 0 ? "grátis" : "padrão";
+
+  return { method, price: finalPrice, deadline };
 }
 
-export function getShippingOptions(zipRaw: string): ShippingOption[] {
-  const zip = normalizeCEP(zipRaw);
+/**
+ * Compat: checkout/shipping.tsx espera getShippingOptions().
+ * Retorna uma lista de opções (padrão + expresso + grátis quando aplicável).
+ */
+export type ShippingOption = Shipping & { id: string; title: string; subtitle?: string };
 
-  if (!isValidCEP(zip)) {
-    return [
-      {
-        id: "pac",
-        method: "Correios PAC",
-        price: 0,
-        deadline: "Informe o CEP",
-      },
-      {
-        id: "sedex",
-        method: "Correios SEDEX",
-        price: 0,
-        deadline: "Informe o CEP",
-      },
-      {
-        id: "express",
-        method: "Entrega Expressa",
-        price: 0,
-        deadline: "Informe o CEP",
-      },
-    ];
-  }
+export function getShippingOptions(params: {
+  cep: string;
+  subtotal: number;
+}): ShippingOption[] {
+  const cep = normalizeCEP(params.cep);
+  if (!isValidCEP(cep)) return [];
 
-  const base = baseByRegion(zip);
+  const base = getShippingQuote(params);
+  if (!base) return [];
 
-  // Opções mock (mas com cara de real)
-  return [
-    {
-      id: "pac",
-      method: "Correios PAC",
-      price: base,
-      deadline: "5 a 7 dias úteis",
-    },
-    {
-      id: "sedex",
-      method: "Correios SEDEX",
-      price: base + 18.0,
-      deadline: "2 a 3 dias úteis",
-    },
-    {
-      id: "express",
-      method: "Entrega Expressa",
-      price: base + 29.0,
-      deadline: "24 a 48 horas",
-    },
-  ];
-}
+  // Expresso mock (mais caro, mais rápido)
+  const expPrice = base.price === 0 ? 19.9 : Number((base.price * 1.65 + 7.9).toFixed(2));
+  const expDays = Math.max(1, Math.max(2, parseInt(base.deadline, 10) || 3) - 2);
+  const express: ShippingOption = {
+    id: "express",
+    title: "Expresso",
+    method: "expresso",
+    price: expPrice,
+    deadline: `${expDays} dias úteis`,
+    subtitle: "Chega mais rápido",
+  };
 
-export function pickDefaultShipping(zipRaw: string): ShippingOption {
-  const options = getShippingOptions(zipRaw);
-  // Default: PAC
-  return options[0];
+  const standard: ShippingOption = {
+    id: "standard",
+    title: base.price === 0 ? "Grátis" : "Padrão",
+    method: base.method,
+    price: base.price,
+    deadline: base.deadline,
+    subtitle: base.price === 0 ? "Frete grátis no seu pedido" : "Melhor custo-benefício",
+  };
+
+  // Se for grátis por threshold, mantém só grátis e expresso (padrão vira grátis)
+  // Se não for grátis, mantém padrão e expresso.
+  return [standard, express];
 }

@@ -3,7 +3,7 @@ name: Autonomy Cycle (Backlog)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 * * * *" # hourly
 
 permissions:
   contents: write
@@ -11,13 +11,13 @@ permissions:
   issues: write
 
 concurrency:
-  group: autonomy-cycle-${{ github.repository }}
-  cancel-in-progress: false
+  group: autonomy-cycle-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   cycle:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -25,94 +25,336 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ✅ Early-exit: se não há itens queued no backlog, sai verde e não roda nada pesado
+      - name: Skip if backlog has no queued items
+        id: backlog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $path = "ops/backlog.queue.yml"
+          if (-not (Test-Path $path)) {
+            Write-Host "Backlog file not found: $path"
+            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+
+          $raw = Get-Content -Raw -Path $path -Encoding UTF8
+          $hasQueued = $raw -match "(?m)^\s*status:\s*queued\s*$"
+
+          if (-not $hasQueued) {
+            Write-Host "No queued items in backlog. Skipping cycle."
+            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+
+          Write-Host "Queued items detected. Continuing."
+          "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Setup Node
+        if: steps.backlog.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Setup PowerShell
-        uses: PowerShell/PowerShell@v1
-        with:
-          version: "7.4.x"
-
       - name: Install deps
-        run: npm ci
+        if: steps.backlog.outputs.skip != 'true'
+        run: npm ci --no-audit --fund=false
 
       - name: Configure git
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           git config user.name "Plugaishop Autonomy"
           git config user.email "autonomy@plugaishop.ai"
 
-      - name: Run one autonomy cycle
-        id: cycle
-        shell: bash
+      - name: Set AUTONOMY_TRIGGER
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $t = "unknown"
+          if ("${{ github.event_name }}" -eq "schedule") { $t = "schedule" }
+          elseif ("${{ github.event_name }}" -eq "workflow_dispatch") { $t = "manual" }
+          else { $t = "${{ github.event_name }}" }
+          "AUTONOMY_TRIGGER=$t" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # ✅ Alarm dedupe + auto-recovery close
+      - name: Alarm - heartbeat gap (> 60 min) with dedupe
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = "Stop"
 
-          BASE_BRANCH="main"
-          git fetch origin "$BASE_BRANCH"
-          git checkout -B "$BASE_BRANCH" "origin/$BASE_BRANCH"
+          $thresholdSec = 3600
+          git fetch origin +refs/heads/autonomy/heartbeat:refs/remotes/origin/autonomy/heartbeat 2>$null
 
-          BRANCH="autonomy/cycle-${{ github.run_id }}-${{ github.run_attempt }}"
-          git checkout -b "$BRANCH"
-
-          # roda autonomia (falha se der erro)
-          npm run autonomy
-
-          # detecta mudanças de trabalho
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          git show-ref --verify --quiet "refs/remotes/origin/autonomy/heartbeat"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "No previous heartbeat branch found; skipping alarm."
             exit 0
-          fi
+          }
 
-          # commit automático do que mudou
+          $lastCt = git log -1 --format=%ct origin/autonomy/heartbeat
+          if (-not $lastCt) { exit 0 }
+
+          $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          $delta = $now - [int64]$lastCt
+
+          $title = "AUTONOMY DOWN: heartbeat gap detected"
+          $runUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $bodyDown = "Detected heartbeat gap of ${delta}s (> ${thresholdSec}s).`n`n- Repo: $env:GITHUB_REPOSITORY`n- Workflow: $env:GITHUB_WORKFLOW`n- Trigger: $env:AUTONOMY_TRIGGER`n- Run: $runUrl"
+          $bodyUp   = "Recovered: heartbeat gap back to ${delta}s (<= ${thresholdSec}s).`n`n- Repo: $env:GITHUB_REPOSITORY`n- Workflow: $env:GITHUB_WORKFLOW`n- Trigger: $env:AUTONOMY_TRIGGER`n- Run: $runUrl"
+
+          function Get-OpenDownIssueNumber {
+            try {
+              $json = gh issue list --state open --search "$title" --json number,title --limit 1
+              if (-not $json) { return $null }
+              $arr = $json | ConvertFrom-Json
+              if ($arr -and $arr.Count -ge 1) { return $arr[0].number }
+              return $null
+            } catch { return $null }
+          }
+
+          $issueNum = Get-OpenDownIssueNumber
+
+          if ($delta -le $thresholdSec) {
+            Write-Host "Heartbeat OK (delta=${delta}s)."
+            if ($issueNum) {
+              try {
+                gh issue comment $issueNum --body $bodyUp | Out-Null
+                gh issue close $issueNum | Out-Null
+                Write-Host "Closed DOWN issue #$issueNum after recovery."
+              } catch {
+                Write-Host "Could not close issue (non-fatal): $($_.Exception.Message)"
+              }
+            }
+            exit 0
+          }
+
+          Write-Host "Heartbeat gap detected (delta=${delta}s)."
+
+          if ($issueNum) {
+            try {
+              gh issue comment $issueNum --body $bodyDown | Out-Null
+              Write-Host "Commented on existing DOWN issue #$issueNum."
+            } catch {
+              Write-Host "Issue comment failed (non-fatal): $($_.Exception.Message)"
+            }
+            exit 0
+          }
+
+          try {
+            gh issue create --title $title --body $bodyDown --label "autopilot,autonomy-down" | Out-Null
+            Write-Host "Issue created: $title"
+          } catch {
+            Write-Host "Issue create failed (non-fatal): $($_.Exception.Message)"
+          }
+
+      - name: Prepare branches
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $BASE_BRANCH = "main"
+          git fetch origin $BASE_BRANCH
+          git checkout -B $BASE_BRANCH ("origin/" + $BASE_BRANCH)
+
+          $BRANCH = "autonomy/cycle-${{ github.run_id }}-${{ github.run_attempt }}"
+          git checkout -b $BRANCH
+
+          "BRANCH=$BRANCH" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # garante tasks.json existir (backlog_bridge.ps1 usa Resolve-Path)
+      - name: Ensure tasks.json exists
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $p = "tools/autonomy-core/_state/tasks.json"
+          if (-not (Test-Path $p)) {
+            New-Item -ItemType Directory -Force -Path "tools/autonomy-core/_state" | Out-Null
+            '{ "v": 1, "queue": [] }' | Out-File -FilePath $p -Encoding UTF8 -Force
+            Write-Host "Created $p"
+          }
+
+      # (opcional) import backlog->tasks: só se você realmente usa tasks.json como fila interna
+      - name: Backlog import -> tasks (optional)
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/autonomy-core/backlog_bridge.ps1 `
+            -RepoRoot "." `
+            -TasksPath "tools/autonomy-core/_state/tasks.json" `
+            -BacklogPath "ops/backlog.queue.yml" `
+            -Mode import
+
+      - name: Run autonomy (retry x3)
+        if: steps.backlog.outputs.skip != 'true'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_on: error
+          command: npm run autonomy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          AUTONOMY_TRIGGER: ${{ env.AUTONOMY_TRIGGER }}
+
+      # (opcional) sync tasks->backlog após execução
+      - name: Backlog sync from tasks (optional)
+        if: steps.backlog.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/autonomy-core/backlog_bridge.ps1 `
+            -RepoRoot "." `
+            -TasksPath "tools/autonomy-core/_state/tasks.json" `
+            -BacklogPath "ops/backlog.queue.yml" `
+            -Mode sync
+
+      - name: Upload latest run summary (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomy-latest-run
+          path: tools/autonomy-core/_out/latest_run_summary.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Heartbeat branch (always)
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $hb = "tools/autonomy-core/_state/heartbeat.json"
+          if (-not (Test-Path $hb)) {
+            New-Item -ItemType Directory -Force -Path "tools/autonomy-core/_state" | Out-Null
+            $obj = @{
+              v = 1
+              heartbeat_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+              trigger = $env:AUTONOMY_TRIGGER
+              note = "heartbeat_fallback_created_by_workflow"
+              run_id = $env:GITHUB_RUN_ID
+            }
+            ($obj | ConvertTo-Json -Depth 10) | Out-File -FilePath $hb -Encoding UTF8 -Force
+          }
+
+          $tmp = Join-Path $env:RUNNER_TEMP "hb-worktree"
+          if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+          git worktree add $tmp origin/main | Out-Null
+
+          Push-Location $tmp
+          try {
+            git checkout -B autonomy/heartbeat | Out-Null
+            New-Item -ItemType Directory -Force -Path "tools/autonomy-core/_state" | Out-Null
+          } finally { Pop-Location }
+
+          Copy-Item -Force $hb (Join-Path $tmp "tools/autonomy-core/_state/heartbeat.json")
+
+          Push-Location $tmp
+          try {
+            git add -A
+            git commit -m "chore(autonomy): heartbeat $env:GITHUB_RUN_ID" | Out-Null
+            git push -u origin autonomy/heartbeat --force | Out-Null
+          } catch {
+            Write-Host "Heartbeat push failed (non-fatal): $($_.Exception.Message)"
+          } finally { Pop-Location }
+
+          git worktree remove $tmp --force | Out-Null
+
+      - name: Detect meaningful changes (skip state-only PRs)
+        if: steps.backlog.outputs.skip != 'true'
+        id: meaningful
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $files = git status --porcelain | ForEach-Object { $_.Substring(3) }
+          if (-not $files -or $files.Count -eq 0) {
+            "meaningful=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+
+          $stateOnlyPatterns = @(
+            '^tools/autonomy-core/_state/',
+            '^tools/autonomy-core/_out/'
+          )
+
+          $meaningful = $false
+          foreach ($f in $files) {
+            $isStateOnly = $false
+            foreach ($p in $stateOnlyPatterns) {
+              if ($f -match $p) { $isStateOnly = $true; break }
+            }
+            if (-not $isStateOnly) { $meaningful = $true; break }
+          }
+
+          "meaningful=$($meaningful.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Commit if changed (meaningful only)
+        if: steps.backlog.outputs.skip != 'true' && steps.meaningful.outputs.meaningful == 'true'
+        id: commit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $status = git status --porcelain
+          if ([string]::IsNullOrWhiteSpace($status)) {
+            "changed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+
           git add -A
-          git commit -m "chore(ops): autonomy cycle ${{ github.run_id }}" || true
-
-          # se ainda não tiver commit (ex: só timestamps ignorados), sai
-          if [ -z "$(git status --porcelain)" ] && [ "$(git rev-list --count HEAD ^origin/$BASE_BRANCH)" -eq 0 ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git push -u origin "$BRANCH"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          git commit -m "chore(ops): autonomy cycle ${{ github.run_id }}" | Out-Null
+          git push -u origin $env:BRANCH
+          "changed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Create PR (only when changed)
-        if: steps.cycle.outputs.changed == 'true'
-        shell: bash
+        if: steps.backlog.outputs.skip != 'true' && steps.commit.outputs.changed == 'true' && steps.meaningful.outputs.meaningful == 'true'
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = "Stop"
 
-          BRANCH="${{ steps.cycle.outputs.branch }}"
-          TITLE="chore(ops): autonomy cycle ${{ github.run_id }}"
-          BODY=$'Automated autonomy cycle.\n\n- Source: ops/backlog.queue.yml\n- Runner: tools/autonomy-core/runner.ps1\n\nIf this PR only changes runtime state files, you can close it safely.'
+          $BRANCH = $env:BRANCH
+          $TITLE  = "chore(ops): autonomy cycle ${{ github.run_id }}"
+          $BODY   = "Automated autonomy cycle.`n`n- Source: ops/backlog.queue.yml`n- Runner: tools/autonomy-core/runner.ps1`n`nThis PR is auto-merge enabled once CI passes."
 
-          # PR pode já existir em rerun
-          if gh pr view --head "$BRANCH" --json url >/dev/null 2>&1; then
-            echo "PR already exists for $BRANCH"
+          try {
+            gh pr view --head $BRANCH --json url | Out-Null
+            Write-Host "PR already exists for $BRANCH"
             exit 0
-          fi
+          } catch {}
 
-          # labels são opcionais (não falha se não existirem)
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "$TITLE" \
-            --body "$BODY" \
-            --label "autopilot,risk-low" || \
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "$TITLE" \
-            --body "$BODY"
+          gh pr create --base main --head $BRANCH --title $TITLE --body $BODY --label "autopilot,risk-low" | Out-Null
+          Write-Host "PR created for $BRANCH"
+
+      - name: Enable auto-merge (squash) for PR
+        if: steps.backlog.outputs.skip != 'true' && steps.commit.outputs.changed == 'true' && steps.meaningful.outputs.meaningful == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $BRANCH = $env:BRANCH
+
+          $pr = gh pr view --head $BRANCH --json number,url | ConvertFrom-Json
+          if (-not $pr.number) { throw "PR not found for branch: $BRANCH" }
+
+          gh pr merge $pr.number --auto --squash --delete-branch
+          Write-Host "Auto-merge enabled for PR #$($pr.number): $($pr.url)"

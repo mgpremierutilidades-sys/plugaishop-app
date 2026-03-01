@@ -1,4 +1,4 @@
-param(
+﻿param(
   [int]$IntervalSeconds = 900,
   [switch]$Fast
 )
@@ -19,7 +19,7 @@ $stopPath = Join-Path $StateDir "vscode-autopilot.stop"
 
 function Log([string]$m) {
   $ts = (Get-Date).ToString("s")
-  Write-Host ("[VS-AUTOPILOT] [$ts] " + $m)
+  Write-Information ("[VS-AUTOPILOT] [$ts] " + $m) -InformationAction Continue
 }
 
 function RunCmd([string]$cmd) {
@@ -28,7 +28,10 @@ function RunCmd([string]$cmd) {
   return $LASTEXITCODE
 }
 
-function GitBranch() { try { return (git rev-parse --abbrev-ref HEAD).Trim() } catch { return "" } }
+function GitBranch() {
+  try { return (git rev-parse --abbrev-ref HEAD).Trim() }
+  catch { return "" }
+}
 
 # single instance (best effort)
 try {
@@ -40,7 +43,9 @@ try {
     }
   }
   Set-Content -Path $lockPath -Value ("pid=" + $PID) -Encoding UTF8
-} catch {}
+} catch {
+  Log ("lock_error=" + $_.Exception.Message)
+}
 
 # Create a safe branch if we're on main (avoid committing autonomy state to main)
 try {
@@ -51,7 +56,9 @@ try {
     RunCmd ("git checkout -b " + $newBranch) | Out-Null
     Log ("Checked out branch: " + $newBranch)
   }
-} catch {}
+} catch {
+  Log ("branch_guard_error=" + $_.Exception.Message)
+}
 
 Log ("Started. IntervalSeconds=" + $IntervalSeconds + " Fast=" + $Fast.IsPresent)
 Log ("Stop file: " + $stopPath)
@@ -61,15 +68,20 @@ while ($true) {
     # stop signal
     if (Test-Path $stopPath) {
       Log "Stop signal found. Exiting."
-      Remove-Item $stopPath -Force -ErrorAction SilentlyContinue
+      try { Remove-Item $stopPath -Force -ErrorAction SilentlyContinue } catch { Log ("stop_remove_error=" + $_.Exception.Message) }
       break
     }
 
     # heartbeat
-    try { Set-Content -Path $lockPath -Value ("pid=" + $PID + " utc=" + (Get-Date).ToUniversalTime().ToString("s") + "Z") -Encoding UTF8 } catch {}
+    try {
+      Set-Content -Path $lockPath -Value ("pid=" + $PID + " utc=" + (Get-Date).ToUniversalTime().ToString("s") + "Z") -Encoding UTF8
+    } catch {
+      Log ("heartbeat_error=" + $_.Exception.Message)
+    }
 
     $cmd = 'pwsh -NoProfile -ExecutionPolicy Bypass -File "tools/autonomy-core/runner.ps1"'
     if ($Fast) { $env:AUTONOMY_FAST = "1" }
+
     $code = RunCmd $cmd
     if ($code -ne 0) { Log ("runner exit code=" + $code) }
 
