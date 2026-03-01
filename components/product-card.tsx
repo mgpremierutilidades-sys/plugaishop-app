@@ -1,63 +1,61 @@
-import { Image } from "expo-image";
+import { Image, type ImageSource } from "expo-image";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
-import type { Product as UiProduct } from "@/constants/products";
-import type { Product as CatalogProduct } from "@/data/catalog";
+import { ThemedView } from "@/components/themed-view";
+import { isFlagEnabled } from "@/constants/flags";
 import { useThemeColor } from "@/hooks/use-theme-color";
 
-type AnyProduct = UiProduct | CatalogProduct;
+export type PDPSource = "home" | "explore" | "search" | "category" | "unknown";
 
-// [AUTOPILOT] product-card supports multiple catalog shapes + shelf variant
-export type ProductCardVariant = "grid" | "shelf";
+/**
+ * Produto “unificado”:
+ * - constants/products: { id, name, description, category, price, image, badge? }
+ * - data/catalog:       { id, title, description?, category, price, image? }
+ */
+export type ProductLike = {
+  id: string | number;
+
+  name?: string;
+  title?: string;
+
+  description?: string;
+  category?: string;
+
+  price?: number;
+
+  /**
+   * Pode ser:
+   * - string URL
+   * - asset (require) / número
+   * - objeto { uri }
+   */
+  image?: string | ImageSource;
+
+  badge?: string;
+};
 
 type ProductCardProps = {
-  product: AnyProduct;
-  variant?: ProductCardVariant;
-  onPress?: () => void;
+  product: ProductLike;
+  source?: PDPSource;
 };
 
 function formatBRL(value: number) {
-  const fixed = value.toFixed(2).replace(".", ",");
+  const safe = Number.isFinite(value) ? value : 0;
+  const fixed = safe.toFixed(2).replace(".", ",");
   return `R$ ${fixed}`;
 }
 
-
-// [AUTOPILOT] normalize multiple product shapes (constants/products vs data/catalog)
-function getProductName(p: AnyProduct): string {
-  return (p as any).name ?? (p as any).title ?? "";
+function normalizeImage(img?: ProductLike["image"]): ImageSource | null {
+  if (!img) return null;
+  if (typeof img === "string") return { uri: img };
+  return img;
 }
 
-function getProductDescription(p: AnyProduct): string {
-  return (p as any).description ?? "";
-}
-
-function getProductCategory(p: AnyProduct): string {
-  return (p as any).category ?? "";
-}
-
-function getProductImage(p: AnyProduct): any {
-  const img = (p as any).image;
-  return img ? img : undefined;
-}
-
-function getProductBadge(p: AnyProduct): string | undefined {
-  const b = (p as any).badge;
-  if (b) return b;
-  const d = (p as any).discountPercent;
-  if (typeof d === "number" && d > 0) return `-${Math.round(d)}%`;
-  return undefined;
-}
-
-export function ProductCard({ product, variant = "grid", onPress }: ProductCardProps) {
+export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
   const [imgFailed, setImgFailed] = useState(false);
-
-  const name = getProductName(product);
-  const description = getProductDescription(product);
-  const category = getProductCategory(product);
-  const badge = getProductBadge(product);
-  const image = getProductImage(product);
 
   const cardBg = useThemeColor(
     { light: "#FFFFFF", dark: "#111315" },
@@ -78,100 +76,118 @@ export function ProductCard({ product, variant = "grid", onPress }: ProductCardP
     "text",
   );
 
+  const id = useMemo(() => String(product?.id ?? ""), [product?.id]);
+
+  const displayName = useMemo(() => {
+    const s = String(product?.name ?? product?.title ?? "").trim();
+    return s || "Produto";
+  }, [product?.name, product?.title]);
+
   const initials = useMemo(() => {
-    const s = (name || "").trim();
+    const s = displayName.trim();
     if (!s) return "•";
     const parts = s.split(/\s+/).slice(0, 2);
     return parts.map((p) => p[0]?.toUpperCase()).join("");
-  }, [name]);
+  }, [displayName]);
+
+  const imageSource = useMemo(
+    () => normalizeImage(product?.image),
+    [product?.image],
+  );
+
+  const price = Number(product?.price ?? 0);
+
+  function handleOpen() {
+    if (!isFlagEnabled("ff_pdp_v1")) return;
+    if (!id) return;
+
+    // Sem casts: PDP já lê id/source via useLocalSearchParams()
+    const url = `/product/${encodeURIComponent(id)}?source=${encodeURIComponent(
+      source,
+    )}`;
+    router.push(url);
+  }
 
   return (
     <Pressable
-      disabled={!onPress}
-      onPress={onPress}
-      style={[
-        styles.card,
-        variant === "shelf" ? styles.cardShelf : null,
-        { backgroundColor: cardBg, borderColor: border },
-      ]}
+      onPress={handleOpen}
+      style={({ pressed }) => (pressed ? { opacity: 0.96 } : null)}
     >
-      <View style={styles.topRow}>
-        <ThemedText type="caption" style={[styles.category, { color: muted }]}>
-          {category}
-        </ThemedText>
-
-        {badge ? (
-          <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
-            {badge}
-          </ThemedText>
-        ) : (
-          <View style={{ width: 1 }} />
-        )}
-      </View>
-
-      <View
-        style={[
-          styles.imageWrap,
-          variant === "shelf" ? styles.imageWrapShelf : null,
-          { backgroundColor: imageBg },
-        ]}
+      <ThemedView
+        style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}
       >
-        {!imgFailed ? (
-          <Image
-            source={image}
-            contentFit="cover"
-            transition={120}
-            style={styles.image}
-            accessibilityLabel={name}
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <View style={styles.fallback}>
-            <View style={[styles.fallbackBadge, { borderColor: border }]}>
+        <View style={styles.topRow}>
+          <ThemedText type="caption" style={[styles.category, { color: muted }]}>
+            {String(product?.category ?? "")}
+          </ThemedText>
+
+          {product?.badge ? (
+            <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
+              {product.badge}
+            </ThemedText>
+          ) : (
+            <View style={{ width: 1 }} />
+          )}
+        </View>
+
+        <View style={[styles.imageWrap, { backgroundColor: imageBg }]}>
+          {!imgFailed && imageSource ? (
+            <Image
+              source={imageSource}
+              contentFit="cover"
+              transition={120}
+              style={styles.image}
+              accessibilityLabel={displayName}
+              onError={() => setImgFailed(true)}
+            />
+          ) : (
+            <View style={styles.fallback}>
+              <View style={[styles.fallbackBadge, { borderColor: border }]}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={[styles.fallbackText, { color: muted }]}
+                >
+                  {initials}
+                </ThemedText>
+              </View>
               <ThemedText
-                type="defaultSemiBold"
-                style={[styles.fallbackText, { color: muted }]}
+                type="caption"
+                style={[styles.fallbackHint, { color: muted }]}
               >
-                {initials}
+                Imagem indisponível
               </ThemedText>
             </View>
-            <ThemedText
-              type="caption"
-              style={[styles.fallbackHint, { color: muted }]}
-            >
-              Imagem indisponível
-            </ThemedText>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      <View style={styles.info}>
-        <ThemedText
-          type="defaultSemiBold"
-          style={styles.title}
-          numberOfLines={2}
-        >
-          {name}
-        </ThemedText>
+        <View style={styles.info}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={styles.title}
+            numberOfLines={2}
+          >
+            {displayName}
+          </ThemedText>
 
-        <ThemedText
-          type="caption"
-          style={[styles.desc, { color: muted }]}
-          numberOfLines={2}
-        >
-          {description}
-        </ThemedText>
-      </View>
+          <ThemedText
+            type="caption"
+            style={[styles.desc, { color: muted }]}
+            numberOfLines={2}
+          >
+            {String(product?.description ?? "")}
+          </ThemedText>
+        </View>
 
-      <View style={styles.footer}>
-        <ThemedText type="defaultSemiBold" style={styles.price}>
-          {formatBRL(product.price)}
-        </ThemedText>
+        <View style={styles.footer}>
+          <ThemedText type="defaultSemiBold" style={styles.price}>
+            {formatBRL(price)}
+          </ThemedText>
 
-        <ThemedText type="caption" style={[styles.link, { color: accent }]}>
-          Ver detalhes
-        </ThemedText>
-      </View>
+          <ThemedText type="caption" style={[styles.link, { color: accent }]}>
+            Ver detalhes
+          </ThemedText>
+        </View>
+      </ThemedView>
     </Pressable>
   );
 }
@@ -182,15 +198,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
   },
-
-  // [AUTOPILOT] shelf variant (horizontal)
-  cardShelf: {
-    width: 176,
-  },
-  imageWrapShelf: {
-    height: 96,
-  },
-
 
   topRow: {
     flexDirection: "row",
@@ -284,4 +291,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
