@@ -1,23 +1,20 @@
+// app/(tabs)/index.tsx
 import { Image } from "expo-image";
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
-import { ReviewList } from "../../components/reviews/review-list";
-import { ThemedText } from "../../components/themed-text";
-import { ThemedView } from "../../components/themed-view";
-import { isFlagEnabled } from "../../constants/flags";
 import { categories, products } from "../../constants/products";
-import { reviews } from "../../data/reviews";
 import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
@@ -29,6 +26,8 @@ export default function HomeScreen() {
   useOutboxAutoFlush();
 
   const colorScheme = useColorScheme() ?? "light";
+  const isLight = colorScheme === "light";
+
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof categories)[number]>("Todos");
@@ -49,95 +48,63 @@ export default function HomeScreen() {
     });
   }, [query, selectedCategory]);
 
-  const ffVerified = isFlagEnabled("ff_reviews_verified_purchase_v1");
+  const headerBg = "#0E1720";
 
   return (
     <>
       <StatusBar style="light" />
 
       <ParallaxScrollView
-        headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
+        headerBackgroundColor={{ light: headerBg, dark: headerBg }}
         headerImage={
           <Image
             source={require("../../assets/banners/banner-home.png")}
             style={styles.headerBanner}
             contentFit="cover"
+            transition={120}
           />
         }
       >
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="title">Boas-vindas</ThemedText>
-          <ThemedText type="bodySmall">
-            Soluções curadas para acelerar a operação e o varejo inteligente.
-          </ThemedText>
-        </ThemedView>
+        {/* Top compact (ML-like): headline curto + busca + chips */}
+        <View style={styles.topBlock}>
+          <Text style={[styles.h1, { color: isLight ? "#0B1220" : "#F8FAFC" }]}>
+            Boas-vindas
+          </Text>
 
-        <ThemedView style={styles.heroCard}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
-            <ThemedText type="bodySmall">
-              Combine iluminação, organização e sinalização para deixar seu
-              ponto de venda pronto em minutos.
-            </ThemedText>
+          <Text style={[styles.p, { color: isLight ? "#475569" : "#CBD5E1" }]}>
+            Descubra itens com foco em operação e vitrine — rápido e direto.
+          </Text>
 
-            <Link href="/explore" asChild>
-              <Pressable style={styles.cta}>
-                <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
-                  Ver recomendações
-                </ThemedText>
-              </Pressable>
-            </Link>
-          </View>
-
-          <View style={styles.heroPlaceholder}>
-            <View style={styles.heroLine} />
-            <View style={[styles.heroLine, { width: 54 }]} />
-            <View style={[styles.heroLine, { width: 42 }]} />
-          </View>
-        </ThemedView>
-
-        {/* Reviews (TICK-0002) */}
-        <ThemedView>
-          <ReviewList
-            reviews={reviews}
-            enableVerifiedFilter={ffVerified}
-            enableVerifiedBadge={ffVerified}
-          />
-        </ThemedView>
-
-        <ThemedView style={styles.searchSection}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="sectionTitle">Catálogo</ThemedText>
-            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
-          </View>
-
-          <TextInput
-            placeholder="Buscar por categoria ou produto"
-            placeholderTextColor={
-              colorScheme === "light" ? "#6B7280" : "#9CA3AF"
-            }
-            value={query}
-            onChangeText={setQuery}
-            onFocus={() => {
-              // ISSUE #55: a busca “vive” em /search
-              router.push("/search");
-            }}
+          <View
             style={[
-              styles.searchInput,
+              styles.searchWrap,
               {
-                backgroundColor:
-                  colorScheme === "light" ? "#F3F4F6" : "#111315",
-                borderColor: colorScheme === "light" ? "#E5E7EB" : "#2A2F38",
-                color: colorScheme === "light" ? "#111827" : "#F9FAFB",
+                backgroundColor: isLight ? "#F1F5F9" : "#0B1220",
+                borderColor: isLight ? "#E2E8F0" : "#1F2937",
               },
             ]}
-          />
+          >
+            <Text style={styles.searchIcon}>🔎</Text>
+            <TextInput
+              placeholder="Buscar por categoria ou produto"
+              placeholderTextColor={isLight ? "#64748B" : "#94A3B8"}
+              value={query}
+              onChangeText={setQuery}
+              style={[
+                styles.searchInput,
+                { color: isLight ? "#0B1220" : "#F8FAFC" },
+              ]}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+              clearButtonMode="while-editing"
+            />
+          </View>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.chipRow}
-            contentContainerStyle={styles.chipRowContent}
+            contentContainerStyle={styles.chipsRow}
           >
             {categories.map((category) => {
               const isSelected = selectedCategory === category;
@@ -146,124 +113,145 @@ export default function HomeScreen() {
                 <Pressable
                   key={category}
                   onPress={() => setSelectedCategory(category)}
-                  style={[styles.chip, isSelected && styles.chipSelected]}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: isSelected
+                        ? "#0A7EA4"
+                        : isLight
+                        ? "#FFFFFF"
+                        : "#0B1220",
+                      borderColor: isSelected
+                        ? "#0A7EA4"
+                        : isLight
+                        ? "#E2E8F0"
+                        : "#1F2937",
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Categoria ${category}`}
                 >
-                  <ThemedText
-                    type="caption"
+                  {/* IMPORTANTe: sem numberOfLines -> sem "..." */}
+                  <Text
                     style={[
                       styles.chipText,
-                      isSelected ? styles.chipSelectedText : undefined,
+                      { color: isSelected ? "#FFFFFF" : isLight ? "#0B1220" : "#E5E7EB" },
                     ]}
                   >
                     {category}
-                  </ThemedText>
+                  </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
-        </ThemedView>
+        </View>
+
+        {/* Hero compacto, sem marca e sem banner-splash */}
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: isLight ? "#E6F4FE" : "#0B1220", borderColor: isLight ? "#DCEAF7" : "#1F2937" },
+          ]}
+        >
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={[styles.heroTitle, { color: isLight ? "#0B1220" : "#F8FAFC" }]}>
+              Kit rápido de vitrine
+            </Text>
+            <Text style={[styles.heroDesc, { color: isLight ? "#334155" : "#CBD5E1" }]}>
+              Organização, sinalização e iluminação para vender mais com menos esforço.
+            </Text>
+
+            <View style={styles.heroActions}>
+              <Link href="/explore" asChild>
+                <Pressable style={styles.btnPrimary} accessibilityRole="button">
+                  <Text style={styles.btnPrimaryText}>Ver recomendações</Text>
+                </Pressable>
+              </Link>
+
+              <Link href="/cart" asChild>
+                <Pressable style={styles.btnGhost} accessibilityRole="button">
+                  <Text style={styles.btnGhostText}>Ir ao carrinho</Text>
+                </Pressable>
+              </Link>
+            </View>
+          </View>
+
+          {/* Elemento neutro (sem logo) para manter equilíbrio visual */}
+          <View style={styles.heroNeutralBox} />
+        </View>
+
+        {/* Catálogo */}
+        <View style={styles.catalogHeader}>
+          <Text style={[styles.sectionTitle, { color: isLight ? "#0B1220" : "#F8FAFC" }]}>
+            Catálogo
+          </Text>
+          <Text style={[styles.sectionMeta, { color: isLight ? "#64748B" : "#94A3B8" }]}>
+            {filteredProducts.length} itens
+          </Text>
+        </View>
 
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
-            <View key={product.id} style={styles.gridItem}>
-              <ProductCard product={product} source="home" />
-            </View>
+            <ProductCard key={product.id} product={product} />
           ))}
 
           {filteredProducts.length === 0 ? (
-            <ThemedText type="bodySmall">
+            <Text style={[styles.empty, { color: isLight ? "#64748B" : "#94A3B8" }]}>
               Não encontramos itens para sua busca.
-            </ThemedText>
+            </Text>
           ) : null}
         </View>
-
-        <ThemedView style={styles.tip}>
-          <ThemedText type="defaultSemiBold">Dica</ThemedText>
-          <ThemedText type="bodySmall">
-            Use o botão abaixo para testar ações rápidas e visualizar opções
-            contextuais.
-          </ThemedText>
-
-          <Link href="/modal">
-            <Link.Trigger>
-              <ThemedText type="link">Abrir menu de ações</ThemedText>
-            </Link.Trigger>
-          </Link>
-        </ThemedView>
       </ParallaxScrollView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    gap: 6,
+  headerBanner: {
+    width: "100%",
+    height: "100%",
+  },
+
+  topBlock: {
+    gap: 10,
     marginBottom: 10,
   },
 
-  heroCard: {
+  h1: {
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
+
+  p: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  searchWrap: {
     flexDirection: "row",
-    gap: 10,
     alignItems: "center",
-    backgroundColor: "#E6F4FE",
-    padding: 12,
-    borderRadius: 16,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    height: 44,
   },
 
-  heroPlaceholder: {
-    width: 86,
-    height: 86,
-    borderRadius: 18,
-    backgroundColor: "rgba(14, 23, 32, 0.06)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(14, 23, 32, 0.12)",
-    padding: 12,
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  heroLine: {
-    height: 10,
-    width: 62,
-    borderRadius: 8,
-    backgroundColor: "rgba(14, 23, 32, 0.14)",
-  },
-
-  cta: {
-    marginTop: 6,
-    backgroundColor: "#0a7ea4",
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-  },
-
-  searchSection: {
-    gap: 10,
-    marginTop: 12,
-  },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 8,
+    opacity: 0.8,
   },
 
   searchInput: {
-    width: "100%",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    flex: 1,
     fontSize: 14,
+    paddingVertical: 8,
   },
 
-  chipRow: {
-    flexGrow: 0,
-  },
-
-  chipRowContent: {
-    paddingRight: 6,
+  chipsRow: {
+    paddingVertical: 2,
+    gap: 8,
   },
 
   chip: {
@@ -271,49 +259,103 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#CBD5E1",
-    marginRight: 8,
-    minHeight: 34,
-    maxWidth: 140,
-    alignItems: "center",
-    justifyContent: "center",
+    flexShrink: 0, // evita compressão -> evita "..."
   },
 
   chipText: {
-    textAlign: "center",
-    lineHeight: 14,
+    fontSize: 13,
+    fontWeight: "800",
   },
 
-  chipSelected: {
-    backgroundColor: "#0a7ea4",
-    borderColor: "#0a7ea4",
+  hero: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
   },
 
-  chipSelectedText: {
-    color: "#fff",
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+
+  heroDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  heroActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+
+  btnPrimary: {
+    backgroundColor: "#0A7EA4",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
+  btnPrimaryText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
+  btnGhost: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(148,163,184,0.15)",
+  },
+
+  btnGhostText: {
+    color: "#0B1220",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
+  heroNeutralBox: {
+    width: 74,
+    height: 74,
+    borderRadius: 18,
+    backgroundColor: "rgba(148,163,184,0.25)",
+  },
+
+  catalogHeader: {
+    marginTop: 14,
+    marginBottom: 6,
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+
+  sectionMeta: {
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   grid: {
-    marginTop: 12,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -6,
+    marginTop: 10,
+    gap: 12,
   },
 
-  gridItem: {
-    width: "50%",
-    paddingHorizontal: 6,
-    paddingBottom: 12,
-  },
-
-  tip: {
-    gap: 6,
-    marginTop: 8,
-    paddingBottom: 8,
-  },
-
-  headerBanner: {
-    width: "100%",
-    height: "100%",
+  empty: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
