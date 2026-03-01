@@ -18,7 +18,9 @@ export type FeatureFlag =
   | "ff_cart_action_lock"
   | "ff_cart_analytics_v1"
   | "ff_cart_persist_v1"
-  | "ff_reviews_verified_purchase_v1";
+  | "ff_cart_ui_v2"
+  | "ff_reviews_verified_purchase_v1"
+  | "ff_entry_biometric_gate_v1";
 
 const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_pdp_v1: true,
@@ -44,9 +46,11 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_cart_action_lock: true,
   ff_cart_analytics_v1: true,
   ff_cart_persist_v1: true,
+  ff_cart_ui_v2: true,
 
-  // rollout
   ff_reviews_verified_purchase_v1: false,
+
+  ff_entry_biometric_gate_v1: true,
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {
