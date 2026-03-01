@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -8,11 +9,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
+import { track } from "../../../lib/analytics";
 import type { Order } from "../../../utils/ordersStore";
 import { getOrderById, setOrderReview } from "../../../utils/ordersStore";
 
@@ -30,27 +31,38 @@ export default function OrderReviewScreen() {
   const [stars, setStars] = useState<number>(5);
   const [comment, setComment] = useState<string>("");
 
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     if (!orderId) {
       setOrder(null);
       return;
     }
-    const found = await getOrderById(orderId);
-    setOrder(found);
+    setLoading(true);
+    try {
+      const found = await getOrderById(orderId);
+      setOrder(found);
 
-    if (found?.review) {
-      setStars(found.review.stars);
-      setComment(found.review.comment);
-    } else {
-      setStars(5);
-      setComment("");
+      if (found?.review) {
+        setStars(found.review.stars);
+        setComment(found.review.comment);
+      } else {
+        setStars(5);
+        setComment("");
+      }
+    } finally {
+      setLoading(false);
     }
   }, [orderId]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      try {
+        track("order_review_view", { order_id: orderId || "unknown" });
+      } catch {}
+    }, [load, orderId]),
   );
 
   const starsLabel = useMemo(() => {
@@ -60,13 +72,34 @@ export default function OrderReviewScreen() {
   const save = async () => {
     if (!orderId) return;
 
-    const updated = await setOrderReview(orderId, stars, comment);
-    if (!updated) {
-      Alert.alert("Avaliação", "Não foi possível salvar sua avaliação.");
-      return;
+    setSaving(true);
+    try {
+      try {
+        track("order_review_save_attempt", {
+          order_id: orderId,
+          stars,
+          has_comment: comment.trim().length > 0,
+        });
+      } catch {}
+
+      const updated = await setOrderReview(orderId, stars, comment);
+      if (!updated) {
+        try {
+          track("order_review_save_fail", { order_id: orderId });
+        } catch {}
+        Alert.alert("Avaliação", "Não foi possível salvar sua avaliação.");
+        return;
+      }
+
+      try {
+        track("order_review_save_success", { order_id: orderId, stars });
+      } catch {}
+
+      Alert.alert("Avaliação", "Avaliação salva com sucesso!");
+      router.back();
+    } finally {
+      setSaving(false);
     }
-    Alert.alert("Avaliação", "Avaliação salva com sucesso!");
-    router.back();
   };
 
   return (
@@ -92,11 +125,16 @@ export default function OrderReviewScreen() {
         >
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
-            <ThemedText style={styles.secondary}>
-              {order?.review
-                ? "Você já avaliou este pedido. Pode atualizar a qualquer momento."
-                : "Conte como foi sua experiência."}
-            </ThemedText>
+
+            {loading ? (
+              <ThemedText style={styles.secondary}>Carregando…</ThemedText>
+            ) : (
+              <ThemedText style={styles.secondary}>
+                {order?.review
+                  ? "Você já avaliou este pedido. Pode atualizar a qualquer momento."
+                  : "Conte como foi sua experiência."}
+              </ThemedText>
+            )}
 
             <View style={styles.divider} />
 
@@ -108,7 +146,15 @@ export default function OrderReviewScreen() {
                 return (
                   <Pressable
                     key={n}
-                    onPress={() => setStars(n)}
+                    onPress={() => {
+                      setStars(n);
+                      try {
+                        track("order_review_star_select", {
+                          order_id: orderId || "unknown",
+                          stars: n,
+                        });
+                      } catch {}
+                    }}
                     style={[
                       styles.starPill,
                       active ? styles.starActive : styles.starIdle,
@@ -140,9 +186,13 @@ export default function OrderReviewScreen() {
               textAlignVertical="top"
             />
 
-            <Pressable onPress={save} style={styles.primaryBtn}>
+            <Pressable
+              onPress={save}
+              style={[styles.primaryBtn, saving ? { opacity: 0.6 } : null]}
+              disabled={saving}
+            >
               <ThemedText style={styles.primaryBtnText}>
-                Salvar avaliação
+                {saving ? "Salvando..." : "Salvar avaliação"}
               </ThemedText>
             </Pressable>
           </ThemedView>

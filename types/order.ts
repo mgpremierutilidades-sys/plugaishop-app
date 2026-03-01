@@ -15,12 +15,43 @@ export type Address = {
 export type Shipping = {
   method: string;
   price: number;
-  deadline?: string;
+  deadline: string;
 };
 
 export type Payment = {
   method?: "pix" | "card" | "boleto" | "cash" | "unknown";
   status?: "paid" | "pending" | "failed";
+};
+
+export type LogisticsEventType =
+  | "created"
+  | "payment_pending"
+  | "processing"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "canceled"
+  | "custom"
+  // compat com tracking UI
+  | "POSTED"
+  | "IN_TRANSIT"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "EXCEPTION";
+
+export type LogisticsEvent = {
+  id: string;
+  type: LogisticsEventType;
+
+  date?: string; // ISO (legacy)
+  at?: string; // ISO (preferido)
+
+  note?: string;
+  location?: string;
+
+  title?: string;
+  description?: string;
 };
 
 export type OrderDraft = {
@@ -41,6 +72,10 @@ export type OrderDraft = {
   address?: Address;
   payment?: Payment;
   note?: string;
+
+  // ---- Tracking/Logística (V1 stub) ----
+  trackingCode?: string;
+  logisticsEvents?: LogisticsEvent[];
 };
 
 export type Order = Omit<OrderDraft, "id"> & {
@@ -50,9 +85,6 @@ export type Order = Omit<OrderDraft, "id"> & {
   createdAt: string; // ISO
 };
 
-/**
- * Tipos adicionais usados pelo ordersStore (stubs tipados e compatíveis com mocks).
- */
 export type InAppNotification = {
   id: string;
   title: string;
@@ -74,31 +106,6 @@ export type Invoice = {
   series?: string;
   accessKey?: string;
   danfeUrl?: string;
-};
-
-export type LogisticsEventType =
-  | "created"
-  | "payment_pending"
-  | "processing"
-  | "paid"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "canceled"
-  | "custom";
-
-export type LogisticsEvent = {
-  id: string;
-  type: LogisticsEventType;
-
-  date?: string; // ISO
-  at?: string; // ISO
-
-  note?: string;
-  location?: string;
-
-  title?: string;
-  description?: string;
 };
 
 export type OrderReview = {

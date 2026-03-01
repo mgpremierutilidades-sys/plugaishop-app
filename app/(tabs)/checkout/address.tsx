@@ -1,13 +1,11 @@
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
-import { isFlagEnabled } from "../../../constants/flags";
 import theme from "../../../constants/theme";
-import { track } from "../../../lib/analytics";
 
 const FONT_BODY = "OpenSans_400Regular";
 const FONT_BODY_BOLD = "OpenSans_700Bold";
@@ -35,17 +33,6 @@ function maskCep(v: string) {
 export default function CheckoutAddress() {
   const goBack = () => router.back();
 
-  const addressEnabled = isFlagEnabled("ff_checkout_address_v1");
-  const analyticsEnabled = isFlagEnabled("ff_cart_analytics_v1");
-
-  useEffect(() => {
-    if (!addressEnabled) {
-      router.replace("/checkout/shipping" as any);
-      return;
-    }
-    if (analyticsEnabled) track("checkout_address_view");
-  }, [addressEnabled, analyticsEnabled]);
-
   const [form, setForm] = useState<AddressForm>({
     cep: "",
     number: "",
@@ -65,24 +52,6 @@ export default function CheckoutAddress() {
   }, [form]);
 
   const push = (path: string) => router.push(path as any);
-
-  const onContinue = () => {
-    if (!canContinue) {
-      if (analyticsEnabled) {
-        track("checkout_error", { step: "address", reason: "validation" });
-      }
-      return;
-    }
-
-    if (analyticsEnabled) {
-      track("checkout_address_save", {
-        cep: onlyDigits(form.cep),
-        has_complement: form.complement.trim().length > 0,
-      });
-    }
-
-    push("/checkout/shipping");
-  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -179,12 +148,13 @@ export default function CheckoutAddress() {
           />
 
           <Pressable
-            onPress={onContinue}
+            onPress={() => push("/checkout/shipping")}
             style={[
               styles.primaryBtn,
               !canContinue ? styles.primaryBtnDisabled : null,
             ]}
             accessibilityRole="button"
+            disabled={!canContinue}
           >
             <ThemedText style={styles.primaryBtnText}>CONTINUAR</ThemedText>
           </Pressable>

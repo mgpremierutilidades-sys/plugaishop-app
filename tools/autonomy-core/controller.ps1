@@ -1,4 +1,4 @@
-# tools/autonomy-core/controller.ps1
+﻿# tools/autonomy-core/controller.ps1
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TasksPath,
