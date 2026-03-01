@@ -1,14 +1,7 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo } from "react";
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import theme from "../../constants/theme";
 import type { Product } from "../../data/catalog";
@@ -29,11 +22,11 @@ export default function CategoryScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const categoryId = String(params?.id ?? "").trim();
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo<Product[]>(() => {
     if (!categoryId) return [];
 
     return (products as Product[]).filter((p) => {
-      const raw = String((p as any)?.category ?? "").trim();
+      const raw = String(p?.category ?? "").trim();
       if (!raw) return false;
       return normalizeCategory(raw) === categoryId;
     });
@@ -42,7 +35,7 @@ export default function CategoryScreen() {
   const title = useMemo(() => {
     if (!categoryId) return "Categoria";
     // tenta recuperar um nome “humano” a partir de algum item filtrado
-    const first = filtered[0] as any;
+    const first = filtered[0];
     const raw = String(first?.category ?? "").trim();
     return raw || "Categoria";
   }, [categoryId, filtered]);
@@ -50,10 +43,7 @@ export default function CategoryScreen() {
   useEffect(() => {
     if (!categoryId) return;
     try {
-      track("category_viewed", {
-        category_id: categoryId,
-        items_count: filtered.length,
-      });
+      track("category_viewed", { category_id: categoryId, items_count: filtered.length });
     } catch {}
   }, [categoryId, filtered.length]);
 
@@ -76,7 +66,9 @@ export default function CategoryScreen() {
         {filtered.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>Sem itens nesta categoria</Text>
-            <Text style={styles.emptySub}>Tente outra categoria no Explorar.</Text>
+            <Text style={styles.emptySub}>
+              Tente outra categoria no Explorar.
+            </Text>
 
             <Pressable
               onPress={() => router.push("/(tabs)/explore")}
@@ -87,7 +79,7 @@ export default function CategoryScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {filtered.map((p: any) => (
+            {filtered.map((p) => (
               <Pressable
                 key={String(p.id)}
                 style={styles.card}
@@ -100,14 +92,15 @@ export default function CategoryScreen() {
                   } catch {}
 
                   const pid = String(p.id);
-                  router.push({
-                    pathname: "/product/[id]" as any,
-                    params: { id: pid, source: "category" },
-                  });
+                  router.push(
+                    `/product/${encodeURIComponent(pid)}?source=${encodeURIComponent(
+                      "category",
+                    )}`,
+                  );
                 }}
               >
                 <Image
-                  source={{ uri: p.image }}
+                  source={{ uri: String(p.image ?? "") }}
                   style={styles.image}
                   resizeMode="cover"
                 />

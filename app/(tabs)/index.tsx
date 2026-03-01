@@ -2,7 +2,13 @@ import { Image } from "expo-image";
 import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
@@ -160,7 +166,7 @@ export default function HomeScreen() {
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.gridItem}>
-              <ProductCard product={product} />
+              <ProductCard product={product} source="home" />
             </View>
           ))}
 
