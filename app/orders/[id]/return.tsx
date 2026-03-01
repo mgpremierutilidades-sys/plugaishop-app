@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -8,16 +9,16 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import theme, { Radius, Spacing } from "../../../constants/theme";
+import { track } from "../../../lib/analytics";
 import type { Order, ReturnType } from "../../../utils/ordersStore";
 import {
+  addReturnAttachment,
   createReturnRequest,
   getOrderById,
-  addReturnAttachment,
 } from "../../../utils/ordersStore";
 
 function safeString(v: unknown) {
@@ -56,25 +57,37 @@ export default function OrderReturnScreen() {
   const [reasonQuick, setReasonQuick] = useState<string>(REASONS[0]);
   const [reasonText, setReasonText] = useState<string>("");
 
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+
   const load = useCallback(async () => {
     if (!orderId) {
       setOrder(null);
       return;
     }
-    const found = await getOrderById(orderId);
-    setOrder(found);
+    setLoading(true);
+    try {
+      const found = await getOrderById(orderId);
+      setOrder(found);
 
-    if (found?.returnRequest) {
-      setType(found.returnRequest.type);
-      setReasonQuick("Outro");
-      setReasonText(found.returnRequest.reason);
+      if (found?.returnRequest) {
+        setType(found.returnRequest.type);
+        setReasonQuick("Outro");
+        setReasonText(found.returnRequest.reason);
+      }
+    } finally {
+      setLoading(false);
     }
   }, [orderId]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      try {
+        track("order_return_view", { order_id: orderId || "unknown" });
+      } catch {}
+    }, [load, orderId]),
   );
 
   const finalReason = useMemo(() => {
@@ -82,25 +95,56 @@ export default function OrderReturnScreen() {
     return reasonText.trim() || "Outro";
   }, [reasonQuick, reasonText]);
 
+  const hasReturnOpen = !!order?.returnRequest;
+
   const submit = async () => {
     if (!orderId) return;
+
+    if (hasReturnOpen) {
+      Alert.alert("Troca / Reembolso", "Já existe uma solicitação aberta.");
+      return;
+    }
 
     if (!finalReason.trim()) {
       Alert.alert("Troca / Reembolso", "Informe o motivo.");
       return;
     }
 
-    const updated = await createReturnRequest(orderId, type, finalReason);
-    if (!updated) {
-      Alert.alert("Erro", "Não foi possível abrir a solicitação.");
-      return;
-    }
+    setSubmitting(true);
+    try {
+      try {
+        track("order_return_submit_attempt", {
+          order_id: orderId,
+          type,
+          reason: finalReason,
+        });
+      } catch {}
 
-    setOrder(updated);
-    Alert.alert(
-      "Solicitação criada",
-      `Protocolo: ${updated.returnRequest?.protocol}`,
-    );
+      const updated = await createReturnRequest(orderId, type, finalReason);
+      if (!updated) {
+        try {
+          track("order_return_submit_fail", { order_id: orderId });
+        } catch {}
+        Alert.alert("Erro", "Não foi possível abrir a solicitação.");
+        return;
+      }
+
+      setOrder(updated);
+
+      try {
+        track("order_return_submit_success", {
+          order_id: orderId,
+          protocol: updated.returnRequest?.protocol ?? "unknown",
+        });
+      } catch {}
+
+      Alert.alert(
+        "Solicitação criada",
+        `Protocolo: ${updated.returnRequest?.protocol}`,
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const copyProtocol = async () => {
@@ -108,8 +152,14 @@ export default function OrderReturnScreen() {
     if (!p) return;
 
     const ok = await copyToClipboard(p);
-    if (ok) Alert.alert("Copiado", "Protocolo copiado.");
-    else Alert.alert("Copiar", `Copie manualmente: ${p}`);
+    if (ok) {
+      try {
+        track("order_return_protocol_copied", { order_id: orderId });
+      } catch {}
+      Alert.alert("Copiado", "Protocolo copiado.");
+    } else {
+      Alert.alert("Copiar", `Copie manualmente: ${p}`);
+    }
   };
 
   /**
@@ -124,16 +174,29 @@ export default function OrderReturnScreen() {
       return;
     }
 
-    const fakeUri = `mock://photo-${Date.now()}.jpg`;
+    setAttaching(true);
+    try {
+      const fakeUri = `mock://photo-${Date.now()}.jpg`;
 
-    const updated = await addReturnAttachment(orderId, fakeUri);
-    if (!updated) {
-      Alert.alert("Erro", "Não foi possível anexar.");
-      return;
+      const updated = await addReturnAttachment(orderId, fakeUri);
+      if (!updated) {
+        Alert.alert("Erro", "Não foi possível anexar.");
+        return;
+      }
+
+      setOrder(updated);
+
+      try {
+        track("order_return_attachment_added", {
+          order_id: orderId,
+          attachments_count: updated.returnRequest?.attachments?.length ?? 0,
+        });
+      } catch {}
+
+      Alert.alert("Anexo adicionado", "Foto anexada (mock).");
+    } finally {
+      setAttaching(false);
     }
-
-    setOrder(updated);
-    Alert.alert("Anexo adicionado", "Foto anexada (mock).");
   };
 
   const attachmentsCount = order?.returnRequest?.attachments?.length ?? 0;
@@ -161,7 +224,9 @@ export default function OrderReturnScreen() {
           <ThemedView style={styles.card}>
             <ThemedText style={styles.cardTitle}>Pedido #{orderId}</ThemedText>
 
-            {order?.returnRequest ? (
+            {loading ? (
+              <ThemedText style={styles.secondary}>Carregando…</ThemedText>
+            ) : order?.returnRequest ? (
               <ThemedView style={styles.infoBox}>
                 <ThemedText style={styles.infoTitle}>
                   Solicitação aberta
@@ -190,9 +255,7 @@ export default function OrderReturnScreen() {
 
                 <ThemedText style={styles.secondary}>
                   Anexos:{" "}
-                  <ThemedText style={styles.bold}>
-                    {attachmentsCount}
-                  </ThemedText>
+                  <ThemedText style={styles.bold}>{attachmentsCount}</ThemedText>
                 </ThemedText>
 
                 <View style={styles.actionRow}>
@@ -205,9 +268,10 @@ export default function OrderReturnScreen() {
                   <Pressable
                     onPress={addMockAttachment}
                     style={styles.outlineBtn}
+                    disabled={attaching}
                   >
                     <ThemedText style={styles.outlineBtnText}>
-                      Adicionar foto
+                      {attaching ? "..." : "Adicionar foto"}
                     </ThemedText>
                   </Pressable>
                 </View>
@@ -229,9 +293,11 @@ export default function OrderReturnScreen() {
                   <Pressable
                     key={t}
                     onPress={() => setType(t)}
+                    disabled={hasReturnOpen}
                     style={[
                       styles.pill,
                       active ? styles.pillActive : styles.pillIdle,
+                      hasReturnOpen ? { opacity: 0.6 } : null,
                     ]}
                   >
                     <ThemedText
@@ -256,9 +322,11 @@ export default function OrderReturnScreen() {
                   <Pressable
                     key={r}
                     onPress={() => setReasonQuick(r)}
+                    disabled={hasReturnOpen}
                     style={[
                       styles.reasonPill,
                       active ? styles.reasonActive : styles.reasonIdle,
+                      hasReturnOpen ? { opacity: 0.6 } : null,
                     ]}
                   >
                     <ThemedText
@@ -276,7 +344,7 @@ export default function OrderReturnScreen() {
               })}
             </View>
 
-            {reasonQuick === "Outro" && (
+            {reasonQuick === "Outro" && !hasReturnOpen && (
               <TextInput
                 value={reasonText}
                 onChangeText={setReasonText}
@@ -288,9 +356,20 @@ export default function OrderReturnScreen() {
               />
             )}
 
-            <Pressable onPress={submit} style={styles.primaryBtn}>
+            <Pressable
+              onPress={submit}
+              style={[
+                styles.primaryBtn,
+                (submitting || hasReturnOpen) ? { opacity: 0.6 } : null,
+              ]}
+              disabled={submitting || hasReturnOpen}
+            >
               <ThemedText style={styles.primaryBtnText}>
-                Abrir solicitação
+                {hasReturnOpen
+                  ? "Solicitação já aberta"
+                  : submitting
+                    ? "Abrindo..."
+                    : "Abrir solicitação"}
               </ThemedText>
             </Pressable>
           </ThemedView>

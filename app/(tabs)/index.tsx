@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import {
@@ -12,12 +12,12 @@ import {
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
+import { ReviewList } from "../../components/reviews/review-list";
 import { ThemedText } from "../../components/themed-text";
 import { ThemedView } from "../../components/themed-view";
-import { categories, products } from "../../constants/products";
 import { isFlagEnabled } from "../../constants/flags";
-import { HomeAchadinhosEvents, track } from "../../lib/analytics";
-import { getAchadinhosOfDay } from "../../data/catalog";
+import { categories, products } from "../../constants/products";
+import { reviews } from "../../data/reviews";
 import { useColorScheme } from "../../hooks/use-color-scheme";
 
 // fail-safe + outbox flush
@@ -30,12 +30,9 @@ export default function HomeScreen() {
 
   const colorScheme = useColorScheme() ?? "light";
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number]>("Todos");
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof categories)[number]>("Todos");
 
-  const [achadinhosSeen, setAchadinhosSeen] = useState(false);
-  const [achadinhosScrolled, setAchadinhosScrolled] = useState(false);
-
-  const achadinhos = useMemo(() => getAchadinhosOfDay(10), []);
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -52,11 +49,12 @@ export default function HomeScreen() {
     });
   }, [query, selectedCategory]);
 
+  const ffVerified = isFlagEnabled("ff_reviews_verified_purchase_v1");
+
   return (
     <>
       <StatusBar style="light" />
 
-      {/* ✅ Banner do topo: intocado */}
       <ParallaxScrollView
         headerBackgroundColor={{ light: "#0E1720", dark: "#0E1720" }}
         headerImage={
@@ -67,7 +65,6 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* ✅ REMOVIDO: texto de marca duplicada abaixo do banner */}
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">Boas-vindas</ThemedText>
           <ThemedText type="bodySmall">
@@ -75,7 +72,6 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
 
-        {/* ✅ Hero mais compacto e SEM usar banner-splash (evita “imagem no meio”) */}
         <ThemedView style={styles.heroCard}>
           <View style={{ flex: 1, gap: 6 }}>
             <ThemedText type="subtitle">Kit rápido de vitrine</ThemedText>
@@ -93,7 +89,6 @@ export default function HomeScreen() {
             </Link>
           </View>
 
-          {/* ✅ Placeholder neutro: não duplica branding e não vira “quadrado preto” */}
           <View style={styles.heroPlaceholder}>
             <View style={styles.heroLine} />
             <View style={[styles.heroLine, { width: 54 }]} />
@@ -101,55 +96,19 @@ export default function HomeScreen() {
           </View>
         </ThemedView>
 
-        
-        {/* [AUTOPILOT_HOME_ACHADINHOS] shelf com flag + métricas */}
-        {isFlagEnabled("ff_home_achadinhos_shelf") && achadinhos.length > 0 ? (
-          <ThemedView
-            style={styles.achadinhosSection}
-            onLayout={() => {
-              if (!achadinhosSeen) {
-                setAchadinhosSeen(true);
-                track(HomeAchadinhosEvents.impression, { count: achadinhos.length });
-              }
-            }}
-          >
-            <View style={styles.sectionHeader}>
-              <ThemedText type="sectionTitle">Achadinhos do Dia</ThemedText>
-              <ThemedText type="caption">ofertas com desconto</ThemedText>
-            </View>
+        {/* Reviews (TICK-0002) */}
+        <ThemedView>
+          <ReviewList
+            reviews={reviews}
+            enableVerifiedFilter={ffVerified}
+            enableVerifiedBadge={ffVerified}
+          />
+        </ThemedView>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.achadinhosScroll}
-              scrollEventThrottle={64}
-              onScroll={() => {
-                if (!achadinhosScrolled) {
-                  setAchadinhosScrolled(true);
-                  track(HomeAchadinhosEvents.shelfScroll, { count: achadinhos.length });
-                }
-              }}
-            >
-              {achadinhos.map((p) => (
-                <View key={p.id} style={styles.achadinhosItem}>
-                  <ProductCard
-                    product={p}
-                    variant="shelf"
-                    onPress={() => track(HomeAchadinhosEvents.cardClick, { id: p.id })}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </ThemedView>
-        ) : null}
-
-        {/* ✅ Seção de busca + chips compactos */}
         <ThemedView style={styles.searchSection}>
           <View style={styles.sectionHeader}>
             <ThemedText type="sectionTitle">Catálogo</ThemedText>
-            <ThemedText type="caption">
-              {filteredProducts.length} itens
-            </ThemedText>
+            <ThemedText type="caption">{filteredProducts.length} itens</ThemedText>
           </View>
 
           <TextInput
@@ -159,6 +118,10 @@ export default function HomeScreen() {
             }
             value={query}
             onChangeText={setQuery}
+            onFocus={() => {
+              // ISSUE #55: a busca “vive” em /search
+              router.push("/search");
+            }}
             style={[
               styles.searchInput,
               {
@@ -185,7 +148,6 @@ export default function HomeScreen() {
                   onPress={() => setSelectedCategory(category)}
                   style={[styles.chip, isSelected && styles.chipSelected]}
                 >
-                  {/* ✅ Sem numberOfLines => sem reticências */}
                   <ThemedText
                     type="caption"
                     style={[
@@ -201,11 +163,10 @@ export default function HomeScreen() {
           </ScrollView>
         </ThemedView>
 
-        {/* ✅ Grid 2 colunas (mais produtos por tela) */}
         <View style={styles.grid}>
           {filteredProducts.map((product) => (
             <View key={product.id} style={styles.gridItem}>
-              <ProductCard product={product} />
+              <ProductCard product={product} source="home" />
             </View>
           ))}
 
@@ -216,7 +177,6 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
-        {/* ✅ Dica compacta (mantém a funcionalidade, menos espaço) */}
         <ThemedView style={styles.tip}>
           <ThemedText type="defaultSemiBold">Dica</ThemedText>
           <ThemedText type="bodySmall">
@@ -313,8 +273,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#CBD5E1",
     marginRight: 8,
-
-    // ✅ evita “…”: deixa o chip crescer em altura se precisar quebrar linha
     minHeight: 34,
     maxWidth: 140,
     alignItems: "center",
@@ -358,10 +316,4 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-
-  achadinhosSection: { marginTop: 12 },
-  achadinhosScroll: { paddingLeft: 16, paddingRight: 4 },
-  achadinhosItem: { marginRight: 12 },
 });
-
-

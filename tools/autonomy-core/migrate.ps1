@@ -1,27 +1,35 @@
-param([string]\E:\plugaishop-app\tools\autonomy-core)
+﻿[CmdletBinding(SupportsShouldProcess=$true)]
+param(
+  [Parameter()][string]$MigrationsPath = (Join-Path $PSScriptRoot "migrations"),
+  [Parameter()][switch]$Quiet
+)
 
-\E:\plugaishop-app\tools\autonomy-core\migrations = Join-Path \E:\plugaishop-app\tools\autonomy-core "migrations"
-\ = Join-Path \E:\plugaishop-app\tools\autonomy-core "_state\migrations.json"
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
-if (-not (Test-Path \)) {
-  @{ v = 1; applied = @() } | ConvertTo-Json -Depth 10 | Set-Content \ -Encoding UTF8
+function Write-Info([string]$Message) {
+  if (-not $Quiet) { Write-Output $Message }
 }
 
-\ = Get-Content \ -Raw | ConvertFrom-Json
-\ = @()
-if (\ -and \.applied) { \ = @(\.applied) }
-
-\ = Get-ChildItem \E:\plugaishop-app\tools\autonomy-core\migrations -Filter "*.ps1" | Sort-Object Name
-\ = New-Object System.Collections.Generic.List[string]
-
-foreach (\ in \) {
-  if (\ -contains \.Name) { continue }
-  \ = & pwsh -NoProfile -ExecutionPolicy Bypass -File \.FullName -CoreDir \E:\plugaishop-app\tools\autonomy-core
-  \.Add("apply=" + \.Name)
-  \ += \.Name
+if (-not (Test-Path $MigrationsPath)) {
+  Write-Info "migrate: no migrations folder at: $MigrationsPath"
+  exit 0
 }
 
-\.applied = \
-(\ | ConvertTo-Json -Depth 10) | Set-Content \ -Encoding UTF8
+$files = Get-ChildItem -Path $MigrationsPath -Filter "MIG-*.ps1" -File |
+  Sort-Object Name
 
-@{ ok=\True; applied=\; notes=\ } | ConvertTo-Json -Depth 10
+if ($files.Count -eq 0) {
+  Write-Info "migrate: no MIG-*.ps1 files found"
+  exit 0
+}
+
+foreach ($f in $files) {
+  $name = $f.Name
+  if ($PSCmdlet.ShouldProcess($name, "Execute migration")) {
+    Write-Info "migrate: running $name"
+    & $f.FullName
+  }
+}
+
+Write-Info "migrate: done"
