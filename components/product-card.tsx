@@ -1,4 +1,4 @@
-import { Image } from "expo-image";
+import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -6,17 +6,52 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { isFlagEnabled } from "@/constants/flags";
-import { Product } from "@/constants/products";
 import { useThemeColor } from "@/hooks/use-theme-color";
 
+export type PDPSource = "home" | "explore" | "search" | "category" | "unknown";
+
+/**
+ * Produto “unificado”:
+ * - constants/products: { id, name, description, category, price, image, badge? }
+ * - data/catalog:       { id, title, description?, category, price, image? }
+ */
+export type ProductLike = {
+  id: string | number;
+
+  name?: string;
+  title?: string;
+
+  description?: string;
+  category?: string;
+
+  price?: number;
+
+  /**
+   * Pode ser:
+   * - string URL
+   * - asset (require) / número
+   * - objeto { uri }
+   */
+  image?: string | ImageSource;
+
+  badge?: string;
+};
+
 type ProductCardProps = {
-  product: Product;
-  source?: "home" | "explore" | "search" | "category" | "unknown";
+  product: ProductLike;
+  source?: PDPSource;
 };
 
 function formatBRL(value: number) {
-  const fixed = value.toFixed(2).replace(".", ",");
+  const safe = Number.isFinite(value) ? value : 0;
+  const fixed = safe.toFixed(2).replace(".", ",");
   return `R$ ${fixed}`;
+}
+
+function normalizeImage(img?: ProductLike["image"]): ImageSource | null {
+  if (!img) return null;
+  if (typeof img === "string") return { uri: img };
+  return img;
 }
 
 export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
@@ -41,23 +76,36 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
     "text",
   );
 
+  const id = useMemo(() => String(product?.id ?? ""), [product?.id]);
+
+  const displayName = useMemo(() => {
+    const s = String(product?.name ?? product?.title ?? "").trim();
+    return s || "Produto";
+  }, [product?.name, product?.title]);
+
   const initials = useMemo(() => {
-    const s = (product.name || "").trim();
+    const s = displayName.trim();
     if (!s) return "•";
     const parts = s.split(/\s+/).slice(0, 2);
-    return parts.map((p: string) => p[0]?.toUpperCase()).join("");
-  }, [product.name]);
+    return parts.map((p) => p[0]?.toUpperCase()).join("");
+  }, [displayName]);
+
+  const imageSource = useMemo(
+    () => normalizeImage(product?.image),
+    [product?.image],
+  );
+
+  const price = Number(product?.price ?? 0);
 
   function handleOpen() {
     if (!isFlagEnabled("ff_pdp_v1")) return;
-
-    const id = String((product as any)?.id ?? "");
     if (!id) return;
 
-    router.push({
-      pathname: "/product/[id]" as any,
-      params: { id, source },
-    } as any);
+    // Sem casts: PDP já lê id/source via useLocalSearchParams()
+    const url = `/product/${encodeURIComponent(id)}?source=${encodeURIComponent(
+      source,
+    )}`;
+    router.push(url);
   }
 
   return (
@@ -70,12 +118,12 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
       >
         <View style={styles.topRow}>
           <ThemedText type="caption" style={[styles.category, { color: muted }]}>
-            {product.category}
+            {String(product?.category ?? "")}
           </ThemedText>
 
-          {(product as any).badge ? (
+          {product?.badge ? (
             <ThemedText type="caption" style={[styles.badge, { color: accent }]}>
-              {(product as any).badge}
+              {product.badge}
             </ThemedText>
           ) : (
             <View style={{ width: 1 }} />
@@ -83,13 +131,13 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
         </View>
 
         <View style={[styles.imageWrap, { backgroundColor: imageBg }]}>
-          {!imgFailed ? (
+          {!imgFailed && imageSource ? (
             <Image
-              source={(product as any).image}
+              source={imageSource}
               contentFit="cover"
               transition={120}
               style={styles.image}
-              accessibilityLabel={product.name}
+              accessibilityLabel={displayName}
               onError={() => setImgFailed(true)}
             />
           ) : (
@@ -118,7 +166,7 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
             style={styles.title}
             numberOfLines={2}
           >
-            {product.name}
+            {displayName}
           </ThemedText>
 
           <ThemedText
@@ -126,13 +174,13 @@ export function ProductCard({ product, source = "unknown" }: ProductCardProps) {
             style={[styles.desc, { color: muted }]}
             numberOfLines={2}
           >
-            {product.description}
+            {String(product?.description ?? "")}
           </ThemedText>
         </View>
 
         <View style={styles.footer}>
           <ThemedText type="defaultSemiBold" style={styles.price}>
-            {formatBRL(product.price)}
+            {formatBRL(price)}
           </ThemedText>
 
           <ThemedText type="caption" style={[styles.link, { color: accent }]}>
