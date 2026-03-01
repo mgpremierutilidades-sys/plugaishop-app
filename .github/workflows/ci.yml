@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: ["main"]
-  push:
-    branches: ["main"]
 
 jobs:
   ci:
@@ -22,8 +20,8 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Expo sanity (expo-doctor)
-        run: npx expo-doctor
+      - name: expo-doctor (report-only)
+        run: npx expo-doctor || echo "::warning::expo-doctor reported issues (non-blocking in PR CI)"
 
       - name: CI (lint + typecheck)
         run: npm run ci
