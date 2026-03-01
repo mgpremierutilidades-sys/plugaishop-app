@@ -1,3 +1,25 @@
+<#
+  backlog_bridge.ps1
+  - Mode import: puxa 1 item "queued" do ops/backlog.queue.yml -> injeta em tasks.json -> marca backlog como in_progress
+  - Mode sync: sincroniza status de tasks.json -> backlog.queue.yml (done/failed -> done/blocked)
+
+  Requisitos:
+    - PowerShell 5.1+ ou pwsh 7+
+    - tasks.json (ou será criado)
+    - ops/backlog.queue.yml com itens no formato:
+        - id: TICK-0001
+          area: ...
+          title: "..."
+          target_files:
+            - ...
+          flag: ...
+          metrics:
+            - ...
+          status: queued|in_progress|blocked|done
+          risk: low|medium|high
+#>
+
+[CmdletBinding()]
 param(
   [Parameter(Mandatory=$true)][string]$RepoRoot,
   [Parameter(Mandatory=$true)][string]$TasksPath,
@@ -14,22 +36,32 @@ $TasksPath   = (Resolve-Path -LiteralPath $TasksPath).Path
 $BacklogPath = (Resolve-Path -LiteralPath $BacklogPath).Path
 [System.IO.Directory]::SetCurrentDirectory($RepoRoot)
 
-function Read-Json([string]$p) {
+function Get-JsonObject([string]$p) {
   if (!(Test-Path -LiteralPath $p)) { return $null }
   return Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
-function Write-JsonAtomic([string]$p, [object]$obj, [int]$Depth = 80) {
+function Set-JsonObjectAtomic {
+  [CmdletBinding(SupportsShouldProcess=$true)]
+  param(
+    [Parameter(Mandatory=$true)][string]$p,
+    [Parameter(Mandatory=$true)][object]$obj,
+    [int]$Depth = 80
+  )
   $dir = Split-Path -Parent $p
-  if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+  if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+  }
   $tmp = "$p.tmp"
-  ($obj | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $tmp -Encoding UTF8 -Force
-  Move-Item -LiteralPath $tmp -Destination $p -Force
+  if ($PSCmdlet.ShouldProcess($p, "Write JSON atomically")) {
+    ($obj | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $tmp -Encoding UTF8 -Force
+    Move-Item -LiteralPath $tmp -Destination $p -Force
+  }
 }
 
-function NowUtc() { (Get-Date).ToUniversalTime().ToString("s") + "Z" }
+function Get-UtcNowIso() { (Get-Date).ToUniversalTime().ToString("s") + "Z" }
 
-function Parse-Backlog([string]$yamlPath) {
+function Get-BacklogItem([string]$yamlPath) {
   $lines = Get-Content -LiteralPath $yamlPath -Encoding UTF8
   $items = New-Object System.Collections.Generic.List[object]
   $cur = $null
@@ -78,52 +110,97 @@ function Parse-Backlog([string]$yamlPath) {
   return ,$items
 }
 
-function Write-Backlog([string]$yamlPath, [object[]]$items) {
+function Set-BacklogItem {
+  [CmdletBinding(SupportsShouldProcess=$true)]
+  param(
+    [Parameter(Mandatory=$true)][string]$yamlPath,
+    [Parameter(Mandatory=$true)][object[]]$items
+  )
+
   $out = New-Object System.Collections.Generic.List[string]
   foreach ($it in $items) {
     $out.Add("- id: $($it.id)")
     if ($it.area)  { $out.Add("  area: $($it.area)") }
     if ($it.title) { $out.Add("  title: `"$($it.title)`"") }
+
     $out.Add("  target_files:")
     foreach ($f in @($it.target_files)) { $out.Add("    - $f") }
-    if ($it.flag) { $out.Add("  flag: $($it.flag)") }
+
+    if ($null -ne $it.flag -and ($it.flag + "") -ne "") { $out.Add("  flag: $($it.flag)") }
+
     $out.Add("  metrics:")
     foreach ($m in @($it.metrics)) { $out.Add("    - $m") }
+
     $out.Add("  status: $($it.status)")
     if ($it.risk) { $out.Add("  risk: $($it.risk)") }
+    $out.Add("")
   }
+
   $tmp = "$yamlPath.tmp"
-  $out | Out-File -FilePath $tmp -Encoding UTF8 -Force
-  Move-Item -LiteralPath $tmp -Destination $yamlPath -Force
+  if ($PSCmdlet.ShouldProcess($yamlPath, "Write YAML atomically")) {
+    $out | Out-File -FilePath $tmp -Encoding UTF8 -Force
+    Move-Item -LiteralPath $tmp -Destination $yamlPath -Force
+  }
 }
 
-function Ensure-Tasks([object]$t) {
+function Initialize-TasksObject([object]$t) {
   if ($null -eq $t) { return [ordered]@{ v=1; queue=@() } }
   if ($null -eq $t.queue) { $t | Add-Member -NotePropertyName queue -NotePropertyValue @() -Force }
   if ($null -eq $t.v) { $t | Add-Member -NotePropertyName v -NotePropertyValue 1 -Force }
   return $t
 }
 
-function Import-One() {
-  $items = Parse-Backlog $BacklogPath
+function Reset-TaskRunFields([object]$t) {
+  foreach ($k in @("running_utc","failed_utc","completed_utc")) {
+    if ($t.PSObject.Properties.Name -contains $k) {
+      $t | Add-Member -NotePropertyName $k -NotePropertyValue $null -Force
+    }
+  }
+}
+
+function Select-NextBacklogItem([object[]]$items) {
+  foreach ($it in $items) {
+    if (($it.status + "") -eq "queued") { return $it }
+  }
+  foreach ($it in $items) {
+    if (($it.status + "") -eq "blocked" -and (($it.risk + "") -eq "low")) {
+      $it.status = "queued"
+      return $it
+    }
+  }
+  return $null
+}
+
+function Import-BacklogItem() {
+  $items = Get-BacklogItem -yamlPath $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
-  $pick = $null
-  foreach ($it in $items) { if (($it.status+"") -eq "queued") { $pick=$it; break } }
+  $pick = Select-NextBacklogItem $items
   if (-not $pick) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Get-JsonObject -p $TasksPath)
 
   foreach ($t in @($tasks.queue)) {
-    if (($t.id+"") -eq ($pick.id+"")) { return }
+    if (($t.id + "") -ne ($pick.id + "")) { continue }
+
+    $st = ($t.status + "")
+    if ($st -eq "failed") {
+      $t.status = "queued"
+      Reset-TaskRunFields $t
+      Set-JsonObjectAtomic -p $TasksPath -obj $tasks -Depth 80
+
+      $pick.status = "in_progress"
+      Set-BacklogItem -yamlPath $BacklogPath -items $items
+    }
+    return
   }
 
-  $now = NowUtc
+  $now = Get-UtcNowIso
   $task = [ordered]@{
     id = $pick.id
     title = $pick.title
     status = "queued"
-    type = ($pick.area ? $pick.area : "backlog")
+    type = ($(if ($pick.area) { $pick.area } else { "backlog" }))
     created_utc = $now
     payload = [ordered]@{
       action = "backlog_dispatch_v1"
@@ -140,31 +217,37 @@ function Import-One() {
   }
 
   $tasks.queue += $task
-  Write-JsonAtomic $TasksPath $tasks 80
+  Set-JsonObjectAtomic -p $TasksPath -obj $tasks -Depth 80
 
   $pick.status = "in_progress"
-  Write-Backlog $BacklogPath $items
+  Set-BacklogItem -yamlPath $BacklogPath -items $items
 }
 
-function Sync-Back() {
-  $items = Parse-Backlog $BacklogPath
+function Sync-BacklogStatus() {
+  $items = Get-BacklogItem -yamlPath $BacklogPath
   if (-not $items -or $items.Count -eq 0) { return }
 
-  $tasks = Ensure-Tasks (Read-Json $TasksPath)
+  $tasks = Initialize-TasksObject (Get-JsonObject -p $TasksPath)
   $map = @{}
-  foreach ($t in @($tasks.queue)) { if ($t.id) { $map[$t.id.ToString()] = $t } }
+  foreach ($t in @($tasks.queue)) {
+    if ($t.id) { $map[$t.id.ToString()] = $t }
+  }
 
   $changed = $false
   foreach ($it in $items) {
     $id = $it.id.ToString()
     if (-not $map.ContainsKey($id)) { continue }
-    $st = ($map[$id].status+"")
-    if ($st -eq "done" -and $it.status -ne "done") { $it.status="done"; $changed=$true }
-    if ($st -eq "failed" -and $it.status -ne "blocked") { $it.status="blocked"; $changed=$true }
+
+    $st = ($map[$id].status + "")
+    if ($st -eq "done" -and ($it.status + "") -ne "done") { $it.status="done"; $changed=$true }
+    if ($st -eq "failed" -and ($it.status + "") -ne "blocked") { $it.status="blocked"; $changed=$true }
   }
 
-  if ($changed) { Write-Backlog $BacklogPath $items }
+  if ($changed) { Set-BacklogItem -yamlPath $BacklogPath -items $items }
 }
 
-if ($Mode -eq "import") { Import-One; exit 0 }
-if ($Mode -eq "sync")   { Sync-Back; exit 0 }
+switch ($Mode) {
+  "import" { Import-BacklogItem; break }
+  "sync"   { Sync-BacklogStatus; break }
+  default  { throw "Invalid Mode: $Mode" }
+}

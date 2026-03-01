@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$OutDir,
   [Parameter(Mandatory=$true)][string]$RunSummaryPath
 )
@@ -38,4 +38,4 @@ if ($run.notes -and $run.notes.Count -gt 0) {
 }
 
 $lines -join "`n" | Out-File -FilePath $path -Encoding UTF8 -Force
-Write-Host ("Report: " + $path)
+Write-Information ("Report: " + $path) -InformationAction Continue

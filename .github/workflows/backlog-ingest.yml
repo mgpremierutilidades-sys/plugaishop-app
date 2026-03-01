@@ -1,0 +1,108 @@
+name: Backlog Ingest (Issues -> ops/backlog.queue.yml)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "5 * * * *" # hourly (5 min after the hour)
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: backlog-ingest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "Plugaishop Autonomy"
+          git config user.email "autonomy@plugaishop.ai"
+
+      - name: Ingest autopilot issues into ops/backlog.queue.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BACKLOG="ops/backlog.queue.yml"
+          mkdir -p ops
+
+          # Ensure backlog file exists
+          if [ ! -f "$BACKLOG" ]; then
+            printf "" > "$BACKLOG"
+          fi
+
+          # Collect existing IDs (lines like: - id: XXX)
+          existing_ids="$(grep -E '^[[:space:]]*-[[:space:]]+id:[[:space:]]*' "$BACKLOG" | sed -E 's/^[[:space:]]*-[[:space:]]+id:[[:space:]]*//' | tr -d '\r' || true)"
+
+          # Fetch issues labeled autopilot (open)
+          # We parse in jq for: number, title, labels
+          issues_json="$(gh issue list --state open --label autopilot --limit 200 --json number,title,labels)"
+
+          add_count=0
+
+          # Iterate issues
+          echo "$issues_json" | jq -c '.[]' | while read -r item; do
+            num="$(echo "$item" | jq -r '.number')"
+            title="$(echo "$item" | jq -r '.title')"
+            bid="ISSUE-${num}"
+
+            # Skip if already in backlog
+            if echo "$existing_ids" | grep -qx "$bid"; then
+              continue
+            fi
+
+            # Extract area from label "area:*" (first match)
+            area="$(echo "$item" | jq -r '[.labels[].name | select(startswith("area:"))][0] // "area:backlog"')"
+            area="${area#area:}"
+
+            # Extract risk from labels risk-low/risk-med/risk-high
+            risk="$(echo "$item" | jq -r '[.labels[].name | select(startswith("risk-"))][0] // "risk-low"')"
+            risk="${risk#risk-}"
+            case "$risk" in
+              low|med|high) ;;
+              *) risk="low" ;;
+            esac
+
+            # Append YAML item
+            {
+              echo "- id: ${bid}"
+              echo "  area: ${area}"
+              # Quote title safely
+              echo "  title: \"${title//\"/\\\"}\""
+              echo "  target_files:"
+              echo "    - (from_issue)"
+              echo "  flag: automation-remote-workflow"
+              echo "  metrics:"
+              echo "    - issue_ingested"
+              echo "  status: queued"
+              echo "  risk: ${risk}"
+              echo "  issue_number: ${num}"
+              echo ""
+            } >> "$BACKLOG"
+
+            add_count=$((add_count+1))
+          done
+
+          # If file changed, commit & push
+          if ! git diff --quiet; then
+            git add "$BACKLOG"
+            git commit -m "chore(backlog): ingest autopilot issues" || true
+            git push origin HEAD:main
+            echo "Backlog updated."
+          else
+            echo "No changes."
+          fi

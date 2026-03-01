@@ -1,4 +1,3 @@
-# PATH: tools/autonomy-core/runner.ps1
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path ".").Path
@@ -19,11 +18,23 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
 $ts  = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
-$log = Join-Path $OutDir ("run-" + $ts + ".log")
-$err = Join-Path $OutDir ("run-" + $ts + ".err.log")
+$log = Join-Path $OutDir ("Invoke-" + $ts + ".log")
+$err = Join-Path $OutDir ("Invoke-" + $ts + ".err.log")
 
 $notes = New-Object System.Collections.Generic.List[string]
 
+$trigger = $null
+try {
+  if ($env:AUTONOMY_TRIGGER -and $env:AUTONOMY_TRIGGER.Trim().Length -gt 0) {
+    $trigger = $env:AUTONOMY_TRIGGER.Trim()
+  } elseif ($env:GITHUB_EVENT_NAME -and $env:GITHUB_EVENT_NAME.Trim().Length -gt 0) {
+    $trigger = $env:GITHUB_EVENT_NAME.Trim()
+  } else {
+    $trigger = "unknown"
+  }
+} catch {
+  $trigger = "unknown"
+}
 
 function Read-Json([string]$Path) {
   if (!(Test-Path $Path)) { return $null }
@@ -34,21 +45,20 @@ function Write-Json([string]$Path, [object]$Value, [int]$Depth = 50) {
   ($Value | ConvertTo-Json -Depth $Depth) | Out-File -FilePath $Path -Encoding UTF8 -Force
 }
 
-function Ensure-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
+function Initialize-RuntimeFile([string]$RuntimePath, [string]$SeedPath) {
   if (Test-Path $RuntimePath) { return }
   if (!(Test-Path $SeedPath)) { throw "Missing seed file: $SeedPath" }
   Copy-Item -LiteralPath $SeedPath -Destination $RuntimePath -Force
 }
 
-# npm via cmd.exe (evita shims Win32)
-function Run-CmdLine([string]$commandLine) {
+function Invoke-CmdLine([string]$commandLine) {
   Add-Content -Path $log -Encoding UTF8 -Value ("`n$ cmd: " + $commandLine)
 
   $exe  = "$env:ComSpec"
-  $args = "/c " + $commandLine
+  $cliArgs = "/c " + $commandLine
 
   $p = Start-Process -FilePath $exe `
-    -ArgumentList $args `
+    -ArgumentList $cliArgs `
     -WorkingDirectory $RepoRoot `
     -NoNewWindow -PassThru -Wait `
     -RedirectStandardOutput $log `
@@ -57,11 +67,7 @@ function Run-CmdLine([string]$commandLine) {
   return $p.ExitCode
 }
 
-# Finaliza por ID (robusto: independe do objeto $ctrl)
-# - normaliza/trima IDs
-# - usa Add-Member para garantir completed_utc/failed_utc
-# - retorna bool indicando se atualizou mesmo
-function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
+function Complete-TaskById([string]$TaskId, [bool]$Ok) {
   if (-not $TaskId) { return $false }
 
   $id = $TaskId.ToString().Trim()
@@ -103,11 +109,9 @@ function Finalize-TaskById([string]$TaskId, [bool]$Ok) {
   return $updated
 }
 
-# ===== Ensure runtime state/tasks exist =====
-Ensure-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
-Ensure-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
+Initialize-RuntimeFile -RuntimePath $StatePath -SeedPath $StateSeed
+Initialize-RuntimeFile -RuntimePath $TasksPath -SeedPath $TasksSeed
 
-# ===== Load state/metrics =====
 $state = Read-Json $StatePath
 if ($null -eq $state) { throw "Runtime state.json unreadable: $StatePath" }
 
@@ -116,24 +120,19 @@ if ($null -eq $metrics) { throw "Missing metrics.json at: $MetricsPath" }
 
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-# MIG-001: run migrations before controller
 try {
   $migratePath = Join-Path $CoreDir "migrate.ps1"
   if (Test-Path $migratePath) {
-    $mOut = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
+    $null = & pwsh -NoProfile -ExecutionPolicy Bypass -File $migratePath -CoreDir $CoreDir
     $notes.Add("migrate_ran=true")
   } else {
     $notes.Add("migrate_missing=true")
   }
 } catch {
-  if ($null -eq $notes) {
-  $notes = New-Object System.Collections.Generic.List[string]
-}
-$notes.Add("migrate_error")
+  if ($null -eq $notes) { $notes = New-Object System.Collections.Generic.List[string] }
+  $notes.Add("migrate_error=" + $_.Exception.Message)
 }
 
-
-# ===== Backlog Bridge (ops/backlog.queue.yml -> tasks.json) =====
 try {
   $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
   $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
@@ -150,8 +149,6 @@ try {
   $notes.Add("backlog_bridge_import_error=" + $_.Exception.Message)
 }
 
-
-# ===== Controller (ROBUST JSON PARSE: first '{' to last '}') =====
 $ctrlLines = & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "controller.ps1") `
   -RepoRoot $RepoRoot -TasksPath $TasksPath -StatePath $StatePath 2>&1
 
@@ -172,14 +169,12 @@ try {
 }
 
 $notes.Add("mode=" + $ctrl.mode)
+$notes.Add("trigger=" + $trigger)
 
-
-# AUTONOMY-011: pause on consecutive failures
-# Pausa execução se consecutive_failures >= 3 (evita loop de rollback)
 try {
-  $StatePath = Join-Path $CoreDir "_state\state.json"
-  if (Test-Path $StatePath) {
-    $stRaw = Get-Content $StatePath -Raw
+  $StatePath2 = Join-Path $CoreDir "_state\state.json"
+  if (Test-Path $StatePath2) {
+    $stRaw = Get-Content $StatePath2 -Raw
     $st = $stRaw | ConvertFrom-Json
     $cf = 0
     if ($st -and $st.PSObject.Properties.Name -contains "consecutive_failures") {
@@ -192,9 +187,9 @@ try {
     }
   }
 } catch {
-  $notes.Add("pause_guard_error")
+  $notes.Add("pause_guard_error=" + $_.Exception.Message)
 }
-# ===== Executor (aplica ação real da task) =====
+
 $executorOk = $true
 $committedSha = $null
 
@@ -209,7 +204,6 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
 
   $execText = ($execLines | ForEach-Object { $_.ToString() }) -join "`n"
 
-  # ===== Executor JSON parse (ROBUST: first '{' to last '}') =====
   $firstE = $execText.IndexOf("{")
   $lastE  = $execText.LastIndexOf("}")
   if ($firstE -lt 0 -or $lastE -le $firstE) {
@@ -224,23 +218,21 @@ if ($ctrl.mode -eq "execute" -and $null -ne $ctrl.task) {
     foreach ($n in $exec.notes) { $notes.Add("exec:" + [string]$n) }
     if ($exec.committed_sha) { $committedSha = [string]$exec.committed_sha }
   }
-
 } else {
   $notes.Add("executor=skipped")
 }
 
-# ===== Gates =====
 $lintResult = "skipped"
 $typeResult = "skipped"
 
 if ($metrics.gates.lint.enabled -eq $true) {
-  $code = Run-CmdLine "npm run lint"
+  $code = Invoke-CmdLine "npm run lint"
   $lintResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("lint_exit=" + $code)
 }
 
 if ($metrics.gates.typecheck.enabled -eq $true) {
-  $code = Run-CmdLine "npm run typecheck"
+  $code = Invoke-CmdLine "npm run typecheck"
   $typeResult = ($code -eq 0) ? "ok" : ("fail(" + $code + ")")
   $notes.Add("typecheck_exit=" + $code)
 }
@@ -248,7 +240,6 @@ if ($metrics.gates.typecheck.enabled -eq $true) {
 $gatesOk = ($lintResult -eq "ok" -or $lintResult -eq "skipped") -and ($typeResult -eq "ok" -or $typeResult -eq "skipped")
 $ok = $executorOk -and $gatesOk
 
-# ===== Rollback if enabled + commit exists + gates failed =====
 if (-not $ok) {
   if ($metrics.rollback.enabled -eq $true -and $committedSha) {
     $notes.Add("rollback_attempt=" + $committedSha)
@@ -257,9 +248,16 @@ if (-not $ok) {
   }
 }
 
-# ===== Update state =====
 $state.last_run_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
-$state.last_task_id = ($ctrl.task.id ?? $null)
+
+$state.last_task_id = $null
+try {
+  if ($ctrl -and ($ctrl.PSObject.Properties.Name -contains "task") -and $ctrl.task -and ($ctrl.task.PSObject.Properties.Name -contains "id")) {
+    $state.last_task_id = [string]$ctrl.task.id
+  }
+} catch {
+  $state.last_task_id = $null
+}
 
 if ($ok) {
   $state.last_result = "ok"
@@ -271,19 +269,47 @@ if ($ok) {
 
 Write-Json $StatePath $state 50
 
-# ===== Finalize task (by last_task_id + recovery + logging) =====
+try {
+  $hbPath = Join-Path $StateDir "heartbeat.json"
+
+  $runId = ""
+  $wf = ""
+  $ref = ""
+  $sha = ""
+  if ($env:GITHUB_RUN_ID) { $runId = [string]$env:GITHUB_RUN_ID }
+  if ($env:GITHUB_WORKFLOW) { $wf = [string]$env:GITHUB_WORKFLOW }
+  if ($env:GITHUB_REF) { $ref = [string]$env:GITHUB_REF }
+  if ($env:GITHUB_SHA) { $sha = [string]$env:GITHUB_SHA }
+
+  $hb = @{
+    v = 1
+    heartbeat_utc = (Get-Date).ToUniversalTime().ToString("s") + "Z"
+    trigger = $trigger
+    result = $state.last_result
+    last_task_id = $state.last_task_id
+    run_id = $runId
+    workflow = $wf
+    ref = $ref
+    sha = $sha
+  }
+
+  Write-Json $hbPath $hb 10
+  $notes.Add("heartbeat_written=true")
+} catch {
+  $notes.Add("heartbeat_error=" + $_.Exception.Message)
+}
+
 try {
   $finalized = $false
 
   if ($state.last_task_id) {
     $notes.Add("task_finalize_attempt=" + $state.last_task_id)
-    $finalized = Finalize-TaskById -TaskId $state.last_task_id -Ok:$ok
+    $finalized = Complete-TaskById -TaskId $state.last_task_id -Ok:$ok
     $notes.Add("task_finalize_updated=" + ($finalized ? "true" : "false"))
   } else {
     $notes.Add("task_finalize_skipped=no_last_task_id")
   }
 
-  # Recovery: se ainda existir algum "running" e o run foi ok, fecha o 1º running
   if (-not $finalized -and $ok) {
     $tasksNow = Read-Json $TasksPath
     if ($tasksNow -and $tasksNow.queue) {
@@ -293,7 +319,7 @@ try {
       }
       if ($null -ne $run -and $run.id) {
         $notes.Add("task_recovery_attempt=" + $run.id)
-        $finalized2 = Finalize-TaskById -TaskId $run.id -Ok:$true
+        $finalized2 = Complete-TaskById -TaskId $run.id -Ok:$true
         $notes.Add("task_recovery_updated=" + ($finalized2 ? "true" : "false"))
       } else {
         $notes.Add("task_recovery_skipped=no_running_found")
@@ -310,8 +336,6 @@ try {
   $notes.Add("task_finalize_error=" + $_.Exception.Message)
 }
 
-
-# ===== Backlog Bridge Sync (tasks -> ops/backlog.queue.yml) =====
 try {
   $bridgePath = Join-Path $CoreDir "backlog_bridge.ps1"
   $backlogPath = Join-Path $RepoRoot "ops/backlog.queue.yml"
@@ -328,12 +352,24 @@ try {
   $notes.Add("backlog_bridge_sync_error=" + $_.Exception.Message)
 }
 
+$runId2 = ""
+$wf2 = ""
+$ref2 = ""
+$sha2 = ""
+if ($env:GITHUB_RUN_ID) { $runId2 = [string]$env:GITHUB_RUN_ID }
+if ($env:GITHUB_WORKFLOW) { $wf2 = [string]$env:GITHUB_WORKFLOW }
+if ($env:GITHUB_REF) { $ref2 = [string]$env:GITHUB_REF }
+if ($env:GITHUB_SHA) { $sha2 = [string]$env:GITHUB_SHA }
 
-# ===== Report via JSON =====
 $runSummary = @{
   result = $state.last_result
   branch = $branch
   last_task_id = $state.last_task_id
+  trigger = $trigger
+  run_id = $runId2
+  workflow = $wf2
+  ref = $ref2
+  sha = $sha2
   gates = @{
     lint = $lintResult
     typecheck = $typeResult
@@ -344,13 +380,39 @@ $runSummary = @{
 $runSummaryPath = Join-Path $OutDir ("runSummary-" + $ts + ".json")
 Write-Json $runSummaryPath $runSummary 20
 
+$latestRunSummaryPath = Join-Path $OutDir "latest_run_summary.json"
+Write-Json $latestRunSummaryPath $runSummary 20
+
 & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CoreDir "report.ps1") `
   -OutDir $OutDir -RunSummaryPath $runSummaryPath
 
+try {
+  $keep = 30
+  if ($metrics.report -and $metrics.report.keep_last) { $keep = [int]$metrics.report.keep_last }
+  if ($keep -lt 5) { $keep = 5 }
+
+  function Remove-OldFilesByPattern([string]$dir, [string]$pattern, [int]$keep) {
+    if (-not (Test-Path $dir)) { return }
+    $files = Get-ChildItem -Path $dir -File -Filter $pattern | Sort-Object LastWriteTimeUtc -Descending
+    if ($files.Count -le $keep) { return }
+    $toDelete = $files | Select-Object -Skip $keep
+    foreach ($f in $toDelete) {
+      try { Remove-Item -LiteralPath $f.FullName -Force } catch {}
+    }
+  }
+
+  Remove-OldFilesByPattern -dir $OutDir -pattern "report-*.md" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "Invoke-*.log" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "Invoke-*.err.log" -keep $keep
+  Remove-OldFilesByPattern -dir $OutDir -pattern "runSummary-*.json" -keep $keep
+} catch {
+  $notes.Add("prune_error=" + $_.Exception.Message)
+}
+
 if (-not $ok) {
-  Write-Host "[autonomy] FAILED. See logs in tools/autonomy-core/_out/"
+  Write-Information "[autonomy] FAILED. See logs in tools/autonomy-core/_out/" -InformationAction Continue
   exit 1
 }
 
-Write-Host "[autonomy] OK."
+Write-Information "[autonomy] OK." -InformationAction Continue
 exit 0

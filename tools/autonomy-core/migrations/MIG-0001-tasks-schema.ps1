@@ -1,20 +1,23 @@
-param([string]\E:\plugaishop-app\tools\autonomy-core)
+﻿[CmdletBinding(SupportsShouldProcess=$true)]
+param()
 
-\ = Join-Path \E:\plugaishop-app\tools\autonomy-core "_state\tasks.json"
-\  = Join-Path \E:\plugaishop-app\tools\autonomy-core "tasks.seed.json"
-\    = Join-Path \E:\plugaishop-app\tools\autonomy-core "_out"
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
-\ = Get-Content \ -Raw
-try { \ = \ | ConvertFrom-Json } catch {
-  Copy-Item \ \ -Force
-  Write-Output (@{ repaired=\True; reason="invalid_json_restore_seed" } | ConvertTo-Json -Depth 10)
-  exit 0
+$stateDir = Join-Path $PSScriptRoot "..\_state"
+$tasksPath = Join-Path $stateDir "tasks.json"
+
+if (-not (Test-Path $stateDir)) {
+  if ($PSCmdlet.ShouldProcess($stateDir, "Create state directory")) {
+    New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+  }
 }
 
-if (\ -eq \.v -or \ -eq \.queue) {
-  Copy-Item \ \ -Force
-  Write-Output (@{ repaired=\True; reason="bad_schema_restore_seed" } | ConvertTo-Json -Depth 10)
-  exit 0
-}
+if (-not (Test-Path $tasksPath)) {
+  $seed = @()
+  $json = ($seed | ConvertTo-Json -Depth 10)
 
-Write-Output (@{ repaired=\False; reason="ok" } | ConvertTo-Json -Depth 10)
+  if ($PSCmdlet.ShouldProcess($tasksPath, "Create tasks.json schema file")) {
+    Set-Content -Path $tasksPath -Value $json -Encoding UTF8
+  }
+}

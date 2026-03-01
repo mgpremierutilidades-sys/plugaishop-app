@@ -1,38 +1,45 @@
-import React, { useCallback, useState } from "react";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from "../../components/themed-text";
-import { ThemedView } from "../../components/themed-view";
-import theme, { Radius, Spacing } from "../../constants/theme";
-import type { InAppNotification } from "../../utils/ordersStore";
+import { AppHeader } from "../../components/AppHeader";
+import { isFlagEnabled } from "../../constants/flags";
+import theme from "../../constants/theme";
+import { track } from "../../lib/analytics";
+import type { InAppNotification } from "../../types/order";
 import {
+  clearNotifications,
   listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from "../../utils/ordersStore";
+  markAllRead,
+  markRead,
+} from "../../utils/notificationsStorage";
 
-function dateLabel(isoOrAny: string) {
-  if (!isoOrAny) return "";
-  const d = isoOrAny.includes("T") ? isoOrAny.split("T")[0] : isoOrAny;
-  if (d.includes("-")) return d.split("-").reverse().join("/");
-  return d;
-}
+type NotificationData = {
+  type?: string;
+  [k: string]: any;
+};
 
-export default function OrdersNotificationsScreen() {
+export default function NotificationsScreen() {
+  const insets = useSafeAreaInsets();
+  const enabled = isFlagEnabled("ff_orders_notifications_v1");
+  const devTools = isFlagEnabled("ff_dev_tools_v1");
+  const ctaEnabled = isFlagEnabled("ff_orders_notifications_cta_v1");
+
   const [items, setItems] = useState<InAppNotification[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const unread = useMemo(() => items.filter((n) => !n.read).length, [items]);
 
   const load = useCallback(async () => {
-    const data = await listNotifications();
-    setItems(data ?? []);
+    setLoading(true);
+    const n = await listNotifications();
+    setItems(n);
+    setLoading(false);
+
+    try {
+      track("orders_notifications_view", { count: n.length });
+    } catch {}
   }, []);
 
   useFocusEffect(
@@ -41,198 +48,182 @@ export default function OrdersNotificationsScreen() {
     }, [load]),
   );
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }, [load]);
+  const markLocalRead = useCallback((id: string) => {
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, read: true } : x)));
+  }, []);
 
-  const markAll = async () => {
-    await markAllNotificationsRead();
-    await load();
-  };
+  const handleOpen = useCallback(
+    async (n: InAppNotification) => {
+      // otimista (UI instantânea)
+      if (!n.read) markLocalRead(n.id);
 
-  const open = async (n: InAppNotification) => {
-    await markNotificationRead(n.id);
-    if (n.orderId) {
-      router.push(`/orders/${n.orderId}` as any);
-      return;
-    }
-    await load();
-  };
+      // persistência (storage já emite bus → badge atualiza)
+      try {
+        if (!n.read) await markRead(n.id);
+      } catch {}
 
-  const unreadCount = items.filter((x) => !x.read).length;
+      const t = (n.data as NotificationData | undefined)?.type ?? "unknown";
+
+      try {
+        track("notification_open", {
+          id: n.id,
+          type: t,
+          order_id: n.orderId ?? null,
+          unread_before: unread,
+        });
+        if (!n.read) {
+          track("notification_mark_read", { id: n.id, type: t });
+        }
+      } catch {}
+
+      // CTA: navegação
+      if (!ctaEnabled) return;
+
+      if (n.orderId) {
+        router.push(`/orders/${n.orderId}` as any);
+        return;
+      }
+    },
+    [ctaEnabled, markLocalRead, unread],
+  );
+
+  if (!enabled) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.colors.background,
+          paddingTop: insets.top,
+        }}
+      >
+        <AppHeader title="Notificações" showBack />
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
+            Em breve
+          </Text>
+          <Text style={{ marginTop: 8, opacity: 0.7, color: theme.colors.text }}>
+            Notificações estão desativadas no momento.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
-      <ThemedView style={styles.container}>
-        <View style={styles.topbar}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.backBtn}
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.colors.background,
+        paddingTop: insets.top,
+      }}
+    >
+      <AppHeader title={`Notificações${unread ? ` (${unread})` : ""}`} showBack />
+
+      <ScrollView
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 16 + insets.bottom,
+          gap: 10,
+        }}
+      >
+        {loading ? (
+          <Text style={{ opacity: 0.7, color: theme.colors.text }}>Carregando...</Text>
+        ) : null}
+
+        {!loading && items.length === 0 ? (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: theme.colors.divider,
+              backgroundColor: theme.colors.surface,
+            }}
           >
-            <ThemedText style={styles.backArrow}>←</ThemedText>
-          </Pressable>
+            <Text style={{ fontSize: 14, fontWeight: "900", color: theme.colors.text }}>
+              Sem notificações
+            </Text>
+            <Text style={{ marginTop: 6, opacity: 0.7, color: theme.colors.text }}>
+              Quando o status do pedido mudar, aparecerá aqui.
+            </Text>
+          </View>
+        ) : null}
 
-          <ThemedText style={styles.title}>Notificações</ThemedText>
+        {!loading
+          ? items.map((n) => (
+              <Pressable
+                key={n.id}
+                onPress={() => handleOpen(n)}
+                style={({ pressed }) => [
+                  {
+                    padding: 14,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: n.read ? theme.colors.divider : theme.colors.primary,
+                    backgroundColor: theme.colors.surface,
+                    opacity: pressed ? 0.95 : 1,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "900", color: theme.colors.text }}>
+                  {n.title}
+                </Text>
+                <Text style={{ marginTop: 6, fontSize: 12, opacity: 0.8, color: theme.colors.text }}>
+                  {n.body}
+                </Text>
+                <Text style={{ marginTop: 6, fontSize: 12, opacity: 0.6, color: theme.colors.text }}>
+                  {String(n.createdAt).slice(0, 19).replace("T", " ")}
+                </Text>
+              </Pressable>
+            ))
+          : null}
 
-          <Pressable onPress={markAll} hitSlop={10} style={styles.rightBtn}>
-            <ThemedText style={styles.rightBtnText}>Ler tudo</ThemedText>
-          </Pressable>
-        </View>
-
-        <ThemedText style={styles.secondary}>
-          Não lidas: <ThemedText style={styles.bold}>{unreadCount}</ThemedText>
-        </ThemedText>
-
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          {items.length === 0 ? (
-            <ThemedView style={styles.card}>
-              <ThemedText style={styles.cardTitle}>Sem notificações</ThemedText>
-              <ThemedText style={styles.secondary}>
-                Atualizações do pedido aparecem aqui (ex.: Enviado / Entregue).
-              </ThemedText>
-            </ThemedView>
-          ) : null}
-
-          {items.map((n) => (
+        {!loading && items.length > 0 ? (
+          <View style={{ gap: 10, marginTop: 6 }}>
             <Pressable
-              key={n.id}
-              onPress={() => open(n)}
-              style={({ pressed }) => [
-                styles.card,
-                pressed ? { opacity: 0.92 } : null,
-              ]}
+              onPress={async () => {
+                await markAllRead();
+                // otimista local também (sem reload)
+                setItems((prev) => prev.map((x) => ({ ...x, read: true })));
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: theme.colors.divider,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: theme.colors.surface,
+              }}
             >
-              <View style={styles.rowBetween}>
-                <ThemedText style={styles.cardTitle}>{n.title}</ThemedText>
-                {!n.read ? <View style={styles.dot} /> : null}
-              </View>
-
-              <ThemedText style={styles.secondary}>{n.body}</ThemedText>
-
-              <View style={styles.divider} />
-
-              <ThemedText style={styles.meta}>
-                {dateLabel(n.createdAt)}{" "}
-                {n.orderId ? `• Pedido #${n.orderId}` : ""}
-              </ThemedText>
+              <Text style={{ textAlign: "center", fontWeight: "800", color: theme.colors.text }}>
+                Marcar tudo como lido
+              </Text>
             </Pressable>
-          ))}
 
-          <View style={{ height: 18 }} />
-        </ScrollView>
-      </ThemedView>
-    </SafeAreaView>
+            {devTools ? (
+              <Pressable
+                onPress={async () => {
+                  try {
+                    track("dev_tools_used", { action: "clear_notifications" });
+                  } catch {}
+                  await clearNotifications();
+                  setItems([]);
+                }}
+                style={{
+                  borderWidth: 1,
+                  borderColor: theme.colors.divider,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: theme.colors.surface,
+                }}
+              >
+                <Text style={{ textAlign: "center", fontWeight: "800", color: theme.colors.text }}>
+                  (DEV) Limpar notificações
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
-  container: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-  },
-
-  topbar: {
-    height: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.sm,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  backArrow: {
-    fontFamily: "Arimo",
-    fontSize: 22,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  title: {
-    fontFamily: "Arimo",
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  rightBtn: {
-    minWidth: 70,
-    height: 44,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-  },
-  rightBtnText: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  scroll: { gap: Spacing.md, paddingTop: Spacing.md, paddingBottom: 20 },
-
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  cardTitle: {
-    fontFamily: "Arimo",
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-
-  secondary: {
-    fontFamily: "OpenSans",
-    fontSize: 12,
-    color: "rgba(0,0,0,0.65)",
-  },
-  meta: { fontFamily: "OpenSans", fontSize: 12, color: "rgba(0,0,0,0.55)" },
-  bold: { fontWeight: "700", color: theme.colors.text },
-
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.divider,
-    width: "100%",
-    marginVertical: 6,
-  },
-
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 99,
-    backgroundColor: theme.colors.primary,
-  },
-});
