@@ -19,11 +19,11 @@ import { useCart } from "../../context/CartContext";
 import type { Product } from "../../data/catalog";
 import { products } from "../../data/catalog";
 import { track } from "../../lib/analytics";
-import { computeCartTotals } from "../../utils/cartTotals";
 import { formatCurrency } from "../../utils/formatCurrency";
 
-const FONT_BODY = "OpenSans_400Regular";
-const FONT_BODY_BOLD = "OpenSans_700Bold";
+// ✅ Fontes que existem no seu package.json
+const FONT_BODY = "Lexend_400Regular";
+const FONT_BODY_BOLD = "Lexend_700Bold";
 
 type Row = {
   type: "cart";
@@ -42,9 +42,7 @@ type CartSection = {
 
 function ProductThumb({ image, size = 72 }: { image?: string; size?: number }) {
   const src: ImageSourcePropType | null =
-    typeof image === "string" && image.startsWith("http")
-      ? { uri: image }
-      : null;
+    typeof image === "string" && image.startsWith("http") ? { uri: image } : null;
 
   return (
     <View style={styles.itemImage}>
@@ -69,14 +67,18 @@ export default function CartTab() {
   const ACTION_LOCK_MS = 250;
 
   const withActionLock = useCallback((key: string, fn: () => void) => {
-    if (!isFlagEnabled("ff_cart_action_lock")) return fn();
+    if (!isFlagEnabled("ff_cart_action_lock")) {
+      fn();
+      return;
+    }
 
     const now = Date.now();
     const last = actionLocksRef.current[key] ?? 0;
 
     if (now - last < ACTION_LOCK_MS) {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_double_action_prevented", { key });
+      }
       return;
     }
 
@@ -84,16 +86,15 @@ export default function CartTab() {
     fn();
   }, []);
 
-  // Seed ONLY como fallback (quando contexto não existe)
+  // Fallback local (se carrinho estiver vazio / sem persistência ainda)
   const seededRows = useMemo<Row[]>(() => {
     const base = (products as Product[]).slice(0, 6);
     return base.map((p, idx) => ({
-      type: "cart",
-      id: p.id,
+      type: "cart" as const,
+      id: String(p.id),
       title: p.title,
       price: p.price,
-      oldPrice:
-        idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
+      oldPrice: idx % 2 === 0 ? Math.round(p.price * 1.18 * 100) / 100 : undefined,
       qty: 1 + (idx % 3),
       image: (p as any).image,
     }));
@@ -105,14 +106,10 @@ export default function CartTab() {
     if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_view");
   }, []);
 
+  // Normaliza a fonte observada
   const ctxItems = useMemo(() => {
-    return (cartCtx?.items ??
-      cartCtx?.cartItems ??
-      cartCtx?.cart ??
-      null) as unknown;
+    return (cartCtx?.items ?? cartCtx?.cartItems ?? cartCtx?.cart ?? null) as unknown;
   }, [cartCtx?.items, cartCtx?.cartItems, cartCtx?.cart]);
-
-  const ctxReady = !!cartCtx?.ready;
 
   // Reflete itens reais do carrinho (rehydration/persist)
   useEffect(() => {
@@ -135,24 +132,18 @@ export default function CartTab() {
               oldPrice: p?.oldPrice ? Number(p.oldPrice) : undefined,
               qty: Math.max(1, Number(qty ?? 1)),
               image: p?.image ?? it?.image,
-            } as Row;
+            } satisfies Row;
           })
           .filter(Boolean) as Row[];
 
-        // ✅ persistência robusta: quando o carrinho REAL está pronto,
-        // até "vazio" deve refletir vazio (não manter seed).
-        if (ctxReady) {
-          setLocalRows(mapped);
-        } else if (mapped.length) {
-          setLocalRows(mapped);
-        }
+        if (mapped.length) setLocalRows(mapped);
       }
     } catch (e: any) {
       if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_rows_map_fail", { message: String(e?.message ?? e) });
       }
     }
-  }, [ctxItems, ctxReady]);
+  }, [ctxItems]);
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
@@ -166,7 +157,7 @@ export default function CartTab() {
   }, [localRows]);
 
   function toProduct(row: Row): Product {
-    const p = (products as Product[]).find((x) => x.id === row.id);
+    const p = (products as Product[]).find((x) => String(x.id) === String(row.id));
     return (
       p ?? {
         id: row.id,
@@ -188,13 +179,17 @@ export default function CartTab() {
       any?.increment?.bind(any);
 
     withActionLock(`inc:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_increment", { item_id: String(product.id), delta: 1 });
+      }
 
-      if (fn) return fn(product, 1);
+      if (fn) {
+        fn(product, 1);
+        return;
+      }
 
       setLocalRows((prev) =>
-        prev.map((r) => (r.id === product.id ? { ...r, qty: r.qty + 1 } : r)),
+        prev.map((r) => (r.id === String(product.id) ? { ...r, qty: r.qty + 1 } : r)),
       );
     });
   }
@@ -209,15 +204,19 @@ export default function CartTab() {
       any?.removeOne?.bind(any);
 
     withActionLock(`dec:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_decrement", { item_id: String(product.id), delta: 1 });
+      }
 
-      if (fn) return fn(product, 1);
+      if (fn) {
+        fn(product, 1);
+        return;
+      }
 
       setLocalRows((prev) =>
         prev
           .map((r) =>
-            r.id === product.id ? { ...r, qty: Math.max(1, r.qty - 1) } : r,
+            r.id === String(product.id) ? { ...r, qty: Math.max(1, r.qty - 1) } : r,
           )
           .filter((r) => r.qty > 0),
       );
@@ -234,12 +233,21 @@ export default function CartTab() {
       any?.clearItem?.bind(any);
 
     withActionLock(`rm:${product.id}`, () => {
-      if (isFlagEnabled("ff_cart_analytics_v1"))
+      if (isFlagEnabled("ff_cart_analytics_v1")) {
         track("cart_item_remove", { item_id: String(product.id) });
+      }
 
-      if (fn) return fn(product.id);
+      if (fn) {
+        // ✅ compat: alguns removem por id, outros por objeto
+        try {
+          fn(String(product.id));
+        } catch {
+          fn(product);
+        }
+        return;
+      }
 
-      setLocalRows((prev) => prev.filter((r) => r.id !== product.id));
+      setLocalRows((prev) => prev.filter((r) => r.id !== String(product.id)));
     });
   }
 
@@ -249,17 +257,6 @@ export default function CartTab() {
       return acc + r.price * r.qty;
     }, 0);
   }, [localRows, selected]);
-
-  const selectedQty = useMemo(() => {
-    return localRows.reduce((acc, r) => {
-      if (!selected[r.id]) return acc;
-      return acc + r.qty;
-    }, 0);
-  }, [localRows, selected]);
-
-  const totals = useMemo(() => {
-    return computeCartTotals({ subtotal: selectedSubtotal, qty: selectedQty });
-  }, [selectedSubtotal, selectedQty]);
 
   const sections: CartSection[] = useMemo(() => {
     return [{ title: "Produtos", data: localRows }];
@@ -277,11 +274,12 @@ export default function CartTab() {
               withActionLock(`sel:${item.id}`, () => {
                 setSelected((prev) => {
                   const next = { ...prev, [item.id]: !prev[item.id] };
-                  if (isFlagEnabled("ff_cart_analytics_v1"))
+                  if (isFlagEnabled("ff_cart_analytics_v1")) {
                     track("cart_item_select_toggle", {
                       item_id: item.id,
                       selected: !!next[item.id],
                     });
+                  }
                   return next;
                 });
               })
@@ -300,26 +298,18 @@ export default function CartTab() {
             </ThemedText>
 
             <View style={styles.priceRow}>
-              <ThemedText style={styles.price}>
-                {formatCurrency(item.price)}
-              </ThemedText>
+              <ThemedText style={styles.price}>{formatCurrency(item.price)}</ThemedText>
               <ThemedText style={styles.unit}> / un</ThemedText>
             </View>
 
             {item.oldPrice ? (
-              <ThemedText style={styles.old}>
-                {formatCurrency(item.oldPrice)}
-              </ThemedText>
+              <ThemedText style={styles.old}>{formatCurrency(item.oldPrice)}</ThemedText>
             ) : null}
           </View>
         </View>
 
         <View style={styles.rowBottom}>
-          <Pressable
-            onPress={() => safeDec(product)}
-            style={styles.qtyBtn}
-            hitSlop={10}
-          >
+          <Pressable onPress={() => safeDec(product)} style={styles.qtyBtn} hitSlop={10}>
             <ThemedText style={styles.qtyBtnText}>-</ThemedText>
           </Pressable>
 
@@ -327,11 +317,7 @@ export default function CartTab() {
             <ThemedText style={styles.qtyText}>{item.qty}</ThemedText>
           </View>
 
-          <Pressable
-            onPress={() => safeAdd(product)}
-            style={styles.qtyBtn}
-            hitSlop={10}
-          >
+          <Pressable onPress={() => safeAdd(product)} style={styles.qtyBtn} hitSlop={10}>
             <ThemedText style={styles.qtyBtnText}>+</ThemedText>
           </Pressable>
 
@@ -347,8 +333,6 @@ export default function CartTab() {
     );
   };
 
-  const empty = localRows.length === 0;
-
   return (
     <ThemedView style={styles.container}>
       <AppHeader
@@ -363,55 +347,21 @@ export default function CartTab() {
         }
       />
 
-      {empty ? (
-        <ThemedView style={styles.emptyBox}>
-          <ThemedText style={styles.emptyTitle}>Seu carrinho está vazio</ThemedText>
-          <ThemedText style={styles.emptySub}>
-            Adicione itens para calcular subtotal, frete e total.
-          </ThemedText>
-
-          <Pressable
-            onPress={() => router.push("/(tabs)/explore")}
-            style={styles.emptyCta}
-          >
-            <ThemedText style={styles.emptyCtaText}>Explorar produtos</ThemedText>
-          </Pressable>
-        </ThemedView>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(i) => i.id}
-          renderItem={renderRow}
-          renderSectionHeader={() => null}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+      <SectionList
+        sections={sections}
+        keyExtractor={(i) => i.id}
+        renderItem={renderRow}
+        renderSectionHeader={() => null}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
 
       <View style={styles.footerBar}>
-        <View style={styles.summaryBox}>
-          <View style={styles.summaryRow}>
-            <ThemedText style={styles.summaryLabel}>Subtotal</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {formatCurrency(totals.subtotal)}
-            </ThemedText>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <ThemedText style={styles.summaryLabel}>Frete (mock)</ThemedText>
-            <ThemedText style={styles.summaryValue}>
-              {formatCurrency(totals.freight)}
-            </ThemedText>
-          </View>
-
-          <View style={styles.summaryDivider} />
-
-          <View style={styles.summaryRow}>
-            <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
-            <ThemedText style={styles.totalValue}>
-              {formatCurrency(totals.total)}
-            </ThemedText>
-          </View>
+        <View style={styles.totalBox}>
+          <ThemedText style={styles.totalLabel}>TOTAL</ThemedText>
+          <ThemedText style={styles.totalValue}>
+            {formatCurrency(selectedSubtotal)}
+          </ThemedText>
         </View>
 
         <Pressable
@@ -419,8 +369,7 @@ export default function CartTab() {
             if (isFlagEnabled("ff_cart_analytics_v1")) track("cart_checkout_start");
             router.push("/(tabs)/checkout");
           }}
-          style={[styles.footerBtn, empty && styles.footerBtnDisabled]}
-          disabled={empty}
+          style={styles.footerBtn}
         >
           <ThemedText style={styles.footerBtnText}>CONTINUAR</ThemedText>
         </Pressable>
@@ -430,9 +379,10 @@ export default function CartTab() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+  // ✅ Tabs não permite contentStyle/sceneContainerStyle → aplica aqui
+  container: { flex: 1, backgroundColor: "#F5F7FA" },
 
-  listContent: { paddingHorizontal: 14, paddingBottom: 190, paddingTop: 12 },
+  listContent: { paddingHorizontal: 14, paddingBottom: 140, paddingTop: 12 },
 
   card: {
     backgroundColor: theme.colors.surface,
@@ -510,28 +460,6 @@ const styles = StyleSheet.create({
   removeBtn: { marginLeft: "auto", paddingHorizontal: 10, paddingVertical: 8 },
   remove: { fontSize: 12, fontFamily: FONT_BODY_BOLD, opacity: 0.85 },
 
-  emptyBox: {
-    marginTop: 16,
-    marginHorizontal: 14,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.divider,
-    gap: 8,
-  },
-  emptyTitle: { fontFamily: FONT_BODY_BOLD, fontSize: 14 },
-  emptySub: { fontFamily: FONT_BODY, fontSize: 12, opacity: 0.7 },
-  emptyCta: {
-    marginTop: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "#0a7ea4",
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  emptyCtaText: { color: "#fff", fontFamily: FONT_BODY_BOLD, fontSize: 12 },
-
   footerBar: {
     position: "absolute",
     left: 14,
@@ -540,24 +468,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
-  summaryBox: {
+  totalBox: {
     backgroundColor: "#F59E0B",
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
-    gap: 6,
-  },
-  summaryRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  summaryLabel: { fontSize: 12, fontFamily: FONT_BODY, color: "#000" },
-  summaryValue: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
-  summaryDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.12)" },
-
   totalLabel: { fontSize: 12, fontFamily: FONT_BODY_BOLD, color: "#000" },
   totalValue: { fontSize: 14, fontFamily: FONT_BODY_BOLD, color: "#000" },
 
@@ -567,9 +486,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#3F5A3A",
     alignItems: "center",
     justifyContent: "center",
-  },
-  footerBtnDisabled: {
-    opacity: 0.5,
   },
   footerBtnText: {
     fontSize: 16,
