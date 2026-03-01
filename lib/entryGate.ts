@@ -4,7 +4,9 @@ import {
   setEntryGateLastBackgroundAt,
 } from "../utils/entryGateStorage";
 
-export async function decideEntryGate(isEnabled: boolean): Promise<{
+export async function decideEntryGate(
+  isEnabled: boolean,
+): Promise<{
   shouldGate: boolean;
   reason: "disabled" | "skip" | "not_available" | "gate";
 }> {
@@ -16,15 +18,13 @@ export async function decideEntryGate(isEnabled: boolean): Promise<{
   try {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const enrolled = await LocalAuthentication.isEnrolledAsync();
-
-    if (!hasHardware || !enrolled) {
+    if (!hasHardware || !enrolled)
       return { shouldGate: false, reason: "not_available" };
-    }
-
-    return { shouldGate: true, reason: "gate" };
   } catch {
     return { shouldGate: false, reason: "not_available" };
   }
+
+  return { shouldGate: true, reason: "gate" };
 }
 
 export async function markBackgroundNow(): Promise<void> {

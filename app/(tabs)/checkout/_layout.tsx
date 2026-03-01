@@ -9,6 +9,14 @@ export default function CheckoutLayout() {
         contentStyle: { backgroundColor: "#F5F7FA" },
         animation: "slide_from_right",
       }}
-    />
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="address" />
+      <Stack.Screen name="shipping" />
+      <Stack.Screen name="payment" />
+      <Stack.Screen name="pix" />
+      <Stack.Screen name="review" />
+      <Stack.Screen name="success" />
+    </Stack>
   );
 }
