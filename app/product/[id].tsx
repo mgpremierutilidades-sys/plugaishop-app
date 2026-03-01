@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -46,12 +46,15 @@ function toUnified(p: any): ProductUnified {
     image: p?.image,
     badge: p?.badge,
     rating: typeof p?.rating === "number" ? p.rating : undefined,
-    reviewsCount: typeof p?.reviewsCount === "number" ? p.reviewsCount : undefined,
+    reviewsCount:
+      typeof p?.reviewsCount === "number" ? p.reviewsCount : undefined,
   };
 }
 
 function formatBRL(value: number) {
-  const fixed = (Number.isFinite(value) ? value : 0).toFixed(2).replace(".", ",");
+  const fixed = (Number.isFinite(value) ? value : 0)
+    .toFixed(2)
+    .replace(".", ",");
   return `R$ ${fixed}`;
 }
 
@@ -74,6 +77,8 @@ export default function ProductDetails() {
   const cartCtx = useCart() as any;
 
   const [added, setAdded] = useState(false);
+  const addedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [qty, setQty] = useState<number>(1);
 
   // CEP / frete
@@ -82,6 +87,15 @@ export default function ProductDetails() {
   const [shippingLoading, setShippingLoading] = useState(false);
 
   const product = useMemo(() => (id ? getProductById(id) : null), [id]);
+
+  useEffect(() => {
+    return () => {
+      if (addedTimerRef.current) {
+        clearTimeout(addedTimerRef.current);
+        addedTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -105,7 +119,8 @@ export default function ProductDetails() {
 
       const s = d.shipping;
       if (s?.deadline) {
-        const priceLabel = s.price === 0 ? "Frete grátis" : `Frete: ${formatBRL(s.price)}`;
+        const priceLabel =
+          s.price === 0 ? "Frete grátis" : `Frete: ${formatBRL(s.price)}`;
         setShippingText(`${priceLabel} • ${s.deadline}`);
       }
     })();
@@ -121,12 +136,12 @@ export default function ProductDetails() {
     setQty(v);
     try {
       if (isFlagEnabled("ff_pdp_v1")) {
-        track("pdp_qty_change", { product_id: id, qty: v });
+        track("pdp_qty_change", { product_id: id, qty: v, source });
       }
     } catch {}
   }
 
-  function cartAdd(productId: string, quantity: number) {
+  function cartAdd(productId: string, quantity: number): boolean {
     const any = cartCtx as any;
     const fn =
       any?.addItem?.bind(any) ||
@@ -135,8 +150,9 @@ export default function ProductDetails() {
       any?.increase?.bind(any) ||
       any?.increment?.bind(any);
 
-    if (!fn) return;
+    if (!fn) return false;
 
+    // tentativa 1: assinatura (product, qty)
     try {
       fn(
         {
@@ -148,30 +164,47 @@ export default function ProductDetails() {
         },
         quantity,
       );
-      return;
+      return true;
     } catch {}
 
+    // tentativa 2: assinatura (id, qty)
     try {
       fn(productId, quantity);
+      return true;
     } catch {}
+
+    return false;
   }
 
   function handleAddToCart() {
     if (!product) return;
     if (!isFlagEnabled("ff_pdp_v1")) return;
 
-    cartAdd(product.id, qty);
-
     try {
-      track("pdp_add_to_cart", {
+      track("pdp_add_to_cart_attempt", {
         product_id: String(product.id),
         price: Number(product.price ?? 0),
         qty,
+        source,
       });
     } catch {}
 
+    const ok = cartAdd(product.id, qty);
+
+    try {
+      track(ok ? "pdp_add_to_cart_success" : "pdp_add_to_cart_fail", {
+        product_id: String(product.id),
+        price: Number(product.price ?? 0),
+        qty,
+        source,
+      });
+    } catch {}
+
+    if (!ok) return;
+
     setAdded(true);
-    setTimeout(() => setAdded(false), 1200);
+    if (addedTimerRef.current) clearTimeout(addedTimerRef.current);
+    addedTimerRef.current = setTimeout(() => setAdded(false), 1200);
   }
 
   function handleBuyNow() {
@@ -179,10 +212,19 @@ export default function ProductDetails() {
     if (!isFlagEnabled("ff_pdp_v1")) return;
     if (!isFlagEnabled("ff_pdp_buy_now_v1")) return;
 
-    cartAdd(product.id, qty);
+    try {
+      track("pdp_buy_now_attempt", {
+        product_id: String(product.id),
+        price: Number(product.price ?? 0),
+        qty,
+        source,
+      });
+    } catch {}
+
+    const ok = cartAdd(product.id, qty);
 
     try {
-      track("pdp_buy_now", {
+      track(ok ? "pdp_buy_now_success" : "pdp_buy_now_fail", {
         product_id: String(product.id),
         price: Number(product.price ?? 0),
         qty,
@@ -229,7 +271,8 @@ export default function ProductDetails() {
         return;
       }
 
-      const priceLabel = quote.price === 0 ? "Frete grátis" : `Frete: ${formatBRL(quote.price)}`;
+      const priceLabel =
+        quote.price === 0 ? "Frete grátis" : `Frete: ${formatBRL(quote.price)}`;
       const nextText = `${priceLabel} • ${quote.deadline}`;
       setShippingText(nextText);
 
@@ -359,7 +402,10 @@ export default function ProductDetails() {
             <View style={styles.qtyControls}>
               <Pressable
                 onPress={() => setQtySafe(qty - 1)}
-                style={({ pressed }) => [styles.qtyBtn, pressed ? { opacity: 0.85 } : null]}
+                style={({ pressed }) => [
+                  styles.qtyBtn,
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
               >
                 <ThemedText type="defaultSemiBold" style={styles.qtyBtnText}>
                   −
@@ -374,7 +420,10 @@ export default function ProductDetails() {
 
               <Pressable
                 onPress={() => setQtySafe(qty + 1)}
-                style={({ pressed }) => [styles.qtyBtn, pressed ? { opacity: 0.85 } : null]}
+                style={({ pressed }) => [
+                  styles.qtyBtn,
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
               >
                 <ThemedText type="defaultSemiBold" style={styles.qtyBtnText}>
                   +
@@ -477,7 +526,10 @@ export default function ProductDetails() {
                 pressed ? { opacity: 0.9 } : null,
               ]}
             >
-              <ThemedText type="defaultSemiBold" style={styles.ctaBtnSecondaryText}>
+              <ThemedText
+                type="defaultSemiBold"
+                style={styles.ctaBtnSecondaryText}
+              >
                 Comprar agora
               </ThemedText>
             </Pressable>
@@ -485,7 +537,10 @@ export default function ProductDetails() {
 
           <Pressable
             onPress={handleAddToCart}
-            style={({ pressed }) => [styles.ctaBtn, pressed ? { opacity: 0.9 } : null]}
+            style={({ pressed }) => [
+              styles.ctaBtn,
+              pressed ? { opacity: 0.9 } : null,
+            ]}
           >
             <ThemedText type="defaultSemiBold" style={styles.ctaBtnText}>
               {added ? "Adicionado ✓" : "Adicionar"}
@@ -654,7 +709,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
-  ctaBtnText: { color: "#000" },
+  // ✅ antes estava "#000" em fundo verde; melhora legibilidade.
+  ctaBtnText: { color: "#fff" },
 
   secondaryBtn: {
     marginTop: 14,

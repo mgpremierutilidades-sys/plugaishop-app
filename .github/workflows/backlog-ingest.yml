@@ -40,40 +40,48 @@ jobs:
           BACKLOG="ops/backlog.queue.yml"
           mkdir -p ops
 
+          # Ensure backlog file exists
           if [ ! -f "$BACKLOG" ]; then
             printf "" > "$BACKLOG"
           fi
 
-          existing_ids="$(grep -E '^[[:space:]]*-[[:space:]]+id:[[:space:]]*' "$BACKLOG" \
-            | sed -E 's/^[[:space:]]*-[[:space:]]+id:[[:space:]]*//' \
-            | tr -d '\r' || true)"
+          # Collect existing IDs (lines like: - id: XXX)
+          existing_ids="$(grep -E '^[[:space:]]*-[[:space:]]+id:[[:space:]]*' "$BACKLOG" | sed -E 's/^[[:space:]]*-[[:space:]]+id:[[:space:]]*//' | tr -d '\r' || true)"
 
+          # Fetch issues labeled autopilot (open)
+          # We parse in jq for: number, title, labels
           issues_json="$(gh issue list --state open --label autopilot --limit 200 --json number,title,labels)"
 
-          changed=0
+          add_count=0
 
+          # Iterate issues
           echo "$issues_json" | jq -c '.[]' | while read -r item; do
             num="$(echo "$item" | jq -r '.number')"
             title="$(echo "$item" | jq -r '.title')"
             bid="ISSUE-${num}"
 
+            # Skip if already in backlog
             if echo "$existing_ids" | grep -qx "$bid"; then
               continue
             fi
 
-            areaLabel="$(echo "$item" | jq -r '[.labels[].name | select(startswith("area:"))][0] // "area:backlog"')"
-            area="${areaLabel#area:}"
+            # Extract area from label "area:*" (first match)
+            area="$(echo "$item" | jq -r '[.labels[].name | select(startswith("area:"))][0] // "area:backlog"')"
+            area="${area#area:}"
 
-            riskLabel="$(echo "$item" | jq -r '[.labels[].name | select(startswith("risk-"))][0] // "risk-low"')"
-            risk="${riskLabel#risk-}"
+            # Extract risk from labels risk-low/risk-med/risk-high
+            risk="$(echo "$item" | jq -r '[.labels[].name | select(startswith("risk-"))][0] // "risk-low"')"
+            risk="${risk#risk-}"
             case "$risk" in
               low|med|high) ;;
               *) risk="low" ;;
             esac
 
+            # Append YAML item
             {
               echo "- id: ${bid}"
               echo "  area: ${area}"
+              # Quote title safely
               echo "  title: \"${title//\"/\\\"}\""
               echo "  target_files:"
               echo "    - (from_issue)"
@@ -86,10 +94,11 @@ jobs:
               echo ""
             } >> "$BACKLOG"
 
-            changed=1
+            add_count=$((add_count+1))
           done
 
-          if [ "$changed" -eq 1 ] && ! git diff --quiet; then
+          # If file changed, commit & push
+          if ! git diff --quiet; then
             git add "$BACKLOG"
             git commit -m "chore(backlog): ingest autopilot issues" || true
             git push origin HEAD:main
