@@ -24,7 +24,6 @@ function toCategoryId(name: string) {
 
 function categoryIconName(categoryName: string) {
   const n = (categoryName || "").toLowerCase();
-
   if (n.includes("eletro") && !n.includes("eletrod")) return "tv-outline";
   if (n.includes("eletrod")) return "flash-outline";
   if (n.includes("inform")) return "laptop-outline";
@@ -34,7 +33,6 @@ function categoryIconName(categoryName: string) {
   if (n.includes("pet")) return "paw-outline";
   if (n.includes("beleza") || n.includes("perf")) return "sparkles-outline";
   if (n.includes("acess")) return "pricetag-outline";
-
   return "pricetag-outline";
 }
 
@@ -89,7 +87,6 @@ export default function ExploreScreen() {
         <Pressable
           style={styles.headerAction}
           onPress={() => {
-            // ISSUE #52: entrypoint do Explore para /search
             try {
               track("explore_search_entry_clicked", { source: "header_button" });
             } catch {}
@@ -116,7 +113,10 @@ export default function ExploreScreen() {
                   key={c.id}
                   style={styles.categoryCard}
                   onPress={() =>
-                    router.push(`/category/${c.id}` as unknown as any)
+                    router.push({
+                      pathname: "/category/[id]" as any,
+                      params: { id: c.id },
+                    })
                   }
                 >
                   <View style={styles.categoryIconWrap}>
@@ -142,7 +142,6 @@ export default function ExploreScreen() {
         </View>
 
         <View style={styles.section}>
-          {/* ✅ title text-safe (string) conforme contrato do Collapsible */}
           <SafeCollapsible title="Dicas e novidades" initiallyExpanded={false}>
             <Text style={styles.helperText}>
               Promoções, avisos e conteúdo leve podem ficar aqui.
@@ -153,26 +152,20 @@ export default function ExploreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos em destaque</Text>
 
-          {/* Mantido como estava no seu arquivo original (cards manuais) */}
           <View style={styles.productsGrid}>
             {featured.map((p) => (
               <Pressable
-                key={(p as any).id}
+                key={String(p.id)}
                 style={styles.productCard}
-                onPress={() => {
-                  const pid = String((p as any).id);
+                onPress={() =>
                   router.push({
                     pathname: "/product/[id]" as any,
-                    params: { id: pid, source: "explore" },
-                  });
-                }}
+                    params: { id: String(p.id), source: "explore" },
+                  })
+                }
               >
-                {/* NOTE: seu arquivo original usa Image + formatCurrency.
-                   Se você quiser manter EXATAMENTE igual, mantenha imports Image/formatCurrency.
-                   Aqui eu mantive a estrutura do bloco, mas sem reintroduzir imports extras.
-                   Se esse arquivo no PR #86 ainda tinha Image/formatCurrency, preserve-os. */}
                 <Text style={styles.productTitle} numberOfLines={2}>
-                  {String((p as any).title ?? "Produto")}
+                  {String(p.title ?? "Produto")}
                 </Text>
               </Pressable>
             ))}
@@ -205,11 +198,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.divider,
   },
-  headerActionText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
+  headerActionText: { fontSize: 12, fontWeight: "700", color: theme.colors.text },
 
   content: { padding: 16, paddingBottom: 28 },
 
