@@ -308,4 +308,15 @@
     - product_view
     - add_to_cart
   status: blocked
+  risk: low- id: ISSUE-102
+  area: ops
+  title: "OPS-TEST: backlog ingest PR creation (can close)"
+  target_files:
+    - (from_issue)
+  flag: automation-remote-workflow
+  metrics:
+    - issue_ingested
+  status: queued
   risk: low
+  issue_number: 102
+
