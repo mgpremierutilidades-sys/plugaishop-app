@@ -1,5 +1,5 @@
 - id: TICK-0201
-  area: pdp
+  area: product
   title: "PDP v1: gallery + preço + frete estimado + CTA fixo + preview reviews"
   target_files:
     - app/product/[id].tsx
@@ -10,11 +10,11 @@
     - constants/flags.ts
   flag: ff_pdp_v1
   metrics:
-    - pdp.view
-    - pdp.add_to_cart_click
-    - pdp.buy_now_click
-    - pdp.reviews_open
-    - pdp.image_interaction
+    - pdp_view
+    - pdp_add_to_cart_click
+    - pdp_buy_now_click
+    - pdp_reviews_open
+    - pdp_image_interaction
   status: done
   risk: medium
 
@@ -29,15 +29,15 @@
     - constants/flags.ts
   flag: ff_checkout_flow_v1
   metrics:
-    - checkout.shipping.view
-    - checkout.shipping.select
-    - checkout.review.view
-    - checkout.confirm_click
+    - checkout_shipping_view
+    - checkout_shipping_select
+    - checkout_review_view
+    - checkout_confirm_click
   status: done
   risk: medium
 
 - id: TICK-0203
-  area: order
+  area: orders
   title: "Order Success v1: success screen + order summary + CTA"
   target_files:
     - app/order/success.tsx
@@ -45,8 +45,8 @@
     - lib/analytics.ts
   flag: ff_order_success_v1
   metrics:
-    - order.success_view
-    - order.continue_shopping_click
+    - order_success_view
+    - order_continue_shopping_click
   status: done
   risk: low
 
@@ -56,10 +56,10 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.list_render
-    - reviews.card_click
+    - reviews_list_render
+    - reviews_card_click
   status: done
   risk: low
 
@@ -69,9 +69,9 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.list_render
+    - reviews_list_render
   status: done
   risk: low
 
@@ -81,9 +81,9 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.write_attempt
+    - reviews_write_attempt
   status: blocked
   risk: low
 
@@ -94,9 +94,9 @@
     - components/reviews/review-item.tsx
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.badge_impression
+    - reviews_badge_impression
   status: blocked
   risk: low
 
@@ -106,9 +106,9 @@
   target_files:
     - app/(tabs)/index.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - home.catalog.scroll
+    - home_catalog_scroll
   status: blocked
   risk: low
 
@@ -118,9 +118,9 @@
   target_files:
     - app/(tabs)/index.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - home.search.change
+    - home_search_change
   status: blocked
   risk: low
 
@@ -131,9 +131,9 @@
     - components/product-card.tsx
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag:
+  flag: null
   metrics:
-    - home.product.card_click
+    - home_product_card_click
   status: blocked
   risk: low
 
@@ -143,9 +143,9 @@
   target_files:
     - data/reviews.ts
     - types/review.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.list_render
+    - reviews_list_render
   status: blocked
   risk: low
 
@@ -155,9 +155,9 @@
   target_files:
     - lib/analytics.ts
     - app/(tabs)/index.tsx
-  flag:
+  flag: null
   metrics:
-    - analytics.event
+    - analytics_event
   status: blocked
   risk: low
 
@@ -167,9 +167,9 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.filter_verified_toggle
+    - reviews_filter_verified_toggle
   status: blocked
   risk: low
 
@@ -179,9 +179,9 @@
   target_files:
     - components/reviews/review-list.tsx
     - lib/analytics.ts
-  flag:
+  flag: null
   metrics:
-    - reviews.sort_change
+    - reviews_sort_change
   status: blocked
   risk: low
 
@@ -226,7 +226,7 @@
   metrics:
     - checkout_start_rate
   status: blocked
-  risk: med
+  risk: medium
 
 - id: TICK-0103
   area: cart
@@ -308,7 +308,9 @@
     - product_view
     - add_to_cart
   status: blocked
-  risk: low- id: ISSUE-102
+  risk: low
+
+- id: ISSUE-102
   area: ops
   title: "OPS-TEST: backlog ingest PR creation (can close)"
   target_files:
@@ -319,4 +321,3 @@
   status: queued
   risk: low
   issue_number: 102
-
