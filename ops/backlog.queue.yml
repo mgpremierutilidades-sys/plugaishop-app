@@ -1,5 +1,5 @@
 - id: TICK-0201
-  area: pdp
+  area: product
   title: "PDP v1: gallery + preço + frete estimado + CTA fixo + preview reviews"
   target_files:
     - app/product/[id].tsx
@@ -37,7 +37,7 @@
   risk: medium
 
 - id: TICK-0203
-  area: order
+  area: orders
   title: "Order Success v1: success screen + order summary + CTA"
   target_files:
     - app/order/success.tsx
