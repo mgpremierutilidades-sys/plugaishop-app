@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   issues: read
+  pull-requests: write
 
 concurrency:
   group: backlog-ingest-${{ github.ref }}
@@ -25,11 +26,14 @@ jobs:
           fetch-depth: 0
 
       - name: Configure git
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "Plugaishop Autonomy"
           git config user.email "autonomy@plugaishop.ai"
 
       - name: Ingest autopilot issues into ops/backlog.queue.yml
+        id: ingest
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -46,15 +50,14 @@ jobs:
           fi
 
           # Collect existing IDs (lines like: - id: XXX)
-          existing_ids="$(grep -E '^[[:space:]]*-[[:space:]]+id:[[:space:]]*' "$BACKLOG" | sed -E 's/^[[:space:]]*-[[:space:]]+id:[[:space:]]*//' | tr -d '\r' || true)"
+          existing_ids="$(grep -E '^[[:space:]]*-[[:space:]]+id:[[:space:]]*' "$BACKLOG" \
+            | sed -E 's/^[[:space:]]*-[[:space:]]+id:[[:space:]]*//' \
+            | tr -d '\r' || true)"
 
           # Fetch issues labeled autopilot (open)
-          # We parse in jq for: number, title, labels
           issues_json="$(gh issue list --state open --label autopilot --limit 200 --json number,title,labels)"
 
-          add_count=0
-
-          # Iterate issues
+          # Iterate issues and append missing ones
           echo "$issues_json" | jq -c '.[]' | while read -r item; do
             num="$(echo "$item" | jq -r '.number')"
             title="$(echo "$item" | jq -r '.title')"
@@ -77,11 +80,9 @@ jobs:
               *) risk="low" ;;
             esac
 
-            # Append YAML item
             {
               echo "- id: ${bid}"
               echo "  area: ${area}"
-              # Quote title safely
               echo "  title: \"${title//\"/\\\"}\""
               echo "  target_files:"
               echo "    - (from_issue)"
@@ -93,16 +94,36 @@ jobs:
               echo "  issue_number: ${num}"
               echo ""
             } >> "$BACKLOG"
-
-            add_count=$((add_count+1))
           done
 
-          # If file changed, commit & push
+          # Mark whether we changed anything
           if ! git diff --quiet; then
-            git add "$BACKLOG"
-            git commit -m "chore(backlog): ingest autopilot issues" || true
-            git push origin HEAD:main
-            echo "Backlog updated."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No changes."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Create Pull Request (if changed)
+        if: steps.ingest.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ github.token }}
+          branch: automation/backlog-ingest
+          delete-branch: true
+          title: "chore(backlog): ingest autopilot issues"
+          body: |
+            Automated ingest of open issues labeled `autopilot` into `ops/backlog.queue.yml`.
+
+            DoD:
+            - CI green
+
+            Rollback: revert this PR.
+          commit-message: "chore(backlog): ingest autopilot issues"
+          labels: |
+            autopilot
+            area:ops
+            risk-low
+
+      - name: No changes
+        if: steps.ingest.outputs.changed != 'true'
+        run: echo "No changes to ops/backlog.queue.yml"
