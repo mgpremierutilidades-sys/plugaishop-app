@@ -1,7 +1,17 @@
+// store/orders/orders-storage.ts (ajuste o caminho conforme seu repo)
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { LogisticsEvent, LogisticsEventType, Order } from "../../../types/order";
+import type {
+  LogisticsEvent,
+  LogisticsEventType,
+  Order,
+} from "../../../types/order";
 
 const KEY = "@plugaishop:orders";
+
+// ---------------------------
+// Utils
+// ---------------------------
+type UnknownRecord = Record<string, unknown>;
 
 function safeJsonParse<T>(raw: string): T | null {
   try {
@@ -11,7 +21,7 @@ function safeJsonParse<T>(raw: string): T | null {
   }
 }
 
-function isObject(v: unknown): v is Record<string, unknown> {
+function isObject(v: unknown): v is UnknownRecord {
   return typeof v === "object" && v !== null;
 }
 
@@ -28,6 +38,37 @@ function toISODate(v: unknown): string {
   const s = typeof v === "string" ? v : "";
   const d = s ? new Date(s) : new Date();
   return Number.isFinite(d.getTime()) ? d.toISOString() : new Date().toISOString();
+}
+
+function isLogisticsEventType(v: unknown): v is LogisticsEventType {
+  // best-effort: LogisticsEventType normalmente é union de string.
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function makeId(prefix = "lg") {
+  const ts = Date.now().toString(36);
+  const rnd = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${ts}_${rnd}`;
+}
+
+// ---------------------------
+// Normalizers (defensivos)
+// ---------------------------
+function normalizeLogisticsEvent(input: unknown): LogisticsEvent | null {
+  if (!isObject(input)) return null;
+
+  const id = toString(input.id) || makeId("lg");
+  const typeRaw = input.type;
+  if (!isLogisticsEventType(typeRaw)) return null;
+
+  return {
+    id,
+    type: typeRaw,
+    title: typeof input.title === "string" ? input.title : undefined,
+    description: typeof input.description === "string" ? input.description : undefined,
+    location: typeof input.location === "string" ? input.location : undefined,
+    at: toISODate(input.at),
+  };
 }
 
 function normalizeOrder(input: unknown): Order | null {
@@ -52,23 +93,28 @@ function normalizeOrder(input: unknown): Order | null {
   const totalRaw = typeof input.total === "number" ? input.total : Number(input.total);
   const total = Number.isFinite(totalRaw) ? totalRaw : computedTotal;
 
-  const items = Array.isArray(input.items) ? (input.items as any[]) : [];
+  const items = Array.isArray(input.items) ? (input.items as Order["items"]) : ([] as any);
 
   const status = toString(input.status, "created") as Order["status"];
-  const timeline = Array.isArray(input.timeline) ? (input.timeline as any[]) : [];
+  const timeline = Array.isArray(input.timeline) ? (input.timeline as Order["timeline"]) : ([] as any);
   const createdAt = toISODate(input.createdAt);
 
-  const address = isObject(input.address) ? (input.address as any) : undefined;
-  const payment = isObject(input.payment) ? (input.payment as any) : undefined;
+  const address = isObject(input.address) ? (input.address as Order["address"]) : undefined;
+  const payment = isObject(input.payment) ? (input.payment as Order["payment"]) : undefined;
   const note = typeof input.note === "string" ? input.note : undefined;
 
-  // Tracking (opcional)
-  const trackingCode = typeof input.trackingCode === "string" ? input.trackingCode : undefined;
-  const logisticsEvents = Array.isArray(input.logisticsEvents) ? (input.logisticsEvents as any[]) : undefined;
+  const trackingCode = typeof input.trackingCode === "string" ? input.trackingCode.trim() : undefined;
+
+  const logisticsEventsRaw = Array.isArray(input.logisticsEvents) ? input.logisticsEvents : undefined;
+  const logisticsEvents = logisticsEventsRaw
+    ? logisticsEventsRaw
+        .map((e) => normalizeLogisticsEvent(e))
+        .filter((e): e is LogisticsEvent => e !== null)
+    : undefined;
 
   const normalized: Order = {
     id,
-    items: items as any,
+    items,
     subtotal,
     discount,
     shipping,
@@ -80,12 +126,26 @@ function normalizeOrder(input: unknown): Order | null {
     timeline,
     createdAt,
     trackingCode,
-    logisticsEvents: logisticsEvents as any,
+    logisticsEvents,
   };
 
   return normalized;
 }
 
+function dedupeById(orders: Order[]): Order[] {
+  const seen = new Set<string>();
+  const out: Order[] = [];
+  for (const o of orders) {
+    if (!o?.id || seen.has(o.id)) continue;
+    seen.add(o.id);
+    out.push(o);
+  }
+  return out;
+}
+
+// ---------------------------
+// Storage API
+// ---------------------------
 export async function listOrders(): Promise<Order[]> {
   const raw = await AsyncStorage.getItem(KEY);
   if (!raw) return [];
@@ -97,21 +157,29 @@ export async function listOrders(): Promise<Order[]> {
     .map((it) => normalizeOrder(it))
     .filter((it): it is Order => it !== null);
 
-  if (normalized.length !== parsed.length) {
-    await setOrders(normalized);
+  const deduped = dedupeById(normalized);
+
+  // Se normalização removeu lixo/duplicado, persistir versão limpa
+  if (deduped.length !== parsed.length || deduped.length !== normalized.length) {
+    await setOrders(deduped);
   }
 
-  return normalized;
+  return deduped;
 }
 
 export async function setOrders(orders: Order[]): Promise<void> {
-  await AsyncStorage.setItem(KEY, JSON.stringify(orders));
+  const safe = dedupeById(
+    orders.map((o) => normalizeOrder(o) ?? o).filter(Boolean) as Order[],
+  );
+  await AsyncStorage.setItem(KEY, JSON.stringify(safe));
 }
 
 export async function addOrder(order: Order): Promise<void> {
   const normalized = normalizeOrder(order) ?? order;
   const current = await listOrders();
-  const next = [normalized, ...current];
+
+  // upsert (se já existir, substitui)
+  const next = dedupeById([normalized, ...current.filter((o) => o.id !== normalized.id)]);
   await setOrders(next);
 }
 
@@ -134,19 +202,13 @@ export async function updateOrder(order: Order): Promise<void> {
 // ---------------------------
 // Tracking helpers (V1 stub)
 // ---------------------------
-function makeId(prefix = "lg") {
-  const ts = Date.now().toString(36);
-  const rnd = Math.random().toString(36).slice(2, 8);
-  return `${prefix}_${ts}_${rnd}`;
-}
-
 export async function setTrackingCode(orderId: string, trackingCode: string): Promise<Order | null> {
   const o = await getOrderById(orderId);
   if (!o) return null;
 
   const next: Order = {
     ...o,
-    trackingCode: String(trackingCode ?? "").trim(),
+    trackingCode: String(trackingCode ?? "").trim() || undefined,
   };
 
   await updateOrder(next);
@@ -172,13 +234,17 @@ export async function addLogisticsEvent(
     title: event.title,
     description: event.description,
     location: event.location,
-    at: event.at ?? new Date().toISOString(),
+    at: toISODate(event.at),
   };
 
   const current = Array.isArray(o.logisticsEvents) ? o.logisticsEvents : [];
+
+  // dedupe por id e limita tamanho (evita crescimento infinito)
+  const nextEvents = [ev, ...current.filter((e) => e?.id !== ev.id)].slice(0, 100);
+
   const next: Order = {
     ...o,
-    logisticsEvents: [ev, ...current],
+    logisticsEvents: nextEvents,
   };
 
   await updateOrder(next);
