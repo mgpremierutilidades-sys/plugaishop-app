@@ -20,7 +20,8 @@ export type FeatureFlag =
   | "ff_cart_persist_v1"
   | "ff_cart_ui_v2"
   | "ff_reviews_verified_purchase_v1"
-  | "ff_entry_biometric_gate_v1";
+  | "ff_entry_biometric_gate_v1"
+  | "ff_home_achadinhos_v1";
 
 const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_pdp_v1: true,
@@ -51,6 +52,9 @@ const DEFAULT_FLAGS: Record<FeatureFlag, boolean> = {
   ff_reviews_verified_purchase_v1: false,
 
   ff_entry_biometric_gate_v1: true,
+
+  // Ticket 01 — Home Achadinhos do Dia
+  ff_home_achadinhos_v1: false,
 };
 
 export function isFlagEnabled(flag: FeatureFlag): boolean {
