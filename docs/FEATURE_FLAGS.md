@@ -92,6 +92,15 @@ Regra: qualquer novo `isFlagEnabled("...")` deve ser registrado aqui **antes do 
 - **Métricas:** `banner_tab_viewed`
 - **Rollback:** OFF.
 
+### ff_home_achadinhos_v1
+- **Área:** home
+- **Risco:** low
+- **Default:** OFF
+- **Objetivo:** habilitar seção “Achadinhos do Dia” na Home (curadoria local, sem backend).
+- **Rollout:** ON por ambiente/branch após validação.
+- **Métricas:** `home_achadinhos_viewed`, `home_achadinho_clicked`
+- **Rollback:** OFF.
+
 ---
 
 ## Processo

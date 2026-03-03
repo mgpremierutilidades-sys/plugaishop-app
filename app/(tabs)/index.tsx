@@ -1,8 +1,8 @@
 // app/(tabs)/index.tsx
 import { Image } from "expo-image";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -14,12 +14,19 @@ import {
 
 import ParallaxScrollView from "../../components/parallax-scroll-view";
 import { ProductCard } from "../../components/product-card";
+import { isFlagEnabled } from "../../constants/flags";
 import { categories, products } from "../../constants/products";
 import { useColorScheme } from "../../hooks/use-color-scheme";
+import { track } from "../../lib/analytics";
 
 // fail-safe + outbox flush
 import { useCheckoutFailSafe } from "../../hooks/useCheckoutFailSafe";
 import { useOutboxAutoFlush } from "../../hooks/useOutboxAutoFlush";
+
+function formatBRL(value: number) {
+  const v = Number.isFinite(value) ? value : 0;
+  return `R$ ${v.toFixed(2).replace(".", ",")}`;
+}
 
 export default function HomeScreen() {
   useCheckoutFailSafe();
@@ -49,6 +56,44 @@ export default function HomeScreen() {
   }, [query, selectedCategory]);
 
   const headerBg = "#0E1720";
+
+  // ===== Achadinhos (Ticket #27) =====
+  const achadinhosEnabled = isFlagEnabled("ff_home_achadinhos_v1");
+  const achadinhosViewedRef = useRef(false);
+
+  const achadinhos = useMemo(() => {
+    // Curadoria local: prioriza itens com badge, depois completa com os primeiros
+    const withBadge = products.filter((p) => !!(p as any).badge);
+    const rest = products.filter((p) => !(p as any).badge);
+
+    const merged = [...withBadge, ...rest].slice(0, 8);
+    return merged;
+  }, []);
+
+  useEffect(() => {
+    if (!achadinhosEnabled) return;
+    if (achadinhosViewedRef.current) return;
+    if (!achadinhos.length) return;
+
+    achadinhosViewedRef.current = true;
+    try {
+      track("home_achadinhos_viewed", { items_count: achadinhos.length });
+    } catch {}
+  }, [achadinhosEnabled, achadinhos.length]);
+
+  function openAchadinho(productId: string, position: number) {
+    try {
+      track("home_achadinho_clicked", {
+        product_id: String(productId),
+        position,
+      });
+    } catch {}
+
+    router.push({
+      pathname: "/product/[id]" as any,
+      params: { id: String(productId), source: "home" },
+    } as any);
+  }
 
   return (
     <>
@@ -135,7 +180,13 @@ export default function HomeScreen() {
                   <Text
                     style={[
                       styles.chipText,
-                      { color: isSelected ? "#FFFFFF" : isLight ? "#0B1220" : "#E5E7EB" },
+                      {
+                        color: isSelected
+                          ? "#FFFFFF"
+                          : isLight
+                          ? "#0B1220"
+                          : "#E5E7EB",
+                      },
                     ]}
                   >
                     {category}
@@ -150,15 +201,29 @@ export default function HomeScreen() {
         <View
           style={[
             styles.hero,
-            { backgroundColor: isLight ? "#E6F4FE" : "#0B1220", borderColor: isLight ? "#DCEAF7" : "#1F2937" },
+            {
+              backgroundColor: isLight ? "#E6F4FE" : "#0B1220",
+              borderColor: isLight ? "#DCEAF7" : "#1F2937",
+            },
           ]}
         >
           <View style={{ flex: 1, gap: 6 }}>
-            <Text style={[styles.heroTitle, { color: isLight ? "#0B1220" : "#F8FAFC" }]}>
+            <Text
+              style={[
+                styles.heroTitle,
+                { color: isLight ? "#0B1220" : "#F8FAFC" },
+              ]}
+            >
               Kit rápido de vitrine
             </Text>
-            <Text style={[styles.heroDesc, { color: isLight ? "#334155" : "#CBD5E1" }]}>
-              Organização, sinalização e iluminação para vender mais com menos esforço.
+            <Text
+              style={[
+                styles.heroDesc,
+                { color: isLight ? "#334155" : "#CBD5E1" },
+              ]}
+            >
+              Organização, sinalização e iluminação para vender mais com menos
+              esforço.
             </Text>
 
             <View style={styles.heroActions}>
@@ -180,12 +245,103 @@ export default function HomeScreen() {
           <View style={styles.heroNeutralBox} />
         </View>
 
+        {/* Achadinhos do Dia (Ticket #27) */}
+        {achadinhosEnabled ? (
+          <View style={styles.achadinhosBlock}>
+            <View style={styles.achadinhosHeader}>
+              <Text
+                style={[
+                  styles.achadinhosTitle,
+                  { color: isLight ? "#0B1220" : "#F8FAFC" },
+                ]}
+              >
+                Achadinhos do Dia
+              </Text>
+              <Text
+                style={[
+                  styles.achadinhosMeta,
+                  { color: isLight ? "#64748B" : "#94A3B8" },
+                ]}
+              >
+                {achadinhos.length} sugestões
+              </Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.achadinhosRow}
+            >
+              {achadinhos.map((p, idx) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => openAchadinho(p.id, idx + 1)}
+                  style={[
+                    styles.achadinhoCard,
+                    {
+                      backgroundColor: isLight ? "#FFFFFF" : "#0B1220",
+                      borderColor: isLight ? "#E2E8F0" : "#1F2937",
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: p.image }}
+                    style={styles.achadinhoImage}
+                    contentFit="cover"
+                    transition={120}
+                  />
+
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.achadinhoName,
+                      { color: isLight ? "#0B1220" : "#F8FAFC" },
+                    ]}
+                  >
+                    {p.name}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.achadinhoPrice,
+                      { color: isLight ? "#0A7EA4" : "#7AC4FF" },
+                    ]}
+                  >
+                    {formatBRL(p.price)}
+                  </Text>
+
+                  {(p as any).badge ? (
+                    <Text
+                      style={[
+                        styles.achadinhoBadge,
+                        { color: isLight ? "#0B1220" : "#E5E7EB" },
+                      ]}
+                    >
+                      {(p as any).badge}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* Catálogo */}
         <View style={styles.catalogHeader}>
-          <Text style={[styles.sectionTitle, { color: isLight ? "#0B1220" : "#F8FAFC" }]}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: isLight ? "#0B1220" : "#F8FAFC" },
+            ]}
+          >
             Catálogo
           </Text>
-          <Text style={[styles.sectionMeta, { color: isLight ? "#64748B" : "#94A3B8" }]}>
+          <Text
+            style={[
+              styles.sectionMeta,
+              { color: isLight ? "#64748B" : "#94A3B8" },
+            ]}
+          >
             {filteredProducts.length} itens
           </Text>
         </View>
@@ -196,7 +352,12 @@ export default function HomeScreen() {
           ))}
 
           {filteredProducts.length === 0 ? (
-            <Text style={[styles.empty, { color: isLight ? "#64748B" : "#94A3B8" }]}>
+            <Text
+              style={[
+                styles.empty,
+                { color: isLight ? "#64748B" : "#94A3B8" },
+              ]}
+            >
               Não encontramos itens para sua busca.
             </Text>
           ) : null}
@@ -327,6 +488,65 @@ const styles = StyleSheet.create({
     height: 74,
     borderRadius: 18,
     backgroundColor: "rgba(148,163,184,0.25)",
+  },
+
+  achadinhosBlock: {
+    marginTop: 14,
+    gap: 10,
+  },
+
+  achadinhosHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+
+  achadinhosTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+
+  achadinhosMeta: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  achadinhosRow: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+
+  achadinhoCard: {
+    width: 186,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 10,
+    gap: 6,
+  },
+
+  achadinhoImage: {
+    width: "100%",
+    height: 110,
+    borderRadius: 12,
+    backgroundColor: "rgba(148,163,184,0.20)",
+  },
+
+  achadinhoName: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: -0.1,
+  },
+
+  achadinhoPrice: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  achadinhoBadge: {
+    fontSize: 11,
+    fontWeight: "800",
+    opacity: 0.8,
   },
 
   catalogHeader: {
