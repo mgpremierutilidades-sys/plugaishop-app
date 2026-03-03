@@ -1,9 +1,11 @@
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
+import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import Chrome from "../components/global-chrome";
 import { CartProvider } from "../context/CartContext";
 import { DEV_FLAGS } from "../lib/flags.dev";
+import { setActiveScreenName } from "../lib/nav";
 
 if (__DEV__) {
   (globalThis as any).__FLAGS__ = {
@@ -13,6 +15,14 @@ if (__DEV__) {
 }
 
 export default function RootLayout() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // "/(tabs)/index" -> "(tabs)/index"
+    const cleaned = (pathname ?? "").replace(/^\//, "");
+    setActiveScreenName(cleaned || "root");
+  }, [pathname]);
+
   return (
     <SafeAreaProvider>
       <CartProvider>
