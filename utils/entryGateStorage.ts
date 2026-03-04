@@ -1,41 +1,29 @@
+// utils/entryGateStorage.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEY_SKIP = "@plugaishop:entryGate:skipBiometric";
-const KEY_BG_AT = "@plugaishop:entryGate:lastBackgroundAt";
+const KEY_SKIP = "@plugaishop:entry_gate_skip_biometric";
+const KEY_LAST_BG_AT = "@plugaishop:entry_gate_last_background_at";
+
+export async function setEntryGateSkipBiometric(v: boolean): Promise<void> {
+  await AsyncStorage.setItem(KEY_SKIP, v ? "1" : "0");
+}
 
 export async function getEntryGateSkipBiometric(): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(KEY_SKIP);
-    return raw === "1";
-  } catch {
-    return false;
-  }
-}
-
-export async function setEntryGateSkipBiometric(value: boolean): Promise<void> {
-  try {
-    if (value) await AsyncStorage.setItem(KEY_SKIP, "1");
-    else await AsyncStorage.removeItem(KEY_SKIP);
-  } catch {
-    // no-op
-  }
-}
-
-export async function getEntryGateLastBackgroundAt(): Promise<number | null> {
-  try {
-    const raw = await AsyncStorage.getItem(KEY_BG_AT);
-    if (!raw) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+  const raw = await AsyncStorage.getItem(KEY_SKIP);
+  return raw === "1";
 }
 
 export async function setEntryGateLastBackgroundAt(ts: number): Promise<void> {
-  try {
-    await AsyncStorage.setItem(KEY_BG_AT, String(ts));
-  } catch {
-    // no-op
-  }
+  const n = Number.isFinite(ts) ? ts : Date.now();
+  await AsyncStorage.setItem(KEY_LAST_BG_AT, String(n));
+}
+
+export async function getEntryGateLastBackgroundAt(): Promise<number> {
+  const raw = await AsyncStorage.getItem(KEY_LAST_BG_AT);
+  const n = raw ? Number(raw) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+export async function clearEntryGateLastBackgroundAt(): Promise<void> {
+  await AsyncStorage.removeItem(KEY_LAST_BG_AT);
 }
