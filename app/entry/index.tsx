@@ -1,21 +1,19 @@
+// app/entry/index.tsx
 import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from "../components/themed-text";
-import { ThemedView } from "../components/themed-view";
-import { isFlagEnabled } from "../constants/flags";
-import theme from "../constants/theme";
-import { track } from "../lib/analytics";
-import { setEntryGateSkipBiometric } from "../utils/entryGateStorage";
+import { ThemedText } from "../../components/themed-text";
+import { ThemedView } from "../../components/themed-view";
+import { isFlagEnabled } from "../../constants/flags";
+import theme from "../../constants/theme";
+import { track } from "../../lib/analytics";
+import { getEntryGateSkipBiometric, setEntryGateSkipBiometric } from "../../utils/entryGateStorage";
 
-export default function EntryScreen() {
-  const enabled = useMemo(
-    () => isFlagEnabled("ff_entry_biometric_gate_v1"),
-    [],
-  );
+export default function EntryGateScreen() {
+  const enabled = useMemo(() => isFlagEnabled("ff_entry_biometric_gate_v1"), []);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -24,7 +22,27 @@ export default function EntryScreen() {
     } catch {}
   }, [enabled]);
 
-  const proceed = () => router.replace("/(tabs)" as any);
+  const proceed = () => router.replace("/entry/splash");
+
+  // Auto-bypass if user already chose "skip biometric"
+  useEffect(() => {
+    if (!enabled) return proceed();
+
+    (async () => {
+      try {
+        const skipped = await getEntryGateSkipBiometric();
+        if (skipped) {
+          try {
+            track("entry_gate_skip_biometric_auto", {});
+          } catch {}
+          proceed();
+        }
+      } catch {
+        // no-op
+      }
+    })();
+     
+  }, [enabled]);
 
   const allowWithoutBiometric = async () => {
     await setEntryGateSkipBiometric(true);
@@ -44,7 +62,7 @@ export default function EntryScreen() {
 
       if (!hasHardware || !enrolled) {
         try {
-          track("entry_gate_biometric_unavailable", { hasHardware, enrolled });
+          track("entry_gate_biometric_unavailable", { has_hardware: hasHardware, enrolled });
         } catch {}
         return proceed();
       }
@@ -96,13 +114,18 @@ export default function EntryScreen() {
             onPress={authNow}
             disabled={busy}
             style={[styles.primaryBtn, busy ? { opacity: 0.6 } : null]}
+            accessibilityRole="button"
           >
             <ThemedText style={styles.primaryText}>
               {busy ? "..." : "Entrar com biometria"}
             </ThemedText>
           </Pressable>
 
-          <Pressable onPress={allowWithoutBiometric} style={styles.linkBtn}>
+          <Pressable
+            onPress={allowWithoutBiometric}
+            style={styles.linkBtn}
+            accessibilityRole="button"
+          >
             <ThemedText style={styles.linkText}>Entrar sem biometria</ThemedText>
           </Pressable>
         </View>
