@@ -1,265 +1,234 @@
-// store/orders/orders-storage.ts (ajuste o caminho conforme seu repo)
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type {
-  LogisticsEvent,
-  LogisticsEventType,
-  Order,
-} from "../../../types/order";
+// app/orders/[id]/tracking.tsx
+import { Stack, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-const KEY = "@plugaishop:orders";
+import { ThemedText } from "../../../components/themed-text";
+import { ThemedView } from "../../../components/themed-view";
+import theme from "../../../constants/theme";
+import { track } from "../../../lib/analytics";
+import type { LogisticsEvent, Order } from "../../../types/order";
+import { getOrderById } from "../../../utils/ordersStorage";
 
-// ---------------------------
-// Utils
-// ---------------------------
-type UnknownRecord = Record<string, unknown>;
+type Params = { id?: string };
 
-function safeJsonParse<T>(raw: string): T | null {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
+function parseEventISO(e: LogisticsEvent): string {
+  // compat: types/order.ts tem at (preferido) e date (legacy)
+  const raw = (e.at ?? e.date ?? "").trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : "";
 }
 
-function isObject(v: unknown): v is UnknownRecord {
-  return typeof v === "object" && v !== null;
+function sortEventsDesc(events: LogisticsEvent[]): LogisticsEvent[] {
+  // evita recalcular parse várias vezes
+  const scored = events.map((e) => {
+    const iso = parseEventISO(e);
+    const t = iso ? new Date(iso).getTime() : 0;
+    return { e, t: Number.isFinite(t) ? t : 0, iso };
+  });
+
+  scored.sort((a, b) => b.t - a.t);
+  return scored.map((x) => x.e);
 }
 
-function toNumber(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
+export default function OrderTrackingScreen() {
+  const params = useLocalSearchParams<Params>();
+  const orderId = useMemo(() => String(params?.id ?? "").trim(), [params?.id]);
 
-function toString(v: unknown, fallback = ""): string {
-  return typeof v === "string" ? v : fallback;
-}
+  const [loading, setLoading] = useState(true);
+  const [order, setOrder] = useState<Order | null>(null);
 
-function toISODate(v: unknown): string {
-  const s = typeof v === "string" ? v : "";
-  const d = s ? new Date(s) : new Date();
-  return Number.isFinite(d.getTime()) ? d.toISOString() : new Date().toISOString();
-}
+  // evita setState após unmount e também evita "race" em refresh rápido
+  const reqSeq = useRef(0);
 
-function isLogisticsEventType(v: unknown): v is LogisticsEventType {
-  // best-effort: LogisticsEventType normalmente é union de string.
-  return typeof v === "string" && v.trim().length > 0;
-}
+  const load = useCallback(
+    async (reason: "view" | "refresh") => {
+      const seq = ++reqSeq.current;
 
-function makeId(prefix = "lg") {
-  const ts = Date.now().toString(36);
-  const rnd = Math.random().toString(36).slice(2, 8);
-  return `${prefix}_${ts}_${rnd}`;
-}
+      setLoading(true);
+      try {
+        const o = orderId ? await getOrderById(orderId) : null;
+        if (seq !== reqSeq.current) return; // request antigo, ignora
 
-// ---------------------------
-// Normalizers (defensivos)
-// ---------------------------
-function normalizeLogisticsEvent(input: unknown): LogisticsEvent | null {
-  if (!isObject(input)) return null;
+        setOrder(o);
 
-  const id = toString(input.id) || makeId("lg");
-  const typeRaw = input.type;
-  if (!isLogisticsEventType(typeRaw)) return null;
-
-  return {
-    id,
-    type: typeRaw,
-    title: typeof input.title === "string" ? input.title : undefined,
-    description: typeof input.description === "string" ? input.description : undefined,
-    location: typeof input.location === "string" ? input.location : undefined,
-    at: toISODate(input.at),
-  };
-}
-
-function normalizeOrder(input: unknown): Order | null {
-  if (!isObject(input)) return null;
-
-  const id = toString(input.id);
-  if (!id) return null;
-
-  const subtotal = toNumber(input.subtotal, 0);
-  const discount = toNumber(input.discount, 0);
-
-  const shippingObj = isObject(input.shipping) ? input.shipping : null;
-  const shipping = shippingObj
-    ? {
-        method: toString(shippingObj.method),
-        price: toNumber(shippingObj.price, 0),
-        deadline: toString(shippingObj.deadline),
+        try {
+          track(
+            reason === "view" ? "orders_tracking_view" : "orders_tracking_refresh",
+            { order_id: orderId, found: !!o },
+          );
+        } catch {}
+      } finally {
+        if (seq === reqSeq.current) setLoading(false);
       }
-    : undefined;
-
-  const computedTotal = Math.max(0, subtotal - discount + (shipping?.price ?? 0));
-  const totalRaw = typeof input.total === "number" ? input.total : Number(input.total);
-  const total = Number.isFinite(totalRaw) ? totalRaw : computedTotal;
-
-  const items = Array.isArray(input.items) ? (input.items as Order["items"]) : ([] as any);
-
-  const status = toString(input.status, "created") as Order["status"];
-  const timeline = Array.isArray(input.timeline) ? (input.timeline as Order["timeline"]) : ([] as any);
-  const createdAt = toISODate(input.createdAt);
-
-  const address = isObject(input.address) ? (input.address as Order["address"]) : undefined;
-  const payment = isObject(input.payment) ? (input.payment as Order["payment"]) : undefined;
-  const note = typeof input.note === "string" ? input.note : undefined;
-
-  const trackingCode = typeof input.trackingCode === "string" ? input.trackingCode.trim() : undefined;
-
-  const logisticsEventsRaw = Array.isArray(input.logisticsEvents) ? input.logisticsEvents : undefined;
-  const logisticsEvents = logisticsEventsRaw
-    ? logisticsEventsRaw
-        .map((e) => normalizeLogisticsEvent(e))
-        .filter((e): e is LogisticsEvent => e !== null)
-    : undefined;
-
-  const normalized: Order = {
-    id,
-    items,
-    subtotal,
-    discount,
-    shipping,
-    total,
-    address,
-    payment,
-    note,
-    status,
-    timeline,
-    createdAt,
-    trackingCode,
-    logisticsEvents,
-  };
-
-  return normalized;
-}
-
-function dedupeById(orders: Order[]): Order[] {
-  const seen = new Set<string>();
-  const out: Order[] = [];
-  for (const o of orders) {
-    if (!o?.id || seen.has(o.id)) continue;
-    seen.add(o.id);
-    out.push(o);
-  }
-  return out;
-}
-
-// ---------------------------
-// Storage API
-// ---------------------------
-export async function listOrders(): Promise<Order[]> {
-  const raw = await AsyncStorage.getItem(KEY);
-  if (!raw) return [];
-
-  const parsed = safeJsonParse<unknown>(raw);
-  if (!Array.isArray(parsed)) return [];
-
-  const normalized = parsed
-    .map((it) => normalizeOrder(it))
-    .filter((it): it is Order => it !== null);
-
-  const deduped = dedupeById(normalized);
-
-  // Se normalização removeu lixo/duplicado, persistir versão limpa
-  if (deduped.length !== parsed.length || deduped.length !== normalized.length) {
-    await setOrders(deduped);
-  }
-
-  return deduped;
-}
-
-export async function setOrders(orders: Order[]): Promise<void> {
-  const safe = dedupeById(
-    orders.map((o) => normalizeOrder(o) ?? o).filter(Boolean) as Order[],
+    },
+    [orderId],
   );
-  await AsyncStorage.setItem(KEY, JSON.stringify(safe));
+
+  useEffect(() => {
+    void load("view");
+  }, [load]);
+
+  const logisticsEvents = order?.logisticsEvents;
+
+  const events = useMemo(() => {
+    const list = Array.isArray(logisticsEvents) ? logisticsEvents : [];
+    return sortEventsDesc(list);
+  }, [logisticsEvents]);
+
+  return (
+    <ThemedView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={styles.header}>
+        <ThemedText style={styles.title}>Rastreamento</ThemedText>
+        <ThemedText style={styles.subtitle}>
+          {orderId ? `Pedido #${orderId}` : "Pedido inválido"}
+        </ThemedText>
+      </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <ThemedText style={styles.muted}>Carregando...</ThemedText>
+        </View>
+      ) : !order ? (
+        <View style={styles.center}>
+          <ThemedText style={styles.titleSmall}>Pedido não encontrado</ThemedText>
+          <ThemedText style={styles.muted}>
+            Não foi possível localizar os dados deste pedido no armazenamento local.
+          </ThemedText>
+        </View>
+      ) : (
+        <>
+          <View style={styles.summaryCard}>
+            <ThemedText style={styles.summaryTitle}>Status</ThemedText>
+            <ThemedText style={styles.summaryValue}>{String(order.status ?? "")}</ThemedText>
+
+            <View style={styles.summaryRow}>
+              <ThemedText style={styles.summaryMeta}>Criado em</ThemedText>
+              <ThemedText style={styles.summaryMetaValue}>
+                {order.createdAt ? new Date(order.createdAt).toLocaleString() : "-"}
+              </ThemedText>
+            </View>
+
+            {order.trackingCode ? (
+              <View style={styles.summaryRow}>
+                <ThemedText style={styles.summaryMeta}>Código</ThemedText>
+                <ThemedText style={styles.summaryMetaValue}>{order.trackingCode}</ThemedText>
+              </View>
+            ) : null}
+          </View>
+
+          <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+            <ThemedText style={styles.sectionTitle}>Eventos</ThemedText>
+
+            {events.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <ThemedText style={styles.muted}>Nenhum evento de logística registrado.</ThemedText>
+              </View>
+            ) : (
+              events.map((e) => {
+                const iso = parseEventISO(e);
+                const dt = iso ? new Date(iso).toLocaleString() : "-";
+                const title =
+                  e.title?.trim() ||
+                  e.note?.trim() ||
+                  String(e.type ?? "Atualização").toUpperCase();
+
+                return (
+                  <View key={e.id} style={styles.eventCard}>
+                    <View style={styles.eventTopRow}>
+                      <ThemedText style={styles.eventTitle} numberOfLines={2}>
+                        {title}
+                      </ThemedText>
+                      <ThemedText style={styles.eventTime}>{dt}</ThemedText>
+                    </View>
+
+                    {e.location ? <ThemedText style={styles.eventMeta}>{e.location}</ThemedText> : null}
+                    {e.description ? <ThemedText style={styles.eventDesc}>{e.description}</ThemedText> : null}
+                  </View>
+                );
+              })
+            )}
+
+            <View style={{ height: 16 }} />
+          </ScrollView>
+
+          <Pressable onPress={() => void load("refresh")} style={styles.refreshBtn}>
+            <ThemedText style={styles.refreshText}>Atualizar</ThemedText>
+          </Pressable>
+        </>
+      )}
+    </ThemedView>
+  );
 }
 
-export async function addOrder(order: Order): Promise<void> {
-  const normalized = normalizeOrder(order) ?? order;
-  const current = await listOrders();
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
 
-  // upsert (se já existir, substitui)
-  const next = dedupeById([normalized, ...current.filter((o) => o.id !== normalized.id)]);
-  await setOrders(next);
-}
+  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 },
+  title: { fontSize: 20, fontWeight: "900", color: theme.colors.text },
+  subtitle: { marginTop: 4, fontSize: 12, color: theme.colors.textMuted },
 
-export async function clearOrders(): Promise<void> {
-  await AsyncStorage.removeItem(KEY);
-}
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
+  muted: { fontSize: 12, color: theme.colors.textMuted },
 
-export async function getOrderById(id: string): Promise<Order | null> {
-  const orders = await listOrders();
-  return orders.find((o) => o.id === id) ?? null;
-}
-
-export async function updateOrder(order: Order): Promise<void> {
-  const normalized = normalizeOrder(order) ?? order;
-  const orders = await listOrders();
-  const next = orders.map((o) => (o.id === normalized.id ? normalized : o));
-  await setOrders(next);
-}
-
-// ---------------------------
-// Tracking helpers (V1 stub)
-// ---------------------------
-export async function setTrackingCode(orderId: string, trackingCode: string): Promise<Order | null> {
-  const o = await getOrderById(orderId);
-  if (!o) return null;
-
-  const next: Order = {
-    ...o,
-    trackingCode: String(trackingCode ?? "").trim() || undefined,
-  };
-
-  await updateOrder(next);
-  return next;
-}
-
-export async function addLogisticsEvent(
-  orderId: string,
-  event: {
-    type: LogisticsEventType;
-    title?: string;
-    description?: string;
-    location?: string;
-    at?: string; // opcional; se não vier, now()
+  summaryCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 14,
+    gap: 8,
   },
-): Promise<Order | null> {
-  const o = await getOrderById(orderId);
-  if (!o) return null;
+  summaryTitle: { fontSize: 12, color: theme.colors.textMuted, fontWeight: "800" },
+  summaryValue: { fontSize: 14, color: theme.colors.text, fontWeight: "900" },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  summaryMeta: { fontSize: 12, color: theme.colors.textMuted },
+  summaryMetaValue: { fontSize: 12, color: theme.colors.text },
 
-  const ev: LogisticsEvent = {
-    id: makeId("lg"),
-    type: event.type,
-    title: event.title,
-    description: event.description,
-    location: event.location,
-    at: toISODate(event.at),
-  };
+  listContent: { paddingHorizontal: 16, paddingBottom: 90 },
+  sectionTitle: { fontSize: 13, fontWeight: "900", color: theme.colors.text, marginBottom: 10 },
 
-  const current = Array.isArray(o.logisticsEvents) ? o.logisticsEvents : [];
+  emptyCard: {
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 14,
+  },
 
-  // dedupe por id e limita tamanho (evita crescimento infinito)
-  const nextEvents = [ev, ...current.filter((e) => e?.id !== ev.id)].slice(0, 100);
+  eventCard: {
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    padding: 14,
+    marginBottom: 10,
+    gap: 6,
+  },
+  eventTopRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  eventTitle: { flex: 1, fontSize: 13, fontWeight: "900", color: theme.colors.text },
+  eventTime: { fontSize: 11, color: theme.colors.textMuted },
+  eventMeta: { fontSize: 12, color: theme.colors.textMuted },
+  eventDesc: { fontSize: 12, color: theme.colors.text },
 
-  const next: Order = {
-    ...o,
-    logisticsEvents: nextEvents,
-  };
+  refreshBtn: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 14,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  refreshText: { color: "#fff", fontSize: 13, fontWeight: "900" },
 
-  await updateOrder(next);
-  return next;
-}
-
-export async function clearLogisticsEvents(orderId: string): Promise<Order | null> {
-  const o = await getOrderById(orderId);
-  if (!o) return null;
-
-  const next: Order = {
-    ...o,
-    logisticsEvents: [],
-  };
-
-  await updateOrder(next);
-  return next;
-}
+  titleSmall: { fontSize: 14, fontWeight: "900", color: theme.colors.text },
+});
