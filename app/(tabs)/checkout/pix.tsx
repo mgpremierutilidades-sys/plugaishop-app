@@ -1,7 +1,6 @@
-// app/(tabs)/checkout/pix.tsx
 import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { track } from "../../../lib/analytics";
 
@@ -9,10 +8,12 @@ export default function CheckoutPixShim() {
   const router = useRouter();
 
   useEffect(() => {
-    track("checkout.route_shim_redirect", {
-      from: "(tabs)/checkout/pix",
-      to: "(tabs)/checkout/payment",
-    });
+    try {
+      track("checkout_route_shim_redirect", {
+        from: "/(tabs)/checkout/pix",
+        to: "/(tabs)/checkout/payment",
+      });
+    } catch {}
 
     router.replace("/(tabs)/checkout/payment");
   }, [router]);
