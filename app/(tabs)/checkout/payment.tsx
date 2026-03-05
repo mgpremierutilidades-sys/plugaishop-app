@@ -1,4 +1,3 @@
-// app/(tabs)/checkout/payment.tsx
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -28,7 +27,7 @@ export default function Payment() {
       ...order,
       payment: { method: "pix", status: "pending" },
     });
-    router.push("/checkout/review" as any);
+    router.push("/(tabs)/checkout/review" as any);
   }
 
   return (
