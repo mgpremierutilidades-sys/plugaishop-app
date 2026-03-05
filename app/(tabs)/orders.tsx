@@ -16,7 +16,11 @@ import {
   getUnreadCount,
   listNotifications,
 } from "../../utils/notificationsStorage";
-import { clearOrders, listOrders, updateOrder } from "../../utils/ordersStorage";
+import {
+  clearOrders,
+  listOrders,
+  updateOrder,
+} from "../../utils/ordersStorage";
 
 function formatBRL(value: number) {
   const n = Number.isFinite(value) ? value : 0;
@@ -45,8 +49,9 @@ function statusLabel(st: string) {
   }
 }
 
-function formatWhen(iso: string) {
+function formatWhen(iso?: string) {
   const s = String(iso ?? "");
+  if (!s) return "-";
   return s.slice(0, 19).replace("T", " ");
 }
 
@@ -54,8 +59,8 @@ export default function OrdersTab() {
   const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [unread, setUnread] = useState(0);
 
+  const [unread, setUnread] = useState(0);
   const [inbox, setInbox] = useState<InAppNotification[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
 
@@ -67,16 +72,18 @@ export default function OrdersTab() {
   const inboxEnabled =
     notifEnabled && isFlagEnabled("ff_orders_notifications_inbox_v1");
 
-  const refreshUnread = useCallback(async () => {
+  const refreshUnread = useCallback(async (): Promise<number> => {
     if (!notifEnabled) {
       setUnread(0);
-      return;
+      return 0;
     }
     try {
       const c = await getUnreadCount();
       setUnread(c);
+      return c;
     } catch {
       setUnread(0);
+      return 0;
     }
   }, [notifEnabled]);
 
@@ -148,27 +155,20 @@ export default function OrdersTab() {
     setOrders(o);
     setLoading(false);
 
-    await refreshUnread();
+    const unreadNow = await refreshUnread();
     await refreshInbox();
 
     try {
       track("orders_list_view", { count: o.length });
       if (inboxEnabled) {
-        track("orders_inbox_view", { unread_count: unread });
+        track("orders_inbox_view", { unread_count: unreadNow });
       }
     } catch {}
-  }, [
-    autoEnabled,
-    notifEnabled,
-    refreshInbox,
-    refreshUnread,
-    inboxEnabled,
-    unread,
-  ]);
+  }, [autoEnabled, notifEnabled, refreshInbox, refreshUnread, inboxEnabled]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load]),
   );
 
@@ -176,8 +176,8 @@ export default function OrdersTab() {
     if (!notifEnabled) return;
 
     const unsub = subscribeNotificationsChanged(() => {
-      refreshUnread();
-      refreshInbox();
+      void refreshUnread();
+      void refreshInbox();
     });
 
     return unsub;
@@ -199,14 +199,10 @@ export default function OrdersTab() {
       >
         <AppHeader title="Pedidos" showBack={false as any} />
         <View style={{ padding: 16 }}>
-          <Text
-            style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}
-          >
+          <Text style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
             Em breve
           </Text>
-          <Text
-            style={{ marginTop: 8, opacity: 0.7, color: theme.colors.text }}
-          >
+          <Text style={{ marginTop: 8, opacity: 0.7, color: theme.colors.text }}>
             A área de pedidos está desativada no momento.
           </Text>
         </View>
@@ -306,33 +302,13 @@ export default function OrdersTab() {
                       backgroundColor: theme.colors.background,
                     }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "900",
-                        color: theme.colors.text,
-                      }}
-                    >
+                    <Text style={{ fontSize: 12, fontWeight: "900", color: theme.colors.text }}>
                       {n.title}
                     </Text>
-                    <Text
-                      style={{
-                        marginTop: 4,
-                        fontSize: 12,
-                        opacity: 0.8,
-                        color: theme.colors.text,
-                      }}
-                    >
+                    <Text style={{ marginTop: 4, fontSize: 12, opacity: 0.8, color: theme.colors.text }}>
                       {n.body}
                     </Text>
-                    <Text
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        opacity: 0.6,
-                        color: theme.colors.text,
-                      }}
-                    >
+                    <Text style={{ marginTop: 4, fontSize: 11, opacity: 0.6, color: theme.colors.text }}>
                       {formatWhen(n.createdAt)}
                     </Text>
                   </Pressable>
@@ -385,7 +361,9 @@ export default function OrdersTab() {
           ? orders.map((o) => {
               const total = Number(o.total ?? 0);
               const last = o.timeline?.length ? o.timeline[o.timeline.length - 1] : null;
-              const when = last?.date ?? o.createdAt;
+
+              // fallback robusto: timeline pode não ter "date" no type
+              const when = String((last as any)?.date ?? o.createdAt);
 
               return (
                 <Pressable
