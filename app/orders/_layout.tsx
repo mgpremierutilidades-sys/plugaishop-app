@@ -1,5 +1,3 @@
-// app/orders/_layout.tsx
-import React from "react";
 import { Stack } from "expo-router";
 
 export default function OrdersStackLayout() {
@@ -10,7 +8,6 @@ export default function OrdersStackLayout() {
         animation: "slide_from_right",
       }}
     >
-      {/* Dentro de /orders as rotas são relativas */}
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
       <Stack.Screen name="[id]/support" />
